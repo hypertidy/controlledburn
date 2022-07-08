@@ -16,8 +16,3 @@ Rcpp::CharacterVector as_character(const Rcpp::RObject vec) {
   }
 }
 
-Rcpp::S4 brick(const Rcpp::S4 &raster) {
-  Rcpp::Environment raster_pkg = Rcpp::Environment::namespace_env("raster");
-  Rcpp::Function brick = raster_pkg["brick"];
-  return brick(raster);
-}

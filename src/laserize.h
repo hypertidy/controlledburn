@@ -2,10 +2,7 @@
 #define LASERIZE
 
 
-extern Rcpp::S4 laserize(Rcpp::DataFrame &sf,
-                          Rcpp::S4 &raster,
-                          std::string field,
-                          std::string fun,
-                          double background,
-                          std::string by);
+extern Rcpp::IntegerVector laserize(Rcpp::DataFrame &sf,
+                         Rcpp::NumericVector &extent,
+                         Rcpp::IntegerVector &dimension);
 #endif

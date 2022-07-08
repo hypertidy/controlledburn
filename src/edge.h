@@ -9,22 +9,17 @@ struct RasterInfo {
   double xmin, xmax, ymin, ymax, xres, yres, ncold;
   uint nrow, ncol;
 
-  RasterInfo(Rcpp::S4 raster) {
-    Rcpp::S4 extent = raster.slot("extent");
-    xmin = extent.slot("xmin");
-    xmax = extent.slot("xmax");
-    ymin = extent.slot("ymin");
-    ymax = extent.slot("ymax");
-    nrow = raster.slot("nrows");
-    ncol = raster.slot("ncols");
-    ncold = ncol;
+  RasterInfo(Rcpp::NumericVector extent, Rcpp::IntegerVector dimension) {
+    xmin = extent[0];
+    xmax = extent[1];
+    ymin = extent[2];
+    ymax = extent[3];
+    ncol = dimension[0];
+    nrow = dimension[1];
 
-    // if(raster.slot("rotated")) {
-    //   Rcpp::stop("No current support for rotated rasters.");
-    // } else {
-      xres = (xmax - xmin)/ncol;
-      yres = (ymax - ymin)/nrow;
-//    }
+    ncold = ncol;
+    xres = (xmax - xmin)/ncol;
+    yres = (ymax - ymin)/nrow;
   }
 };
 

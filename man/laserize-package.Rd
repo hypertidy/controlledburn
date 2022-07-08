@@ -19,7 +19,6 @@ Authors:
 Other contributors:
 \itemize{
   \item EcoHealth Alliance [copyright holder]
-  \item USAID PREDICT [funder]
 }
 
 }

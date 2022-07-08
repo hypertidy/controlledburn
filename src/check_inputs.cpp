@@ -2,13 +2,7 @@
 using namespace Rcpp;
 
 void check_inputs(Rcpp::DataFrame &sf,
-                  Rcpp::S4 &raster,
-                  Rcpp::Nullable<std::string> field,
-                  std::string fun,
-                  double background,
-                  Rcpp::Nullable<std::string> by,
-                  Rcpp::List &polygons,
-                  Rcpp::NumericVector &field_vals) {
+                  Rcpp::List &polygons) {
 
   std::stringstream err_msg;
 
@@ -23,11 +17,6 @@ void check_inputs(Rcpp::DataFrame &sf,
     err_msg << "sf geometry must be POLYGON or MULTIPOLYGON" << std::endl;
   }
 
-  if(field.isNotNull()) {
-    field_vals = sf[Rcpp::as<std::string>(field.get())];
-  } else {
-    field_vals = Rcpp::rep(1, polygons.size());
-  }
 
 
   std::string err = err_msg.str();
