@@ -46,6 +46,9 @@
 <li>
   <a href="reference/index.html">Reference</a>
 </li>
+<li>
+  <a href="news/index.html">Changelog</a>
+</li>
       </ul>
 <ul class="nav navbar-nav navbar-right"></ul>
 </div>
@@ -70,13 +73,13 @@
 <li>
 <input type="checkbox" disabled checked>copy logic from fasterize, and remove Armadillo array handling</li>
 <li>
-<input type="checkbox" disabled>remove use of raster objects, in favour of input extent and dimension</li>
+<input type="checkbox" disabled checked>remove use of raster objects, in favour of input extent and dimension</li>
 <li>
-<input type="checkbox" disabled>remove all trace of the raster package</li>
+<input type="checkbox" disabled checked>remove all trace of the raster package</li>
+<li>
+<input type="checkbox" disabled>implement return of the ‘yline, xpix’ and polygon ID info to user (see below)</li>
 <li>
 <input type="checkbox" disabled>move to cpp11</li>
-<li>
-<input type="checkbox" disabled>ensure return value/s of intermediate steps (see below) rather than materialized rasters</li>
 <li>
 <input type="checkbox" disabled>rasterize lines and points <a href="https://github.com/ecohealthalliance/fasterize/issues/30" class="external-link">fasterize/issues/30</a>
 </li>
@@ -88,10 +91,12 @@
 </h2>
 <ul>
 <li>two options, record presence of polygon OR ID of polygon</li>
-<li>a row-indexed set of edge instances (start, end) along scanlines with the two options</li>
+<li>a row-indexed (<em>yline</em>) set of edge instances (start, end <em>xpix</em>) along scanlines with the two options</li>
 <li>tools to format this meaningfully, and plot lazily</li>
 <li>tools to materialize as actual raster data</li>
 </ul>
+<p>For the record, I wanted this facility before I read this issue - but here’s a real world example, discussed in PROJ for very fast lookup for large non-materialized (highly compressed) grids by Thomas Knudsen:</p>
+<p><a href="https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992" class="external-link uri">https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992</a></p>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
