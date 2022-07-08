@@ -12,7 +12,6 @@ void rasterize_polygon(Rcpp::RObject polygon,
   uint counter, xstart, xend, xpix;
   xstart = 0;
 
-  Rprintf("we doing it\n");
   //Create the list of all edges of the polygon, fill and sort it
   std::list<Edge> edges;
   edgelist(polygon, ras, edges);

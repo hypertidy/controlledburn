@@ -29,20 +29,24 @@ This is an expression of my WISHUE "cell abstraction" [fasterize/issues/11](http
 
 
 - [x] copy logic from fasterize, and remove Armadillo array handling
-- [ ] remove use of raster objects, in favour of input extent and dimension
-- [ ] remove all trace of the raster package
+- [x] remove use of raster objects, in favour of input extent and dimension
+- [x] remove all trace of the raster package
+- [ ] implement return of the 'yline, xpix' and polygon ID info to user (see below)
 - [ ] move to cpp11
-- [ ] ensure return value/s of intermediate steps (see below) rather than materialized rasters
 - [ ] rasterize lines and points [fasterize/issues/30](https://github.com/ecohealthalliance/fasterize/issues/30)
 - [ ] consider formats other than sf (wk, geos, grd, rct, triangles etc.)
 
 ## Outputs
 
 * two options, record presence of polygon OR ID of polygon
-* a row-indexed set of edge instances (start, end) along scanlines with the two options
+* a row-indexed (*yline*) set of edge instances (start, end *xpix*) along scanlines with the two options
 * tools to format this meaningfully, and plot lazily
 * tools to materialize as actual raster data
 
+For the record, I wanted this facility before I read this issue - but here's a real world example, discussed in PROJ for
+very fast lookup for large non-materialized (highly compressed) grids by Thomas Knudsen: 
+
+https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992
 
 
 ## Installation

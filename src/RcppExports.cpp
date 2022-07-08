@@ -11,24 +11,21 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // laserize
-Rcpp::S4 laserize(Rcpp::DataFrame& sf, Rcpp::S4& raster, Rcpp::Nullable<std::string> field, std::string fun, double background, Rcpp::Nullable<std::string> by);
-RcppExport SEXP _laserize_laserize(SEXP sfSEXP, SEXP rasterSEXP, SEXP fieldSEXP, SEXP funSEXP, SEXP backgroundSEXP, SEXP bySEXP) {
+Rcpp::IntegerVector laserize(Rcpp::DataFrame& sf, Rcpp::NumericVector& extent, Rcpp::IntegerVector& dimension);
+RcppExport SEXP _laserize_laserize(SEXP sfSEXP, SEXP extentSEXP, SEXP dimensionSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::DataFrame& >::type sf(sfSEXP);
-    Rcpp::traits::input_parameter< Rcpp::S4& >::type raster(rasterSEXP);
-    Rcpp::traits::input_parameter< Rcpp::Nullable<std::string> >::type field(fieldSEXP);
-    Rcpp::traits::input_parameter< std::string >::type fun(funSEXP);
-    Rcpp::traits::input_parameter< double >::type background(backgroundSEXP);
-    Rcpp::traits::input_parameter< Rcpp::Nullable<std::string> >::type by(bySEXP);
-    rcpp_result_gen = Rcpp::wrap(laserize(sf, raster, field, fun, background, by));
+    Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type extent(extentSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector& >::type dimension(dimensionSEXP);
+    rcpp_result_gen = Rcpp::wrap(laserize(sf, extent, dimension));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_laserize_laserize", (DL_FUNC) &_laserize_laserize, 6},
+    {"_laserize_laserize", (DL_FUNC) &_laserize_laserize, 3},
     {NULL, NULL, 0}
 };
 
