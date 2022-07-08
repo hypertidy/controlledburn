@@ -8,8 +8,7 @@ Authors@R: c(
            person("Noam", "Ross", , ,
            role = c("aut"),
            comment=c(ORCID = "0000-0002-2136-0000")),
-    person("EcoHealth Alliance", role="cph"),
-    person("USAID PREDICT", role = "fnd"))
+    person("EcoHealth Alliance", role="cph"))
 Description: WIP, doesn't achieve any of these claims yet. Rasterize without materializing any pixel values. Rasterization of polygons starts with classifyin
  pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index
  of start and stops of edges by scanline. 'laserize' produces these intermediate structures, so they can 
