@@ -21,9 +21,6 @@ r <- laserize:::laserize(pols, extent = c(range(pdata$x), range(pdata$y)),
                                dimension = c(50000, 40000))
 })
 
-library(raster)
-system.time(fasterize::fasterize(pols, raster(extent(c(range(pdata$x), range(pdata$y))), nrows = 10000, ncols  = 20000)))
-
 
 test_that("multiplication works", {
   expect_equal(r, 1L)
