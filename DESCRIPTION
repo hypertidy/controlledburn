@@ -1,0 +1,25 @@
+Package: laserize
+Title: Rasterize Index
+Version: 0.0.0.9000
+Authors@R: c(
+           person("Michael", "Sumner", role = c("aut", "cre", "ctb"),
+           email = "mdsumner@gmail.com",
+           comment=c(ORCID = "0000-0002-2471-7511")),
+           person("Noam", "Ross", , ,
+           role = c("aut"),
+           comment=c(ORCID = "0000-0002-2136-0000")),
+    person("EcoHealth Alliance", role="cph"),
+    person("USAID PREDICT", role = "fnd"))
+Description: Rasterize without materializing any pixel values. Rasterization of polygons starts with classifyin
+ pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index
+ of start and stops of edges by scanline. 'laserize' produces these intermediate structures, so they can 
+ be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from 
+ materialized rasters. This package was derived from 'fasterize', removing Armadillo and the raster package. 
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.2.0
+LinkingTo: 
+    Rcpp
+Imports: 
+    Rcpp
