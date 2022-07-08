@@ -6,8 +6,8 @@
 using namespace Rcpp;
 // A small object to hold basic info about raster dimensions
 struct RasterInfo {
-  double xmin, xmax, ymin, ymax, xres, yres, ncold;
-  uint nrow, ncol;
+  double xmin, xmax, ymin, ymax, xres, yres;
+  unsigned int nrow, ncol, ncold;
 
   RasterInfo(Rcpp::NumericVector extent, Rcpp::IntegerVector dimension) {
     xmin = extent[0];
@@ -26,8 +26,8 @@ struct RasterInfo {
 // A data structure to hold only the neccessary information about a polygon
 // edge needed to rasterize it
 struct Edge {
-  uint ystart;  //the first matrix row intersected
-  uint yend;  //the matrix row below the end of the line
+  unsigned int ystart;  //the first matrix row intersected
+  unsigned int yend;  //the matrix row below the end of the line
   long double dxdy; //change in x per y. Long helps with some rounding errors
   long double x; //the x location on the first matrix row intersected
 

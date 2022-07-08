@@ -9,7 +9,7 @@ void rasterize_polygon(Rcpp::RObject polygon,
                        RasterInfo &ras) {
 
   std::list<Edge>::iterator it;
-  uint counter, xstart, xend, xpix;
+  unsigned int counter, xstart, xend, xpix;
   xstart = 0;
 
   //Create the list of all edges of the polygon, fill and sort it
@@ -21,7 +21,7 @@ void rasterize_polygon(Rcpp::RObject polygon,
   std::list<Edge> active_edges;
 
   //Start at the top of the first edge
-  uint yline(edges.front().ystart);
+  unsigned int yline(edges.front().ystart);
 
   //Main loop
   while(
