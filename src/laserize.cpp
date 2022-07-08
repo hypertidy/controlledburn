@@ -9,6 +9,7 @@ using namespace Rcpp;
 #include "laserize.h"
 #include "utils.h"
 
+
 // Rasterize an sf object of polygons
 //
 // Rasterize set of polygons
@@ -76,51 +77,16 @@ Rcpp::S4 laserize(Rcpp::DataFrame &sf,
   //set up things we'll use later
   Rcpp::List::iterator p;
   Rcpp::NumericVector::iterator f;
-
   RasterInfo ras(raster);
-  //PixelFn pixel_function = set_pixelfn(fun);
-  uint n_layers;
-  //  If there is a `by` argument, we calculate unique values and set up
-  //  a RasterBrick and a multi-layered output
-//  if (by.isNotNull()) {
-
-    //For the case of collapsing all to one layer
-  //} else {
-    // Do this again because the raster object is different,
-    Rcpp::S4 raster1 = Rcpp::clone(raster);
-    n_layers = 1;
-    Rcpp::S4 rasterdata(raster1.slot("data"));
-    rasterdata.slot("values") =
-      Rcpp::NumericVector(ras.nrow * ras.ncol * n_layers);
-    // arma::cube raster_array(
-    //     Rcpp::NumericVector(rasterdata.slot("values")).begin(),
-    //     ras.ncol, ras.nrow, n_layers, false, true);
-    // raster_array.fill(NA_REAL);
 
     //Rasterize but always assign to the one layer
     p = polygons.begin();
     f = field_vals.begin();
-    // for(; p != polygons.end(); ++p, ++f) {
-    //   rasterize_polygon(raster_array.slice(0), (*p), (*f),
-    //                     ras, pixel_function);
-    // }
+     for(; p != polygons.end(); ++p, ++f) {
+       rasterize_polygon( (*p), ras);
+    }
 
-    //Fill in the empty cells
-    // if(!R_IsNA(background)) {
-    //   raster_array.replace(NA_REAL, background);
-    // }
-
-    //Update other raster slots
-    // rasterdata.slot("min") = raster_array.min();
-    // rasterdata.slot("max") = raster_array.max();
-    rasterdata.slot("inmemory") = true;
-    rasterdata.slot("fromdisk") = false;
-    rasterdata.slot("haveminmax") = true;
-    rasterdata.slot("names") = "layer";
-
-
-    return raster1;
-  //}
+    return raster;
 }
 
 

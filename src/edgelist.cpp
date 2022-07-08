@@ -23,6 +23,7 @@ void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges) {
         }
       }
     }
+    Rprintf("%i polygons\n", poly.nrow());
     break;
   };
   case VECSXP: {
@@ -33,6 +34,7 @@ void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges) {
         ++it) {
       edgelist(Rcpp::wrap(*it), ras, edges);
     }
+    Rprintf("multipolygons\n");
     break;
   }
   default: {

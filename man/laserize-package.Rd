@@ -6,7 +6,7 @@
 \alias{laserize-package}
 \title{laserize: Rasterize Index}
 \description{
-Rasterize without materializing any pixel values. Rasterization of polygons starts with classifyin pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index of start and stops of edges by scanline. 'laserize' produces these intermediate structures, so they can be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from materialized rasters. This package was derived from 'fasterize', removing Armadillo and the raster package.
+WIP, doesn't achieve any of these claims yet. Rasterize without materializing any pixel values. Rasterization of polygons starts with classifyin pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index of start and stops of edges by scanline. 'laserize' produces these intermediate structures, so they can be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from materialized rasters. This package was derived from 'fasterize', removing Armadillo and the raster package.
 }
 \author{
 \strong{Maintainer}: Michael Sumner \email{mdsumner@gmail.com} (\href{https://orcid.org/0000-0002-2471-7511}{ORCID}) [contributor]
