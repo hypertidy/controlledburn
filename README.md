@@ -21,8 +21,10 @@ This is an expression of my WISHUE “cell abstraction”
 -   [x] remove use of raster objects, in favour of input extent and
     dimension
 -   [x] remove all trace of the raster package
--   [ ] implement return of the ‘yline, xpix’ and polygon ID info to
+-   [x] implement return of the ‘yline, xpix’ and polygon ID info to
     user (see below)
+-   [ ] make return of ylin,xpix structure efficient (currently growing
+    the vector)
 -   [ ] move to cpp11
 -   [ ] rasterize lines and points
     [fasterize/issues/30](https://github.com/ecohealthalliance/fasterize/issues/30)
@@ -53,11 +55,33 @@ You can install the development version of laserize like so:
 
 ## Example
 
-This is a basic example which shows you how to solve a common problem:
+This is a basic example, currently the CPP code is slow because it grows
+the output vectors, and the matrix orientation used below is not the
+intended end point. But, just shows this works. See the todo list above.
 
 ``` r
-library(laserize)
-## basic example code
+pdata <-
+  structure(list(sfg_id = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3),
+                 polygon_id = c(1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3),
+                 linestring_id = c(1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1),
+                 x = c(-180, -140, 10, -140, -180, -150, -100, -110, -150, -10, 140, 160, 140, -10, -125, 0, 40, 15, -125),
+                 y = c(-20, 55, 0, -60, -20, -20, -10, 20, -20, 0, 60, 0, -55, 0, 0, 60, 5, -45, 0)),
+            class = "data.frame", row.names = c(NA, 19L))
+
+pols <- sfheaders::sf_polygon(pdata, x= "x", y = "y", polygon_id = "polygon_id", linestring_id = "linestring_id")
+## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)
+ext <- c(range(pdata$x), range(pdata$y))
+dm <- c(50, 40)
+r <- laserize:::laserize(pols, extent = ext,
+                               dimension = dm)
+
+## our index is pairs of y, x where the polygon edge was detected - 
+## this essentially an rle by scanline of start,end polygon coverage
+index <- matrix(r, ncol = 3L, byrow = TRUE)
+
+str(index)
+#>  int [1:125, 1:3] 6 5 5 5 5 5 4 4 4 4 ...
+## see tests for current code, there's still investigation of an out by one thing 
 ```
 
 ## Code of Conduct
