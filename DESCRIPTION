@@ -1,6 +1,6 @@
 Package: laserize
 Title: Rasterize Index
-Version: 0.0.0.9000
+Version: 0.0.0.9001
 Authors@R: c(
            person("Michael", "Sumner", role = c("aut", "cre", "ctb"),
            email = "mdsumner@gmail.com",

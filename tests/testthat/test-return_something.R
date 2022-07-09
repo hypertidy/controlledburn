@@ -16,12 +16,20 @@ pdata <-
             class = "data.frame", row.names = c(NA, 19L))
 
 pols <- sfheaders::sf_polygon(pdata, x= "x", y = "y", polygon_id = "polygon_id", linestring_id = "linestring_id")
-system.time({
 r <- laserize:::laserize(pols, extent = c(range(pdata$x), range(pdata$y)),
-                               dimension = c(50000, 40000))
-})
+                               dimension = c(50, 40))
 
+## we are triplets xstart, xend, yline (0-based atm)
+index <- matrix(r, ncol = 3L, byrow = TRUE)
 
+## is this the old problem in fasterize, it's assuming centres?
+# m <- matrix(FALSE, 51, 41)
+# m[index[,c(1, 3)] + 1]<- TRUE
+# m[index[,c(2, 3)] + 1]<- TRUE
+# ximage::ximage(t(m), extent = c(range(pdata$x), range(pdata$y)))
+#
+# library(basf)
+# plot(pols, add = T)
 test_that("multiplication works", {
-  expect_equal(r, 1L)
+  expect_true(is.integer(r))
 })

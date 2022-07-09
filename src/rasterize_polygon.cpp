@@ -5,11 +5,17 @@
 // Rasterize a single polygon
 // Based on https://ezekiel.encs.vancouver.wsu.edu/~cs442/lectures/rasterization/polyfill/polyfill.pdf #nolint
 
+void record_cell(Rcpp::IntegerVector &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
+  out_vector.push_back(xs);
+  out_vector.push_back(xe);
+  out_vector.push_back(y);
+  return;
+}
 void rasterize_polygon(Rcpp::RObject polygon,
-                       RasterInfo &ras) {
+                       RasterInfo &ras, IntegerVector &out_vector) {
 
   std::list<Edge>::iterator it;
-  unsigned int counter, xstart, xend, xpix;
+  unsigned int counter, xstart, xend; //, xpix;
   xstart = 0;
 
   //Create the list of all edges of the polygon, fill and sort it
@@ -53,10 +59,12 @@ void rasterize_polygon(Rcpp::RObject polygon,
         ((*it).x > ras.ncold ?
            ras.ncold :
            std::ceil((*it).x));
-        for(xpix = xstart; xpix < xend; ++xpix) {
-          //note x/y switched here as raster objects store values this way
-         // pixel_function(raster, yline, xpix, poly_value);
-        }
+        record_cell(out_vector, xstart, xend, yline);
+        // for(xpix = xstart; xpix < xend; ++xpix) {
+        //   //note x/y switched here as raster objects store values this way
+        //  // pixel_function(raster, yline, xpix, poly_value);
+        //
+        // }
       }
     }
     //Advance the horizontal row
