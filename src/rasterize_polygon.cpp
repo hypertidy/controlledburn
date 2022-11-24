@@ -48,17 +48,9 @@ void rasterize_polygon(Rcpp::RObject polygon,
         it++) {
       counter++;
       if (counter % 2) {
-        xstart = ((*it).x < 0.0) ?
-        0.0 :
-        ((*it).x > ras.ncold ?
-           ras.ncold :
-           std::ceil((*it).x));
+        xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::floor((*it).x));
       } else {
-        xend = ((*it).x < 0.0) ?
-        0.0 :
-        ((*it).x > ras.ncold ?
-           ras.ncold :
-           std::ceil((*it).x));
+        xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::floor((*it).x));
         record_cell(out_vector, xstart, xend, yline);
         // for(xpix = xstart; xpix < xend; ++xpix) {
         //   //note x/y switched here as raster objects store values this way
