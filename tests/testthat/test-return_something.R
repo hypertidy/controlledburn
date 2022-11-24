@@ -16,17 +16,22 @@ pdata <-
             class = "data.frame", row.names = c(NA, 19L))
 
 pols <- sfheaders::sf_polygon(pdata, x= "x", y = "y", polygon_id = "polygon_id", linestring_id = "linestring_id")
-r <- laserize:::laserize(pols, extent = c(range(pdata$x), range(pdata$y)),
-                               dimension = c(50, 40))
+ex <- c(range(pdata$x), range(pdata$y))
+dm <- c(50, 40)
+r <- laserize:::laserize(pols, extent = ex,
+                               dimension =dm)
 
 ## we are triplets xstart, xend, yline (0-based atm)
 index <- matrix(r, ncol = 3L, byrow = TRUE)
 
 ## is this the old problem in fasterize, it's assuming centres?
-# m <- matrix(FALSE, 51, 41)
-# m[index[,c(1, 3)] + 1]<- TRUE
-# m[index[,c(2, 3)] + 1]<- TRUE
-# ximage::ximage(t(m), extent = c(range(pdata$x), range(pdata$y)))
+m <- matrix(FALSE, 50, 40)
+m[index[,c(1, 3)] + 1]<- TRUE
+m[index[,c(2, 3)] + 1]<- TRUE
+ximage::ximage(t(m), extent = ex)
+library(basf)
+plot(pols, add = TRUE)
+rast(ext(ex), nrows = dm[2], ncols = dm[1], vals = m)
 #
 # library(basf)
 # plot(pols, add = T)
