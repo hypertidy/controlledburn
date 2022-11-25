@@ -6,8 +6,9 @@
 // Based on https://ezekiel.encs.vancouver.wsu.edu/~cs442/lectures/rasterization/polyfill/polyfill.pdf #nolint
 
 void record_cell(Rcpp::IntegerVector &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
+  if (xs == xe) return;
   out_vector.push_back(xs);
-  out_vector.push_back(xe);
+  out_vector.push_back(xe - 1);
   out_vector.push_back(y);
   return;
 }
@@ -48,9 +49,9 @@ void rasterize_polygon(Rcpp::RObject polygon,
         it++) {
       counter++;
       if (counter % 2) {
-        xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::floor((*it).x));
+        xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
       } else {
-        xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::floor((*it).x));
+        xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
         record_cell(out_vector, xstart, xend, yline);
         // for(xpix = xstart; xpix < xend; ++xpix) {
         //   //note x/y switched here as raster objects store values this way
