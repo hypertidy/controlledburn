@@ -6,5 +6,5 @@
 using namespace Rcpp;
 
 extern void rasterize_polygon(Rcpp::RObject polygon,
-                              RasterInfo &ras, IntegerVector &out_vector);
+                              RasterInfo &ras, List &out_vector);
 #endif

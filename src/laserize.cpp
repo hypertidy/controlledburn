@@ -33,7 +33,7 @@ using namespace Rcpp;
 //   14-16, 1967, Fall Joint Computer Conference. AFIPS '67 (Fall).
 //   <https://dx.doi.org/10.1145/1465611.1465619>
 // [[Rcpp::export]]
-Rcpp::IntegerVector laserize(Rcpp::DataFrame &sf,
+Rcpp::List laserize(Rcpp::DataFrame &sf,
                    Rcpp::NumericVector &extent,
                    Rcpp::IntegerVector &dimension) {
 
@@ -45,7 +45,7 @@ Rcpp::IntegerVector laserize(Rcpp::DataFrame &sf,
   Rcpp::List::iterator p;
   Rcpp::NumericVector::iterator f;
   RasterInfo ras(extent, dimension);
-  Rcpp::IntegerVector out_vector(0);
+  Rcpp::List out_vector(0);
     //Rasterize but always assign to the one layer
     p = polygons.begin();
     f = field_vals.begin();
