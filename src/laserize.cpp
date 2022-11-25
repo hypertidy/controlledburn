@@ -11,7 +11,6 @@ using namespace Rcpp;
 
 
 
-
 // Rasterize an sf object of polygons without materializing grid values
 //
 // Rasterize set of polygons
@@ -45,7 +44,7 @@ Rcpp::List laserize(Rcpp::DataFrame &sf,
   Rcpp::List::iterator p;
   Rcpp::NumericVector::iterator f;
   RasterInfo ras(extent, dimension);
-  Rcpp::List out_vector(0);
+  CollectorList out_vector;
     //Rasterize but always assign to the one layer
     p = polygons.begin();
     f = field_vals.begin();
@@ -53,7 +52,7 @@ Rcpp::List laserize(Rcpp::DataFrame &sf,
        rasterize_polygon( (*p), ras, out_vector);
     }
 
-    return out_vector;
+    return out_vector.vector();
 }
 
 

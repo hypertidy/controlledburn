@@ -5,7 +5,7 @@
 // Rasterize a single polygon
 // Based on https://ezekiel.encs.vancouver.wsu.edu/~cs442/lectures/rasterization/polyfill/polyfill.pdf #nolint
 
-void record_cell(Rcpp::List &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
+void record_cell(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
   if (xs == xe) return;
   out_vector.push_back(Rcpp::IntegerVector::create(xs, xe - 1, y));
   // out_vector.push_back(xs);
@@ -14,7 +14,7 @@ void record_cell(Rcpp::List &out_vector, unsigned int xs, unsigned int xe, unsig
   return;
 }
 void rasterize_polygon(Rcpp::RObject polygon,
-                       RasterInfo &ras, List &out_vector) {
+                       RasterInfo &ras, CollectorList &out_vector) {
 
   std::list<Edge>::iterator it;
   unsigned int counter, xstart, xend; //, xpix;

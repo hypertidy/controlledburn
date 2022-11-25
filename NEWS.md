@@ -1,4 +1,6 @@
-# laserize dev
+# laserize 0.0.1
+
+* Basic function working, we return a list of triplets of zero-index start,end,line index. 
 
 *  raster package objects and use removed. 
 

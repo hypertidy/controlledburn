@@ -2,7 +2,7 @@
 #define LASERIZE
 
 
-extern Rcpp::List laserize(Rcpp::DataFrame &sf,
+extern List laserize(Rcpp::DataFrame &sf,
                          Rcpp::NumericVector &extent,
                          Rcpp::IntegerVector &dimension);
 #endif
