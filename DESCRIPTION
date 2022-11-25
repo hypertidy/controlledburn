@@ -1,6 +1,6 @@
 Package: laserize
 Title: Rasterize Index
-Version: 0.0.0.9001
+Version: 0.0.1
 Authors@R: c(
            person("Michael", "Sumner", role = c("aut", "cre", "ctb"),
            email = "mdsumner@gmail.com",
@@ -8,8 +8,9 @@ Authors@R: c(
            person("Noam", "Ross", , ,
            role = c("aut"),
            comment=c(ORCID = "0000-0002-2136-0000")),
-    person("EcoHealth Alliance", role="cph"))
-Description: WIP, doesn't achieve any of these claims yet. Rasterize without materializing any pixel values. Rasterization of polygons starts with classifyin
+    person("EcoHealth Alliance", role="cph"), 
+     person("Jim", "Hester", role = c("ctb"), comment = "wrote CollectorList.h and advised of its use"))
+Description: Rasterize without materializing any pixel values. Rasterization of polygons starts with classifying
  pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index
  of start and stops of edges by scanline. 'laserize' produces these intermediate structures, so they can 
  be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from 
