@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rasterize Index • laserize</title>
+<title>Rasterize Index • minorburn</title>
 <!-- jquery --><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script><!-- Bootstrap --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha256-bZLfwXAP04zRMK2BjiO8iu9pf4FbLqX6zitd+tIvLhE=" crossorigin="anonymous">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/js/bootstrap.min.js" integrity="sha256-nuL8/2cJ5NDSSwnKD8VqreErSWHtnEP9E7AySL+1ev4=" crossorigin="anonymous"></script><!-- bootstrap-toc --><link rel="stylesheet" href="bootstrap-toc.css">
 <script src="bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
@@ -14,7 +14,7 @@
 <script src="pkgdown.js"></script><meta property="og:title" content="Rasterize Index">
 <meta property="og:description" content="Rasterize without materializing any pixel values. Rasterization of polygons starts with classifying
  pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index
- of start and stops of edges by scanline. laserize produces these intermediate structures, so they can 
+ of start and stops of edges by scanline. We produce these intermediate structures, so they can 
  be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from 
  materialized rasters. This package was derived from fasterize, removing Armadillo and the raster package. ">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
@@ -36,7 +36,7 @@
         <span class="icon-bar"></span>
       </button>
       <span class="navbar-brand">
-        <a class="navbar-link" href="index.html">laserize</a>
+        <a class="navbar-link" href="index.html">minorburn</a>
         <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.1</span>
       </span>
     </div>
@@ -63,13 +63,26 @@
       </header><div class="row">
   <div class="contents col-md-9">
 <div class="section level1">
-<div class="page-header"><h1 id="laserize">laserize<a class="anchor" aria-label="anchor" href="#laserize"></a>
+<div class="page-header"><h1 id="minorburn">minorburn<a class="anchor" aria-label="anchor" href="#minorburn"></a>
 </h1></div>
 <!-- badges: start -->
 
-<p>The goal of laserize is to rasterize without materializing any pixel values.</p>
+<p>The goal of minorburn is to rasterize without materializing any pixel values.</p>
 <p>This is an expression of my “cell abstraction” <a href="https://github.com/ecohealthalliance/fasterize/issues/11" class="external-link">fasterize/issues/11</a>.</p>
 <ul class="task-list">
+<li>
+<input type="checkbox" disabled checked>name the package</li>
+<li>
+<input type="checkbox" disabled>move to cpp11</li>
+<li>
+<input type="checkbox" disabled>rasterize lines and points <a href="https://github.com/ecohealthalliance/fasterize/issues/30" class="external-link">fasterize/issues/30</a>
+</li>
+<li>
+<input type="checkbox" disabled>formats for import (wk, geos, grd, rct, triangles etc.)</li>
+<li>
+<input type="checkbox" disabled>streaming with wkb/xy unpack with wk</li>
+<li>
+<input type="checkbox" disabled>provide output options (see next)</li>
 <li>
 <input type="checkbox" disabled checked>copy logic from fasterize, and remove Armadillo array handling</li>
 <li>
@@ -80,17 +93,6 @@
 <input type="checkbox" disabled checked>implement return of the ‘yline, xpix’ and polygon ID info to user (see below)</li>
 <li>
 <input type="checkbox" disabled checked>make return of ylin,xpix structure efficient (CollectorList.h ftw)</li>
-<li>
-<input type="checkbox" disabled>move to cpp11</li>
-<li>
-<input type="checkbox" disabled>rasterize lines and points <a href="https://github.com/ecohealthalliance/fasterize/issues/30" class="external-link">fasterize/issues/30</a>
-</li>
-<li>
-<input type="checkbox" disabled>consider formats other than sf (wk, geos, grd, rct, triangles etc.)</li>
-<li>
-<input type="checkbox" disabled>provide output options (see next)</li>
-<li>
-<input type="checkbox" disabled>name the package</li>
 </ul>
 <div class="section level2">
 <h2 id="outputs">Outputs<a class="anchor" aria-label="anchor" href="#outputs"></a>
@@ -102,15 +104,15 @@
 <li>tools to format this meaningfully, and plot lazily (see example for quick plot)</li>
 <li>tools to materialize as actual raster data</li>
 </ul>
-<p>For the record, I wanted this facility before I read this issue - but here’s a real world example, discussed in PROJ for very fast lookup for large non-materialized (highly compressed) grids by Thomas Knudsen:</p>
+<p>I wanted this facility a long time, and tried to get discussion on it and tried to implement it. I also found this real world example, discussed in PROJ for very fast lookup for large non-materialized (highly compressed) grids by Thomas Knudsen:</p>
 <p><a href="https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992" class="external-link uri">https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992</a></p>
 </div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>You can install the development version of laserize like so:</p>
+<p>You can install the development version of minorburn like so:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"hypertidy/laserize"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"hypertidy/minorburn"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
@@ -118,18 +120,29 @@
 <p>This is a basic example, this is fast, and shows that it works. See the todo list above.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pols</span> <span class="op">&lt;-</span> <span class="fu">silicate</span><span class="fu">::</span><span class="va">inlandwaters</span></span>
-<span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">vaster</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Attaching package: 'vaster'</span></span>
+<span><span class="co">#&gt; The following object is masked from 'package:stats':</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;     ts</span></span>
 <span><span class="co">## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)</span></span>
 <span><span class="va">ext</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu">silicate</span><span class="fu">::</span><span class="fu">sc_vertex</span><span class="op">(</span><span class="va">pols</span><span class="op">)</span>, <span class="va">range</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">dm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">400</span><span class="op">)</span></span>
-<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">laserize</span><span class="fu">:::</span><span class="fu"><a href="reference/laserize-package.html">laserize</a></span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
+<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">minorburn</span><span class="fu">:::</span><span class="fu">laserize</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
 <span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co">## our index is triplets of start,end,line where the polygon edge was detected - </span></span>
 <span><span class="co">## this essentially an rle by scanline of start,end polygon coverage</span></span>
 <span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">r</span>, use.names <span class="op">=</span> <span class="cn">F</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">3L</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">+</span> <span class="fl">1</span> <span class="co">## plus one because 0-index internally</span></span>
+<span><span class="va">cr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">index</span>, <span class="fl">1</span>, \<span class="op">(</span><span class="va">.x</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="va">.x</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">3</span><span class="op">]</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">lcells_all</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu">vaster</span><span class="fu">::</span><span class="fu">cell_from_row_col</span><span class="op">(</span><span class="va">dm</span>, <span class="va">cr</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span>, <span class="va">cr</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">index</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="fu">silicate</span><span class="fu">::</span><span class="fu">PATH0</span><span class="op">(</span><span class="va">pols</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/points.html" class="external-link">points</a></span><span class="op">(</span><span class="fu">xy_from_cell</span><span class="op">(</span><span class="va">dm</span>, <span class="va">ext</span>, <span class="va">lcells_all</span><span class="op">)</span>, pch <span class="op">=</span> <span class="st">"."</span><span class="op">)</span></span></code></pre></div>
+<p><img src="reference/figures/README-example-1.png" width="100%"></p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">index</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  num [1:779, 1:3] 291 288 286 286 286 286 290 286 287 287 ...</span></span>
 <span></span>
 <span><span class="co">## convert to cells</span></span>
@@ -138,13 +151,13 @@
 <span><span class="co">#&gt;  num [1:1558] 80291 80788 81286 81786 82286 ...</span></span></code></pre></div>
 <p>It scales to very large tasks, less than a second for <code>250000x200000</code> dimension above, with 35Mb in memory output.</p>
 <p>The following is inefficient, but shows that we get the right result.</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="fu">vaster</span><span class="fu">::</span><span class="fu">xy_from_cell</span><span class="op">(</span><span class="va">dm</span>, <span class="va">ext</span>, <span class="va">cells</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">## now go inefficient, this is every column,row index, then converted to cell, converted to xy</span></span>
 <span><span class="va">cr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">index</span>, <span class="fl">1</span>, \<span class="op">(</span><span class="va">.x</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="va">.x</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">3</span><span class="op">]</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/points.html" class="external-link">points</a></span><span class="op">(</span><span class="va">xy</span> <span class="op">&lt;-</span> <span class="fu">vaster</span><span class="fu">::</span><span class="fu">xy_from_cell</span><span class="op">(</span><span class="va">dm</span>, <span class="va">ext</span>, <span class="fu">vaster</span><span class="fu">::</span><span class="fu">cell_from_row_col</span><span class="op">(</span><span class="va">dm</span>, <span class="va">cr</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span>, <span class="va">cr</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span><span class="op">)</span><span class="op">)</span>, pch <span class="op">=</span> <span class="st">"."</span>, col <span class="op">=</span> <span class="st">"darkgrey"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="reference/figures/README-bad-1.png" width="100%"></p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span></span>
 <span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">terra</span><span class="fu">::</span><span class="fu">rast</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">xy</span>, <span class="fl">0</span><span class="op">)</span>, type <span class="op">=</span> <span class="st">"xyz"</span><span class="op">)</span></span>
 <span></span>
@@ -156,7 +169,7 @@
 <div class="section level2">
 <h2 id="code-of-conduct">Code of Conduct<a class="anchor" aria-label="anchor" href="#code-of-conduct"></a>
 </h2>
-<p>Please note that the laserize project is released with a <a href="https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html" class="external-link">Contributor Code of Conduct</a>. By contributing to this project, you agree to abide by its terms.</p>
+<p>Please note that the minorburn project is released with a <a href="https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html" class="external-link">Contributor Code of Conduct</a>. By contributing to this project, you agree to abide by its terms.</p>
 </div>
 </div>
   </div>
@@ -180,7 +193,7 @@
 <div class="citation">
 <h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing laserize</a></li>
+<li><a href="authors.html#citation">Citing minorburn</a></li>
 </ul>
 </div>
 
@@ -196,7 +209,7 @@
 <div class="dev-status">
 <h2 data-toc-skip>Dev status</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/hypertidy/laserize/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/hypertidy/laserize/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
+<li><a href="https://github.com/hypertidy/minorburn/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/hypertidy/minorburn/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
 </ul>
 </div>
 
