@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/reference/test_package.html#special-files
 
 library(testthat)
-library(laserize)
+library(minorburn)
 
-test_check("laserize")
+test_check("minorburn")

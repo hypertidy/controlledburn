@@ -1,4 +1,4 @@
-# laserize 0.0.1
+# minorburn 0.0.1
 
 * Basic function working, we return a list of triplets of zero-index start,end,line index. 
 
