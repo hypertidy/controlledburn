@@ -10,7 +10,7 @@ ximage::ximage(hex, asp = 1)
 
 # library(hexSticker)
 # s <- sticker(~ximage::ximage(hex, asp = 1),
-#              package="laserize", #p_size=20, s_x=.8, s_y=.6, s_width=1.4, s_height=1.2,
+#              package="minorburn", #p_size=20, s_x=.8, s_y=.6, s_width=1.4, s_height=1.2,
 #              filename="man/figures/logo.png")
 png::writePNG(scales::rescale(array(t(col2rgb(hex)), c(dim(hex), 3))), "logo.png")
 abline(v = 1120, h = 8)

@@ -1,5 +1,5 @@
 library(sfheaders)
-library(laserize)
+library(minorburn)
 # p1 <- rbind(c(-180,-20), c(-140,55), c(10, 0), c(-140,-60), c(-180,-20))
 # hole <- rbind(c(-150,-20), c(-100,-10), c(-110,20), c(-150,-20))
 # p1 <- list(p1, hole)
@@ -18,23 +18,23 @@ pdata <-
 pols <- sfheaders::sf_polygon(pdata, x= "x", y = "y", polygon_id = "polygon_id", linestring_id = "linestring_id")
 ex <- c(range(pdata$x), range(pdata$y))
 dm <- c(50, 40)
-r <- laserize:::laserize(pols, extent = ex,
+r <- laserize(pols, extent = ex,
                                dimension =dm)
 
 ## we are triplets xstart, xend, yline (0-based atm)
-index <- matrix(r, ncol = 3L, byrow = TRUE)
+index <- do.call(rbind, r)
 
 ## is this the old problem in fasterize, it's assuming centres?
 m <- matrix(FALSE, 50, 40)
 m[index[,c(1, 3)] + 1]<- TRUE
 m[index[,c(2, 3)] + 1]<- TRUE
 ximage::ximage(t(m), extent = ex)
-library(basf)
-plot(pols, add = TRUE)
-rast(ext(ex), nrows = dm[2], ncols = dm[1], vals = m)
+# library(basf)
+# plot(pols, add = TRUE)
+# rast(ext(ex), nrows = dm[2], ncols = dm[1], vals = m)
 #
 # library(basf)
 # plot(pols, add = T)
 test_that("multiplication works", {
-  expect_true(is.integer(r))
+  expect_true(is.integer(r[[1]]))
 })

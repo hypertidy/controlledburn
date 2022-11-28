@@ -1,5 +1,5 @@
-#ifndef LASERIZE
-#define LASERIZE
+#ifndef MINORBURN
+#define MINORBUN
 
 
 extern List laserize(Rcpp::DataFrame &sf,

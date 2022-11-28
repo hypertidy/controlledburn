@@ -1,4 +1,4 @@
-Package: laserize
+Package: minorburn
 Title: Rasterize Index
 Version: 0.0.1
 Authors@R: c(
@@ -12,13 +12,13 @@ Authors@R: c(
      person("Jim", "Hester", role = c("ctb"), comment = "wrote CollectorList.h and advised of its use"))
 Description: Rasterize without materializing any pixel values. Rasterization of polygons starts with classifying
  pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index
- of start and stops of edges by scanline. 'laserize' produces these intermediate structures, so they can 
+ of start and stops of edges by scanline. We produce these intermediate structures, so they can 
  be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from 
  materialized rasters. This package was derived from 'fasterize', removing Armadillo and the raster package. 
 License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.0
+RoxygenNote: 7.2.1
 LinkingTo: 
     Rcpp
 Imports: 
