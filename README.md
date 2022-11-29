@@ -1,15 +1,15 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# minorburn
+# controlledburn
 
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/hypertidy/minorburn/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/hypertidy/minorburn/actions/workflows/R-CMD-check.yaml)
+[![R-CMD-check](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-The goal of minorburn is to rasterize without materializing any pixel
-values.
+The goal of controlledburn is to rasterize without materializing any
+pixel values.
 
 This is an expression of my “cell abstraction”
 [fasterize/issues/11](https://github.com/ecohealthalliance/fasterize/issues/11).
@@ -50,10 +50,10 @@ discussed in PROJ for very fast lookup for large non-materialized
 
 ## Installation
 
-You can install the development version of minorburn like so:
+You can install the development version of controlledburn like so:
 
 ``` r
-remotes::install_github("hypertidy/minorburn")
+remotes::install_github("hypertidy/controlledburn")
 ```
 
 ## Example
@@ -72,7 +72,7 @@ library(vaster)
 ## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)
 ext <- unlist(lapply(silicate::sc_vertex(pols), range))
 dm <- c(500, 400)
-r <- minorburn:::laserize(pols, extent = ext,
+r <- controlledburn:::laserize(pols, extent = ext,
                                dimension = dm)
 
 ## our index is triplets of start,end,line where the polygon edge was detected - 
@@ -124,7 +124,7 @@ plot(silicate::SC0(pols), add = TRUE)
 
 ## Code of Conduct
 
-Please note that the minorburn project is released with a [Contributor
-Code of
+Please note that the controlledburn project is released with a
+[Contributor Code of
 Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html).
 By contributing to this project, you agree to abide by its terms.
