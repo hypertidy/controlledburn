@@ -3,6 +3,6 @@
 
 ## usethis namespace: start
 #' @importFrom Rcpp sourceCpp
-#' @useDynLib minorburn, .registration = TRUE
+#' @useDynLib controlledburn, .registration = TRUE
 ## usethis namespace: end
 NULL

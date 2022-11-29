@@ -12,7 +12,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 
 // laserize
 Rcpp::List laserize(Rcpp::DataFrame& sf, Rcpp::NumericVector& extent, Rcpp::IntegerVector& dimension);
-RcppExport SEXP _minorburn_laserize(SEXP sfSEXP, SEXP extentSEXP, SEXP dimensionSEXP) {
+RcppExport SEXP _controlledburn_laserize(SEXP sfSEXP, SEXP extentSEXP, SEXP dimensionSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -25,11 +25,11 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_minorburn_laserize", (DL_FUNC) &_minorburn_laserize, 3},
+    {"_controlledburn_laserize", (DL_FUNC) &_controlledburn_laserize, 3},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_minorburn(DllInfo *dll) {
+RcppExport void R_init_controlledburn(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

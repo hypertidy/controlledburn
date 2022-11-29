@@ -1,4 +1,4 @@
-Package: minorburn
+Package: controlledburn
 Title: Rasterize Index
 Version: 0.0.1
 Authors@R: c(

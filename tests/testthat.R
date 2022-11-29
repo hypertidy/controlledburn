@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/reference/test_package.html#special-files
 
 library(testthat)
-library(minorburn)
+library(controlledburn)
 
-test_check("minorburn")
+test_check("controlledburn")
