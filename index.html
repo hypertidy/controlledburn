@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rasterize Index • minorburn</title>
+<title>Rasterize Index • controlledburn</title>
 <!-- jquery --><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script><!-- Bootstrap --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha256-bZLfwXAP04zRMK2BjiO8iu9pf4FbLqX6zitd+tIvLhE=" crossorigin="anonymous">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/js/bootstrap.min.js" integrity="sha256-nuL8/2cJ5NDSSwnKD8VqreErSWHtnEP9E7AySL+1ev4=" crossorigin="anonymous"></script><!-- bootstrap-toc --><link rel="stylesheet" href="bootstrap-toc.css">
 <script src="bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
@@ -36,7 +36,7 @@
         <span class="icon-bar"></span>
       </button>
       <span class="navbar-brand">
-        <a class="navbar-link" href="index.html">minorburn</a>
+        <a class="navbar-link" href="index.html">controlledburn</a>
         <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.1</span>
       </span>
     </div>
@@ -63,11 +63,11 @@
       </header><div class="row">
   <div class="contents col-md-9">
 <div class="section level1">
-<div class="page-header"><h1 id="minorburn">minorburn<a class="anchor" aria-label="anchor" href="#minorburn"></a>
+<div class="page-header"><h1 id="controlledburn">controlledburn<a class="anchor" aria-label="anchor" href="#controlledburn"></a>
 </h1></div>
 <!-- badges: start -->
 
-<p>The goal of minorburn is to rasterize without materializing any pixel values.</p>
+<p>The goal of controlledburn is to rasterize without materializing any pixel values.</p>
 <p>This is an expression of my “cell abstraction” <a href="https://github.com/ecohealthalliance/fasterize/issues/11" class="external-link">fasterize/issues/11</a>.</p>
 <ul class="task-list">
 <li>
@@ -110,9 +110,9 @@
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>You can install the development version of minorburn like so:</p>
+<p>You can install the development version of controlledburn like so:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"hypertidy/minorburn"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"hypertidy/controlledburn"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
@@ -129,7 +129,7 @@
 <span><span class="co">## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)</span></span>
 <span><span class="va">ext</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu">silicate</span><span class="fu">::</span><span class="fu">sc_vertex</span><span class="op">(</span><span class="va">pols</span><span class="op">)</span>, <span class="va">range</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">dm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">400</span><span class="op">)</span></span>
-<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">minorburn</span><span class="fu">:::</span><span class="fu">laserize</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
+<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">laserize</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
 <span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co">## our index is triplets of start,end,line where the polygon edge was detected - </span></span>
@@ -169,7 +169,7 @@
 <div class="section level2">
 <h2 id="code-of-conduct">Code of Conduct<a class="anchor" aria-label="anchor" href="#code-of-conduct"></a>
 </h2>
-<p>Please note that the minorburn project is released with a <a href="https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html" class="external-link">Contributor Code of Conduct</a>. By contributing to this project, you agree to abide by its terms.</p>
+<p>Please note that the controlledburn project is released with a <a href="https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html" class="external-link">Contributor Code of Conduct</a>. By contributing to this project, you agree to abide by its terms.</p>
 </div>
 </div>
   </div>
@@ -193,7 +193,7 @@
 <div class="citation">
 <h2 data-toc-skip>Citation</h2>
 <ul class="list-unstyled">
-<li><a href="authors.html#citation">Citing minorburn</a></li>
+<li><a href="authors.html#citation">Citing controlledburn</a></li>
 </ul>
 </div>
 
@@ -209,7 +209,7 @@
 <div class="dev-status">
 <h2 data-toc-skip>Dev status</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/hypertidy/minorburn/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/hypertidy/minorburn/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
+<li><a href="https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
 </ul>
 </div>
 
