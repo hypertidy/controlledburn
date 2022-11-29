@@ -2,7 +2,7 @@
 #include "edgelist.h"
 
 //  Builds an edge list from a polygon or multipolygon
-void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges) {
+void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges, bool lines) {
   //std::list<Edge> edges;
   double y0, y1, y0c, y1c;
   //iterate recursively over the list
@@ -17,7 +17,12 @@ void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges) {
       if(y0 > 0 || y1 > 0) {  //only both with edges that are in the raster
         y0c = std::ceil(y0);
         y1c = std::ceil(y1);
+        if (!lines) {
         if(y0c != y1c) {  //only bother with non-horizontal edges
+          edges.push_back(Edge(poly(i    , 0), y0,
+                               poly(i + 1, 0), y1, ras, y0c, y1c));
+        }
+        } else {
           edges.push_back(Edge(poly(i    , 0), y0,
                                poly(i + 1, 0), y1, ras, y0c, y1c));
         }
@@ -32,7 +37,7 @@ void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges) {
     for(Rcpp::List::iterator it = polylist.begin();
         it != polylist.end();
         ++it) {
-      edgelist(Rcpp::wrap(*it), ras, edges);
+      edgelist(Rcpp::wrap(*it), ras, edges, false);
     }
 
     break;

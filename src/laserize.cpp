@@ -34,7 +34,7 @@ using namespace Rcpp;
 // [[Rcpp::export]]
 Rcpp::List laserize(Rcpp::DataFrame &sf,
                    Rcpp::NumericVector &extent,
-                   Rcpp::IntegerVector &dimension) {
+                   Rcpp::IntegerVector &dimension, Rcpp::LogicalVector lines) {
 
   Rcpp::List polygons;
   Rcpp::NumericVector field_vals;
@@ -49,7 +49,7 @@ Rcpp::List laserize(Rcpp::DataFrame &sf,
     p = polygons.begin();
     f = field_vals.begin();
      for(; p != polygons.end(); ++p, ++f) {
-       rasterize_polygon( (*p), ras, out_vector);
+       rasterize_polygon( (*p), ras, out_vector, lines[0]);
     }
 
     return out_vector.vector();

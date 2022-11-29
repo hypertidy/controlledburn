@@ -71,9 +71,9 @@ pols <- silicate::inlandwaters
 library(vaster)
 ## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)
 ext <- unlist(lapply(silicate::sc_vertex(pols), range))
-dm <- c(500, 400)
+dm <- c(500, 400)/10
 r <- controlledburn:::laserize(pols, extent = ext,
-                               dimension = dm)
+                               dimension = dm, lines = T)
 
 ## our index is triplets of start,end,line where the polygon edge was detected - 
 ## this essentially an rle by scanline of start,end polygon coverage

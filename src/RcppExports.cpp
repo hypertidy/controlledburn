@@ -11,21 +11,22 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // laserize
-Rcpp::List laserize(Rcpp::DataFrame& sf, Rcpp::NumericVector& extent, Rcpp::IntegerVector& dimension);
-RcppExport SEXP _controlledburn_laserize(SEXP sfSEXP, SEXP extentSEXP, SEXP dimensionSEXP) {
+Rcpp::List laserize(Rcpp::DataFrame& sf, Rcpp::NumericVector& extent, Rcpp::IntegerVector& dimension, Rcpp::LogicalVector lines);
+RcppExport SEXP _controlledburn_laserize(SEXP sfSEXP, SEXP extentSEXP, SEXP dimensionSEXP, SEXP linesSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< Rcpp::DataFrame& >::type sf(sfSEXP);
     Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type extent(extentSEXP);
     Rcpp::traits::input_parameter< Rcpp::IntegerVector& >::type dimension(dimensionSEXP);
-    rcpp_result_gen = Rcpp::wrap(laserize(sf, extent, dimension));
+    Rcpp::traits::input_parameter< Rcpp::LogicalVector >::type lines(linesSEXP);
+    rcpp_result_gen = Rcpp::wrap(laserize(sf, extent, dimension, lines));
     return rcpp_result_gen;
 END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_controlledburn_laserize", (DL_FUNC) &_controlledburn_laserize, 3},
+    {"_controlledburn_laserize", (DL_FUNC) &_controlledburn_laserize, 4},
     {NULL, NULL, 0}
 };
 

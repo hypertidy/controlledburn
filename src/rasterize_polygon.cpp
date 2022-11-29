@@ -5,24 +5,24 @@
 // Rasterize a single polygon
 // Based on https://ezekiel.encs.vancouver.wsu.edu/~cs442/lectures/rasterization/polyfill/polyfill.pdf #nolint
 
-void record_cell(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
-  if (xs == xe) return;
-  out_vector.push_back(Rcpp::IntegerVector::create(xs, xe - 1, y));
+void record_cell(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y, bool lines) {
+  if (!lines && xs == xe) return;
+  out_vector.push_back(Rcpp::IntegerVector::create(xs, xe - (!lines), y));
   // out_vector.push_back(xs);
   // out_vector.push_back(xe - 1);
   // out_vector.push_back(y);
   return;
 }
 void rasterize_polygon(Rcpp::RObject polygon,
-                       RasterInfo &ras, CollectorList &out_vector) {
+                       RasterInfo &ras, CollectorList &out_vector, bool lines) {
 
   std::list<Edge>::iterator it;
-  unsigned int counter, xstart, xend; //, xpix;
+  unsigned int counter, xstart, xend, xpix;
   xstart = 0;
 
   //Create the list of all edges of the polygon, fill and sort it
   std::list<Edge> edges;
-  edgelist(polygon, ras, edges);
+  edgelist(polygon, ras, edges, lines);
   edges.sort(less_by_ystart());
 
   // Initialize an empty list of "active" edges
@@ -53,7 +53,16 @@ void rasterize_polygon(Rcpp::RObject polygon,
         xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
       } else {
         xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
-        record_cell(out_vector, xstart, xend, yline);
+
+        // if dxdy == 0 and lines then fill xstart:xend
+        if ((*it).dxdy < 0.000001 && lines) {
+          for(xpix = xstart; xpix < xend; ++xpix) {
+            //note x/y switched here as raster objects store values this way
+            record_cell(out_vector, xpix, xpix, yline, lines);
+          }
+        } else {
+          record_cell(out_vector, xstart, xend, yline, lines);
+        }
         // for(xpix = xstart; xpix < xend; ++xpix) {
         //   //note x/y switched here as raster objects store values this way
         //  // pixel_function(raster, yline, xpix, poly_value);
