@@ -23,9 +23,23 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// laserize_line
+Rcpp::List laserize_line(Rcpp::DataFrame& sf, Rcpp::NumericVector& extent, Rcpp::IntegerVector& dimension);
+RcppExport SEXP _controlledburn_laserize_line(SEXP sfSEXP, SEXP extentSEXP, SEXP dimensionSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::DataFrame& >::type sf(sfSEXP);
+    Rcpp::traits::input_parameter< Rcpp::NumericVector& >::type extent(extentSEXP);
+    Rcpp::traits::input_parameter< Rcpp::IntegerVector& >::type dimension(dimensionSEXP);
+    rcpp_result_gen = Rcpp::wrap(laserize_line(sf, extent, dimension));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_controlledburn_laserize", (DL_FUNC) &_controlledburn_laserize, 3},
+    {"_controlledburn_laserize_line", (DL_FUNC) &_controlledburn_laserize_line, 3},
     {NULL, NULL, 0}
 };
 

@@ -5,3 +5,7 @@ laserize <- function(sf, extent, dimension) {
     .Call(`_controlledburn_laserize`, sf, extent, dimension)
 }
 
+laserize_line <- function(sf, extent, dimension) {
+    .Call(`_controlledburn_laserize_line`, sf, extent, dimension)
+}
+

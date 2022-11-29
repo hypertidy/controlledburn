@@ -52,13 +52,10 @@ void rasterize_polygon(Rcpp::RObject polygon,
       if (counter % 2) {
         xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
       } else {
+       // Rprintf("%e\n", (*it).dxdy);
         xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
         record_cell(out_vector, xstart, xend, yline);
-        // for(xpix = xstart; xpix < xend; ++xpix) {
-        //   //note x/y switched here as raster objects store values this way
-        //  // pixel_function(raster, yline, xpix, poly_value);
-        //
-        // }
+
       }
     }
     //Advance the horizontal row

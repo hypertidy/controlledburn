@@ -5,4 +5,8 @@
 extern List laserize(Rcpp::DataFrame &sf,
                          Rcpp::NumericVector &extent,
                          Rcpp::IntegerVector &dimension);
+
+extern List laserize_line(Rcpp::DataFrame &sf,
+                     Rcpp::NumericVector &extent,
+                     Rcpp::IntegerVector &dimension);
 #endif
