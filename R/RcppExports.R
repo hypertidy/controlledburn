@@ -5,6 +5,10 @@ laserize <- function(sf, extent, dimension) {
     .Call(`_controlledburn_laserize`, sf, extent, dimension)
 }
 
+edge_out <- function(sf, extent, dimension) {
+    .Call(`_controlledburn_edge_out`, sf, extent, dimension)
+}
+
 laserize_line <- function(sf, extent, dimension) {
     .Call(`_controlledburn_laserize_line`, sf, extent, dimension)
 }

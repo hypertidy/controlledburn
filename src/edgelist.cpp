@@ -1,6 +1,23 @@
 #include "edge.h"
 #include "edgelist.h"
 
+NumericVector edgelist_out(std::list<Edge> edges) {
+
+  std::list<Edge>::iterator it;
+  NumericVector out(edges.size() * 4);
+  R_xlen_t counter = 0;
+  for(it = edges.begin();
+      it != edges.end();
+      it++) {
+    out[counter+0] = (double)(*it).x;
+    out[counter+1] = (double)(*it).dxdy;
+    out[counter+2] = (double)(*it).yend;
+    out[counter+3] = (double)(*it).ystart;
+    counter = counter + 4;
+
+  }
+  return out;
+}
 //  Builds an edge list from a polygon or multipolygon
 void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges) {
   //std::list<Edge> edges;
@@ -63,10 +80,9 @@ void edgelist_line(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edge
         y0c = std::ceil(y0);
         y1c = std::ceil(y1);
 
-        if(y0c == y1c) {  //only bother with horizontal edges
           edges.push_back(Edge(poly(i    , 0), y0,
                                poly(i + 1, 0), y1, ras, y0c, y1c));
-        }
+
       }
     }
 

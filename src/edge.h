@@ -30,15 +30,12 @@ struct Edge {
   unsigned int yend;  //the matrix row below the end of the line
   long double dxdy; //change in x per y. Long helps with some rounding errors
   long double x; //the x location on the first matrix row intersected
-  unsigned int nx;  // the x length (for horizontal lines)
   Edge(double x0, double y0, double x1, double y1, RasterInfo &ras,
        double y0c, double y1c) {
     //Convert from coordinate space to matrix row/column space. This is
     //already done for ys with y0c and y1c
     x0 = (x0 - ras.xmin)/ras.xres - 0.5; //convert from native to
     x1 = (x1 - ras.xmin)/ras.xres - 0.5; // units in the matrix
-    //Rprintf("%f,%f\n", x0, x1);
-    nx = 1;
 
     double dy;
     //Make sure edges run from top of matrix to bottom, calculate value
@@ -47,7 +44,6 @@ struct Edge {
       dy = (y1 - y0);
       dxdy = (x1-x0)/dy;
       x = x0 + (ystart - y0)*dxdy;
-      nx = (unsigned int)fabs(x0 - x1);
 
       yend = y1c;
     } else {
@@ -55,11 +51,8 @@ struct Edge {
       dy = (y0 - y1);
       dxdy = (x0-x1)/dy;
       x = x1 + (ystart - y1)*dxdy;
-      nx = (unsigned int)fabs(x1 - x0);
-
       yend = y0c;
  }
-   // Rprintf("%f %i\n", x1 - x0, nx);
   }
 };
 

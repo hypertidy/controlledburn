@@ -55,5 +55,35 @@ Rcpp::List laserize(Rcpp::DataFrame &sf,
     return out_vector.vector();
 }
 
+// [[Rcpp::export]]
+Rcpp::NumericVector edge_out(Rcpp::DataFrame &sf,
+                    Rcpp::NumericVector &extent,
+                    Rcpp::IntegerVector &dimension) {
+
+  Rcpp::List polygons;
+  //Rcpp::NumericVector field_vals;
+  check_inputs(sf, polygons);  // Also fills in polygons
+
+  //set up things we'll use later
+  Rcpp::List::iterator p;
+  Rcpp::NumericVector::iterator f;
+  RasterInfo ras(extent, dimension);
+
+
+  p = polygons.begin();
+//  f = field_vals.begin();
+    //rasterize_polygon( (*p), ras, out_vector);
+
+  std::list<Edge>::iterator it;
+  unsigned int counter, xstart, xend; //, xpix;
+  xstart = 0;
+
+  //Create the list of all edges of the polygon, fill and sort it
+  std::list<Edge> edges;
+  edgelist_line((*p), ras, edges);
+  edges.sort(less_by_ystart());
+
+  return edgelist_out(edges);
+}
 
 
