@@ -2,7 +2,7 @@
 #define CONTROLLEDBURN
 
 
-extern List laserize(Rcpp::DataFrame &sf,
+extern List burn_polygon(Rcpp::DataFrame &sf,
                          Rcpp::NumericVector &extent,
                          Rcpp::IntegerVector &dimension);
 #endif
