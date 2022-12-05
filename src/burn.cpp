@@ -6,7 +6,7 @@ using namespace Rcpp;
 
 #include "edgelist.h"
 #include "rasterize_polygon.h"
-#include "laserize.h"
+#include "burn.h"
 #include "utils.h"
 
 
@@ -32,13 +32,13 @@ using namespace Rcpp;
 //   14-16, 1967, Fall Joint Computer Conference. AFIPS '67 (Fall).
 //   <https://dx.doi.org/10.1145/1465611.1465619>
 // [[Rcpp::export]]
-Rcpp::List laserize(Rcpp::DataFrame &sf,
+Rcpp::List burn_polygon(Rcpp::DataFrame &sf,
                    Rcpp::NumericVector &extent,
                    Rcpp::IntegerVector &dimension) {
 
   Rcpp::List polygons;
   Rcpp::NumericVector field_vals;
-  check_inputs(sf, polygons);  // Also fills in polygons
+  check_inputs_polygon(sf, polygons);  // Also fills in polygons
 
   //set up things we'll use later
   Rcpp::List::iterator p;

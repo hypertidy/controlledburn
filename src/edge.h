@@ -25,13 +25,13 @@ struct RasterInfo {
 
 // A data structure to hold only the neccessary information about a polygon
 // edge needed to rasterize it
-struct Edge {
+struct Edge_polygon {
   unsigned int ystart;  //the first matrix row intersected
   unsigned int yend;  //the matrix row below the end of the line
   long double dxdy; //change in x per y. Long helps with some rounding errors
   long double x; //the x location on the first matrix row intersected
 
-  Edge(double x0, double y0, double x1, double y1, RasterInfo &ras,
+  Edge_polygon(double x0, double y0, double x1, double y1, RasterInfo &ras,
        double y0c, double y1c) {
     //Convert from coordinate space to matrix row/column space. This is
     //already done for ys with y0c and y1c
@@ -53,16 +53,19 @@ struct Edge {
   }
 };
 
+
+
+
 // These two structs allow us to compare and sort edges by their coordinates.
 struct less_by_ystart {
-  inline bool operator() (const Edge& struct1, const Edge& struct2) {
+  inline bool operator() (const Edge_polygon& struct1, const Edge_polygon& struct2) {
     return (struct1.ystart < struct2.ystart); // ||
     //((struct1.ystart == struct2.ystart) && (struct1.x < struct2.x)));
   }
 };
 
 struct less_by_x {
-  inline bool operator() (const Edge& struct1, const Edge& struct2) {
+  inline bool operator() (const Edge_polygon& struct1, const Edge_polygon& struct2) {
     return (struct1.x < struct2.x);
   }
 };

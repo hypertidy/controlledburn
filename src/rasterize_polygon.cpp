@@ -16,17 +16,17 @@ void record_cell(CollectorList &out_vector, unsigned int xs, unsigned int xe, un
 void rasterize_polygon(Rcpp::RObject polygon,
                        RasterInfo &ras, CollectorList &out_vector) {
 
-  std::list<Edge>::iterator it;
+  std::list<Edge_polygon>::iterator it;
   unsigned int counter, xstart, xend; //, xpix;
   xstart = 0;
 
   //Create the list of all edges of the polygon, fill and sort it
-  std::list<Edge> edges;
-  edgelist(polygon, ras, edges);
+  std::list<Edge_polygon> edges;
+  edgelist_polygon(polygon, ras, edges);
   edges.sort(less_by_ystart());
 
   // Initialize an empty list of "active" edges
-  std::list<Edge> active_edges;
+  std::list<Edge_polygon> active_edges;
 
   //Start at the top of the first edge
   unsigned int yline(edges.front().ystart);
@@ -54,11 +54,7 @@ void rasterize_polygon(Rcpp::RObject polygon,
       } else {
         xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
         record_cell(out_vector, xstart, xend, yline);
-        // for(xpix = xstart; xpix < xend; ++xpix) {
-        //   //note x/y switched here as raster objects store values this way
-        //  // pixel_function(raster, yline, xpix, poly_value);
-        //
-        // }
+
       }
     }
     //Advance the horizontal row

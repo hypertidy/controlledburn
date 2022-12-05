@@ -1,7 +1,7 @@
 #include "Rcpp.h"
 using namespace Rcpp;
 
-void check_inputs(Rcpp::DataFrame &sf,
+void check_inputs_polygon(Rcpp::DataFrame &sf,
                   Rcpp::List &polygons) {
 
   std::stringstream err_msg;
