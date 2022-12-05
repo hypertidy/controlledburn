@@ -30,14 +30,14 @@ struct Edge {
   unsigned int yend;  //the matrix row below the end of the line
   long double dxdy; //change in x per y. Long helps with some rounding errors
   long double x; //the x location on the first matrix row intersected
-
+  bool horiz;
   Edge(double x0, double y0, double x1, double y1, RasterInfo &ras,
-       double y0c, double y1c) {
+       double y0c, double y1c, bool h) {
     //Convert from coordinate space to matrix row/column space. This is
     //already done for ys with y0c and y1c
     x0 = (x0 - ras.xmin)/ras.xres - 0.5; //convert from native to
     x1 = (x1 - ras.xmin)/ras.xres - 0.5; // units in the matrix
-
+    horiz = h;
     //Make sure edges run from top of matrix to bottom, calculate value
     if(y1c > y0c) {
       ystart = std::max(y0c, 0.0);
@@ -46,8 +46,16 @@ struct Edge {
       yend = y1c;
     } else {
       ystart = std::max(y1c, 0.0);
-      dxdy = (x0-x1)/(y0-y1);
-      x = x1 + (ystart - y1)*dxdy;
+      long double dy = y0 - y1;
+      if (h) {
+        dy = 1;
+        dxdy = (x0-x1)/dy;
+        x = x1;
+
+      } else {
+        dxdy = (x0-x1)/dy;
+        x = x1 + (ystart - y1)*dxdy;
+      }
       yend = y0c;
     }
   }

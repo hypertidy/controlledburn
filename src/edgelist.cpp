@@ -14,12 +14,19 @@ void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges) {
     for(int i = 0; i < (poly.nrow() - 1); ++i) {
       y0 = (ras.ymax - poly(i, 1))/ras.yres - 0.5;
       y1 = (ras.ymax - poly(i+1, 1))/ras.yres - 0.5;
-      if(y0 > 0 || y1 > 0) {  //only both with edges that are in the raster
+      // fasterize does >0 >0 here but that misses the first row with a horizontal edge
+      // (fasterize doesn't miss it as a polygon though)
+      if(y0 > -1 || y1 > -1) {  //only both with edges that are in the raster
         y0c = std::ceil(y0);
         y1c = std::ceil(y1);
         if(y0c != y1c) {  //only bother with non-horizontal edges
           edges.push_back(Edge(poly(i    , 0), y0,
-                               poly(i + 1, 0), y1, ras, y0c, y1c));
+                               poly(i + 1, 0), y1, ras, y0c, y1c, false));
+        } else {
+          // if we're horizontal add it with the horiz flag set
+          edges.push_back(Edge(poly(i    , 0), y0,
+                               poly(i + 1, 0), y1, ras, y0c, y1c, true));
+
         }
       }
     }
@@ -42,3 +49,6 @@ void edgelist(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge> &edges) {
   }
   }
 }
+
+
+

@@ -5,13 +5,31 @@
 // Rasterize a single polygon
 // Based on https://ezekiel.encs.vancouver.wsu.edu/~cs442/lectures/rasterization/polyfill/polyfill.pdf #nolint
 
-void record_cell(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
-  if (xs == xe) return;
-  out_vector.push_back(Rcpp::IntegerVector::create(xs, xe - 1, y));
-  // out_vector.push_back(xs);
-  // out_vector.push_back(xe - 1);
-  // out_vector.push_back(y);
+void record_cell(CollectorList &out_vector, unsigned int xs, unsigned int y) {
+  //if (xs == xe) return;
+  out_vector.push_back(Rcpp::IntegerVector::create(xs,  y));
   return;
+}
+
+void record_horiz(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
+  if (xs == xe) return;
+  int len = xe -xs;
+  Rprintf("%i\n", len);
+  IntegerVector out(abs(len) + 1);
+  int i;
+  if (len > 0) {
+    for (i = 0; i < len; i++) {
+      out[i] = xs + i;
+    }
+
+  } else {
+    for (i = 0; i < abs(len); i++)
+      out[i] = xs  -i ;
+  }
+  out[i] = (int)y;
+  //Rprintf("%i, %i\n", out[i+1], abs(len));
+ out_vector.push_back(out);
+ return;
 }
 void rasterize_polygon(Rcpp::RObject polygon,
                        RasterInfo &ras, CollectorList &out_vector) {
@@ -33,7 +51,8 @@ void rasterize_polygon(Rcpp::RObject polygon,
 
   //Main loop
   while(
-    (yline < ras.nrow) &&
+    // note <= here, in fasterize the first row is ignored for horizontal lines
+    (yline <= ras.nrow) &&
       (!(active_edges.empty() && edges.empty()))
   ) {
     // Transfer any edges starting on this row from edges to active edges
@@ -45,21 +64,23 @@ void rasterize_polygon(Rcpp::RObject polygon,
 
     //Iterate over active edges, fill between odd and even edges.
     counter = 0;
+
     for(it = active_edges.begin();
         it != active_edges.end();
         it++) {
       counter++;
-      if (counter % 2) {
+      if(!(*it).horiz) {
         xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
-      } else {
-        xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
-        record_cell(out_vector, xstart, xend, yline);
-        // for(xpix = xstart; xpix < xend; ++xpix) {
-        //   //note x/y switched here as raster objects store values this way
-        //  // pixel_function(raster, yline, xpix, poly_value);
-        //
-        // }
-      }
+        record_cell(out_vector, xstart,  yline);
+
+    } else {
+      xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
+      xend = xstart+(*it).dxdy;
+      record_horiz(out_vector, xstart, xend, yline);
+      Rprintf("horizontal edge ystart,yend: %f, %f\n", (double)(*it).ystart, (double)(*it).yend);
+      Rprintf("xstart,xend: %i, %i\n", (int)xstart, (int)xend);
+
+    }
     }
     //Advance the horizontal row
     yline++;
