@@ -42,3 +42,38 @@ void edgelist_polygon(Rcpp::RObject polygon, RasterInfo &ras, std::list<Edge_pol
   }
   }
 }
+
+
+
+void edgelist_line(Rcpp::RObject line, RasterInfo &ras, std::list<Edge_line> &edges) {
+
+  //iterate recursively over the list
+  switch(line.sexp_type()) {
+  case REALSXP: {
+    //if the object is numeric, it an Nx2 matrix of line nodes.
+    Rcpp::NumericMatrix lns(line);
+    //Add edge to list
+    for(int i = 0; i < (lns.nrow() - 1); ++i) {
+// cull any that aren't in the raster at all TODO
+        edges.push_back(Edge_line(lns(i, 0), lns(i, 1),
+                                         lns(i + 1, 0), lns(i + 1, 1), ras));
+    }
+
+    break;
+  };
+  case VECSXP: {
+    //if the object is a list, recurse over that
+    Rcpp::List linelist = Rcpp::as<Rcpp::List>(line);
+    for(Rcpp::List::iterator it = linelist.begin();
+        it != linelist.end();
+        ++it) {
+      edgelist_line(Rcpp::wrap(*it), ras, edges);
+    }
+
+    break;
+  }
+  default: {
+    Rcpp::stop("incompatible SEXP; only accepts lists and REALSXPs");
+  }
+  }
+}

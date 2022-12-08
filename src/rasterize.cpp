@@ -1,16 +1,13 @@
 #include "edge.h"
 #include "edgelist.h"
-#include "rasterize_polygon.h"
+#include "rasterize.h"
 
 // Rasterize a single polygon
 // Based on https://ezekiel.encs.vancouver.wsu.edu/~cs442/lectures/rasterization/polyfill/polyfill.pdf #nolint
 
-void record_cell(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
+void record_polygon_scanline(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
   if (xs == xe) return;
   out_vector.push_back(Rcpp::IntegerVector::create(xs, xe - 1, y));
-  // out_vector.push_back(xs);
-  // out_vector.push_back(xe - 1);
-  // out_vector.push_back(y);
   return;
 }
 void rasterize_polygon(Rcpp::RObject polygon,
@@ -53,7 +50,7 @@ void rasterize_polygon(Rcpp::RObject polygon,
         xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
       } else {
         xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
-        record_cell(out_vector, xstart, xend, yline);
+        record_polygon_scanline(out_vector, xstart, xend, yline);
 
       }
     }
@@ -73,3 +70,40 @@ void rasterize_polygon(Rcpp::RObject polygon,
     }
   }
 }
+
+
+void record_column_row(CollectorList &out_vector, unsigned int x, unsigned int y) {
+  out_vector.push_back(Rcpp::IntegerVector::create(x, y));
+  return;
+}
+void rasterize_line(Rcpp::RObject line,
+                    RasterInfo &ras, CollectorList &out_vector) {
+
+  std::list<Edge_line>::iterator it;
+  unsigned int counter, xs, ys; //, xpix;
+  xs = 0;
+
+  //Create the list of all edges of the line, fill and sort it
+  std::list<Edge_line> edges;
+  edgelist_line(line, ras, edges);
+  edges.sort(less_by_ystart_line());
+  edges.sort(less_by_x_line());
+
+  //Iterate over edges
+  for(it = edges.begin();
+      it != edges.end();
+      it++) {
+
+    for (counter = 0; counter < (*it).nmoves; counter++) {
+      xs = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
+      ys = ((*it).y < 0.0) ?  0.0 : ((*it).y >= ras.nrowd ? (ras.nrowd -1) : std::ceil((*it).y));
+     // Rprintf("xs,ys: %i, %i\n", xs, ys);
+      record_column_row(out_vector, xs, ys);
+      (*it).x += (*it).dx;
+      (*it).y += (*it).dy;
+    }
+
+  }
+
+}
+
