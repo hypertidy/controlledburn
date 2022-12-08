@@ -5,3 +5,7 @@ burn_polygon <- function(sf, extent, dimension) {
     .Call(`_controlledburn_burn_polygon`, sf, extent, dimension)
 }
 
+burn_line <- function(sf, extent, dimension) {
+    .Call(`_controlledburn_burn_line`, sf, extent, dimension)
+}
+

@@ -5,7 +5,7 @@ using namespace Rcpp;
 #include "check_inputs.h"
 
 #include "edgelist.h"
-#include "rasterize_polygon.h"
+#include "rasterize.h"
 #include "burn.h"
 #include "utils.h"
 
@@ -54,6 +54,33 @@ Rcpp::List burn_polygon(Rcpp::DataFrame &sf,
 
     return out_vector.vector();
 }
+
+
+// [[Rcpp::export]]
+Rcpp::List burn_line(Rcpp::DataFrame &sf,
+                        Rcpp::NumericVector &extent,
+                        Rcpp::IntegerVector &dimension) {
+
+  Rcpp::List lines;
+
+  check_inputs_line(sf, lines);  // Also fills in polygons
+
+  //set up things we'll use later
+  Rcpp::List::iterator ln;
+  Rcpp::NumericVector::iterator f;
+  RasterInfo ras(extent, dimension);
+  CollectorList out_vector;
+  //Rasterize but always assign to the one layer
+  ln = lines.begin();
+
+  for(; ln != lines.end(); ++ln) {
+    rasterize_line( (*ln), ras, out_vector);
+  }
+
+  return out_vector.vector();
+}
+
+
 
 
 

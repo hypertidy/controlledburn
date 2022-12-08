@@ -72,7 +72,7 @@ library(vaster)
 ## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)
 ext <- unlist(lapply(silicate::sc_vertex(pols), range))
 dm <- c(500, 400)
-r <- controlledburn:::laserize(pols, extent = ext,
+r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm)
 
 ## our index is triplets of start,end,line where the polygon edge was detected - 
