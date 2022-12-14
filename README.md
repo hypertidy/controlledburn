@@ -11,16 +11,19 @@
 The goal of controlledburn is to rasterize without materializing any
 pixel values.
 
-This is an expression of my “cell abstraction”
+This is an expression of the “cell abstraction” wish item
 [fasterize/issues/11](https://github.com/ecohealthalliance/fasterize/issues/11).
 
-- [x] name the package
 - [ ] move to cpp11
-- [ ] rasterize lines and points
+- [ ] rasterize lines
   [fasterize/issues/30](https://github.com/ecohealthalliance/fasterize/issues/30)
 - [ ] formats for import (wk, geos, grd, rct, triangles etc.)
 - [ ] streaming with wkb/xy unpack with wk
-- [ ] provide output options (see next)
+- [ ] provide output options (see next section)
+- [ ] port back into fasterize, with options for efficiently writing out
+  to a tiled and sparse GeoTIF
+- [x] points is too easy, see vaster::cell_from_xy
+- [x] name the package
 - [x] copy logic from fasterize, and remove Armadillo array handling
 - [x] remove use of raster objects, in favour of input extent and
   dimension
@@ -29,10 +32,15 @@ This is an expression of my “cell abstraction”
   (see below)
 - [x] make return of ylin,xpix structure efficient (CollectorList.h ftw)
 
+Lines is built-in but still has some problems. For polygons it’s pretty
+good, see [fasterize
+\#6](https://github.com/ecohealthalliance/fasterize/issues/6) for a
+remaining issue.
+
 ## Outputs
 
-Currently we get a list of triplets, so examples are unlist this to a
-3-column matrix (and add 1).
+Currently we get a list of triplets, so examples are this to a 3-column
+matrix (and add 1).
 
 - two options, record presence of polygon OR ID of polygon
 - a row-indexed (*yline*) set of edge instances (start, end *xpix*)
@@ -71,52 +79,74 @@ library(vaster)
 #>     ts
 ## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)
 ext <- unlist(lapply(silicate::sc_vertex(pols), range))
-dm <- c(500, 400)
-r <- controlledburn:::laserize(pols, extent = ext,
+dm <- c(50, 40)
+r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm)
 
 ## our index is triplets of start,end,line where the polygon edge was detected - 
 ## this essentially an rle by scanline of start,end polygon coverage
 index <- matrix(unlist(r, use.names = F), ncol = 3L, byrow = TRUE) + 1 ## plus one because 0-index internally
-cr <- do.call(rbind, apply(index, 1, \(.x) cbind(seq(.x[1], .x[2]), .x[3])))
-lcells_all <- sort(vaster::cell_from_row_col(dm, cr[,2], cr[,1]))
 
-plot(silicate::PATH0(pols))
-points(xy_from_cell(dm, ext, lcells_all), pch = ".")
+## plot just the start and ends of each scanline detected
+xy0 <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, index[,c(3, 3)], index[,1:2]))
+plot(xy0)
+plot(silicate::PATH0(pols), add = TRUE)
 ```
 
 <img src="man/figures/README-example-1.png" width="100%" />
 
 ``` r
-str(index)
-#>  num [1:779, 1:3] 291 288 286 286 286 286 290 286 287 287 ...
 
-## convert to cells
-cells <- vaster::cell_from_row_col(dm,  index[,c(3, 3)], index[,1:2])
-str(cells)
-#>  num [1:1558] 80291 80788 81286 81786 82286 ...
+## expand out to every cell
+cr <- do.call(rbind, apply(index, 1, \(.x) cbind(seq(.x[1], .x[2]), .x[3])))
+xy <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, cr[,2], cr[,1]))
+plot(xy, pch = 19, cex = .3)
+plot(silicate::PATH0(pols), add = TRUE)
 ```
 
-It scales to very large tasks, less than a second for `250000x200000`
-dimension above, with 35Mb in memory output.
+<img src="man/figures/README-example-2.png" width="100%" />
+
+It scales to very large tasks, with small output.
+
+``` r
+dm <- c(500000, 400000)
+system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
+                               dimension = dm))
+#>    user  system elapsed 
+#>   1.019   0.032   1.052
+length(r)
+#> [1] 989153
+
+## consider a prod(dm) raster of type double (or even bool) obviously would compress again but why churn
+pryr::object_size(r)  
+#> 71.22 MB
+```
 
 The following is inefficient, but shows that we get the right result.
 
 ``` r
-plot(vaster::xy_from_cell(dm, ext, cells))
+dm <- c(500, 400)
+system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
+                               dimension = dm))
+#>    user  system elapsed 
+#>   0.002   0.000   0.002
+
+index <- matrix(unlist(r, use.names = F), ncol = 3L, byrow = TRUE) + 1 ## plus one because 0-index internally
+
 ## now go inefficient, this is every column,row index, then converted to cell, converted to xy
 cr <- do.call(rbind, apply(index, 1, \(.x) cbind(seq(.x[1], .x[2]), .x[3])))
-points(xy <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, cr[,2], cr[,1])), pch = ".", col = "darkgrey")
+xy <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, cr[,2], cr[,1]))
+plot(xy, pch = ".", col = "darkgrey")
 ```
 
 <img src="man/figures/README-bad-1.png" width="100%" />
 
 ``` r
 
-r <- terra::rast(cbind(xy, 0), type = "xyz")
+rr <- terra::rast(cbind(xy, 0), type = "xyz")
 
-r[terra::cellFromXY(r, xy)] <- 1
-terra::plot(r ,col = "firebrick")
+rr[terra::cellFromXY(rr, xy)] <- 1
+terra::plot(rr ,col = "firebrick", asp = NA)
 plot(silicate::SC0(pols), add = TRUE)
 ```
 
