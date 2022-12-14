@@ -102,7 +102,7 @@
 <div class="section level2">
 <h2 id="outputs">Outputs<a class="anchor" aria-label="anchor" href="#outputs"></a>
 </h2>
-<p>Currently we get a list of triplets, so examples are this to a 3-column matrix (and add 1).</p>
+<p>Currently we get a list of triplets, so examples flattent this to a 3-column matrix (and add 1).</p>
 <ul>
 <li>two options, record presence of polygon OR ID of polygon</li>
 <li>a row-indexed (<em>yline</em>) set of edge instances (start, end <em>xpix</em>) along scanlines with the two options</li>
@@ -160,7 +160,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
 <span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   1.019   0.032   1.052</span></span>
+<span><span class="co">#&gt;    1.09    0.04    1.13</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 989153</span></span>
 <span></span>
@@ -173,7 +173,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
 <span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.002   0.000   0.002</span></span>
+<span><span class="co">#&gt;   0.003   0.001   0.002</span></span>
 <span></span>
 <span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">r</span>, use.names <span class="op">=</span> <span class="cn">F</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">3L</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">+</span> <span class="fl">1</span> <span class="co">## plus one because 0-index internally</span></span>
 <span></span>
