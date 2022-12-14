@@ -43,7 +43,7 @@ Lines is built-in but still has some problems. For polygons it's pretty good, se
 
 ## Outputs
 
-Currently we get a list of triplets, so examples are this to a 3-column matrix (and add 1). 
+Currently we get a list of triplets, so examples flattent this to a 3-column matrix (and add 1). 
 
 * two options, record presence of polygon OR ID of polygon
 * a row-indexed (*yline*) set of edge instances (start, end *xpix*) along scanlines with the two options

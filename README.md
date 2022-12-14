@@ -39,8 +39,8 @@ remaining issue.
 
 ## Outputs
 
-Currently we get a list of triplets, so examples are this to a 3-column
-matrix (and add 1).
+Currently we get a list of triplets, so examples flattent this to a
+3-column matrix (and add 1).
 
 - two options, record presence of polygon OR ID of polygon
 - a row-indexed (*yline*) set of edge instances (start, end *xpix*)
@@ -113,7 +113,7 @@ dm <- c(500000, 400000)
 system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm))
 #>    user  system elapsed 
-#>   1.019   0.032   1.052
+#>    1.09    0.04    1.13
 length(r)
 #> [1] 989153
 
@@ -129,7 +129,7 @@ dm <- c(500, 400)
 system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm))
 #>    user  system elapsed 
-#>   0.002   0.000   0.002
+#>   0.003   0.001   0.002
 
 index <- matrix(unlist(r, use.names = F), ncol = 3L, byrow = TRUE) + 1 ## plus one because 0-index internally
 
