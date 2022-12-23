@@ -11,8 +11,27 @@
 The goal of controlledburn is to rasterize without materializing any
 pixel values.
 
-This is an expression of the “cell abstraction” wish item
+A very fast rasterization algorithm for polygons in
+[fasterize](https://github.com/ecohealthalliance/fasterize) does the
+following:
+
+- restructures polygons to edges
+- considers only non-horizontal polygon edges and indexes them in y,x
+  order (slope always down)
+- determines all affected raster rows and scans these for edge *start*
+  and *end* column
+- burns polygon value or identity into every pixel between those starts
+  and ends
+
+controlledburn avoids that last step. With these rasterization functions
+the return value is not a set of pixels or a side-effect of a
+materialized raster file but simply those row and column start and end
+indexes.
+
+This is an expression of the *cell abstraction* wish item
 [fasterize/issues/11](https://github.com/ecohealthalliance/fasterize/issues/11).
+
+## TODO
 
 - [ ] move to cpp11
 - [ ] rasterize lines
@@ -21,7 +40,7 @@ This is an expression of the “cell abstraction” wish item
 - [ ] streaming with wkb/xy unpack with wk
 - [ ] provide output options (see next section)
 - [ ] port back into fasterize, with options for efficiently writing out
-  to a tiled and sparse GeoTIF
+  to a tiled and sparse GeoTIFF
 - [x] points is too easy, see vaster::cell_from_xy
 - [x] name the package
 - [x] copy logic from fasterize, and remove Armadillo array handling
@@ -32,25 +51,34 @@ This is an expression of the “cell abstraction” wish item
   (see below)
 - [x] make return of ylin,xpix structure efficient (CollectorList.h ftw)
 
-Lines is built-in but still has some problems. For polygons it’s pretty
+Lines is working but still has some problems. For polygons it’s pretty
 good, see [fasterize
 \#6](https://github.com/ecohealthalliance/fasterize/issues/6) for a
 remaining issue.
 
 ## Outputs
 
-Currently we get a list of triplets, so examples flattent this to a
-3-column matrix (and add 1).
+Internal function `burn_polygon()` has arguments `sf`, `extent`,
+`dimension`. The first is a sf polygons data frame, extent is
+`c(xmin, xmax, ymin, ymax)` and dimension is `c(ncol, nrow)`. In
+fasterize you need an actual non-materialized *RasterLayer* object, but
+all that was really used for was the six numbers extent, dimension and
+as the shell for the in-memory output.
 
-- two options, record presence of polygon OR ID of polygon
-- a row-indexed (*yline*) set of edge instances (start, end *xpix*)
-  along scanlines with the two options
+The output of `burn_polygon()` is a list of triplet indexes
+`start,end,row` - these are zero-based atm because they reflect the
+underlying C++ code. Examples recorder flatten this to a 3-column matrix
+(and add 1).
+
+These options are still in play for what the interface/s could do:
+
+- record presence of polygon (this is all we have currently) OR ID of
+  polygon
 - tools to format this meaningfully, and plot lazily (see example for
   quick plot)
 - tools to materialize as actual raster data
 
-I wanted this facility a long time, and tried to get discussion on it
-and tried to implement it. I also found this real world example,
+I also found this real world example for which this is relevant,
 discussed in PROJ for very fast lookup for large non-materialized
 (highly compressed) grids by Thomas Knudsen:
 
@@ -66,8 +94,7 @@ remotes::install_github("hypertidy/controlledburn")
 
 ## Example
 
-This is a basic example, this is fast, and shows that it works. See the
-todo list above.
+This is a basic example, this is fast, and shows that it works.
 
 ``` r
 pols <- silicate::inlandwaters
@@ -113,7 +140,7 @@ dm <- c(500000, 400000)
 system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm))
 #>    user  system elapsed 
-#>    1.09    0.04    1.13
+#>   1.060   0.048   1.107
 length(r)
 #> [1] 989153
 
@@ -129,7 +156,7 @@ dm <- c(500, 400)
 system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm))
 #>    user  system elapsed 
-#>   0.003   0.001   0.002
+#>   0.002   0.001   0.003
 
 index <- matrix(unlist(r, use.names = F), ncol = 3L, byrow = TRUE) + 1 ## plus one because 0-index internally
 
