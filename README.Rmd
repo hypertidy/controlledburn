@@ -60,7 +60,7 @@ Lines is working but still has some problems. For polygons it's pretty good, see
 Internal function `burn_polygon()` has arguments `sf`, `extent`, `dimension`. The first is a sf polygons data frame, extent is `c(xmin, xmax, ymin, ymax)` and dimension is `c(ncol, nrow)`. In fasterize you need an actual non-materialized *RasterLayer* object, but all that was
 really used for was the six numbers extent, dimension and as the shell for the in-memory output. 
 
-The output of `burn_polygon()` is a list of triplet indexes `start,end,row` - these are zero-based atm because they reflect the underlying C++ code. Examples recorder  flatten this to a 3-column matrix (and add 1). 
+The output of `burn_polygon()` is a list of triplet indexes `start,end,row` - these are zero-based atm because they reflect the underlying C++ code. Examples shown here flatten this to a 3-column matrix (and add 1). 
 
 
 These options are still in play for what the interface/s could do: 

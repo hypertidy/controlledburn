@@ -67,8 +67,8 @@ as the shell for the in-memory output.
 
 The output of `burn_polygon()` is a list of triplet indexes
 `start,end,row` - these are zero-based atm because they reflect the
-underlying C++ code. Examples recorder flatten this to a 3-column matrix
-(and add 1).
+underlying C++ code. Examples shown here flatten this to a 3-column
+matrix (and add 1).
 
 These options are still in play for what the interface/s could do:
 
@@ -140,7 +140,7 @@ dm <- c(500000, 400000)
 system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm))
 #>    user  system elapsed 
-#>   1.060   0.048   1.107
+#>   1.094   0.028   1.123
 length(r)
 #> [1] 989153
 
@@ -156,7 +156,7 @@ dm <- c(500, 400)
 system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm))
 #>    user  system elapsed 
-#>   0.002   0.001   0.003
+#>   0.003   0.000   0.002
 
 index <- matrix(unlist(r, use.names = F), ncol = 3L, byrow = TRUE) + 1 ## plus one because 0-index internally
 
