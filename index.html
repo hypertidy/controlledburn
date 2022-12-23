@@ -68,7 +68,18 @@
 <!-- badges: start -->
 
 <p>The goal of controlledburn is to rasterize without materializing any pixel values.</p>
-<p>This is an expression of the “cell abstraction” wish item <a href="https://github.com/ecohealthalliance/fasterize/issues/11" class="external-link">fasterize/issues/11</a>.</p>
+<p>A very fast rasterization algorithm for polygons in <a href="https://github.com/ecohealthalliance/fasterize" class="external-link">fasterize</a> does the following:</p>
+<ul>
+<li>restructures polygons to edges</li>
+<li>considers only non-horizontal polygon edges and indexes them in y,x order (slope always down)</li>
+<li>determines all affected raster rows and scans these for edge <em>start</em> and <em>end</em> column</li>
+<li>burns polygon value or identity into every pixel between those starts and ends</li>
+</ul>
+<p>controlledburn avoids that last step. With these rasterization functions the return value is not a set of pixels or a side-effect of a materialized raster file but simply those row and column start and end indexes.</p>
+<p>This is an expression of the <em>cell abstraction</em> wish item <a href="https://github.com/ecohealthalliance/fasterize/issues/11" class="external-link">fasterize/issues/11</a>.</p>
+<div class="section level2">
+<h2 id="todo">TODO<a class="anchor" aria-label="anchor" href="#todo"></a>
+</h2>
 <ul class="task-list">
 <li>
 <input type="checkbox" disabled>move to cpp11</li>
@@ -82,7 +93,7 @@
 <li>
 <input type="checkbox" disabled>provide output options (see next section)</li>
 <li>
-<input type="checkbox" disabled>port back into fasterize, with options for efficiently writing out to a tiled and sparse GeoTIF</li>
+<input type="checkbox" disabled>port back into fasterize, with options for efficiently writing out to a tiled and sparse GeoTIFF</li>
 <li>
 <input type="checkbox" disabled checked>points is too easy, see vaster::cell_from_xy</li>
 <li>
@@ -98,18 +109,20 @@
 <li>
 <input type="checkbox" disabled checked>make return of ylin,xpix structure efficient (CollectorList.h ftw)</li>
 </ul>
-<p>Lines is built-in but still has some problems. For polygons it’s pretty good, see <a href="https://github.com/ecohealthalliance/fasterize/issues/6" class="external-link">fasterize #6</a> for a remaining issue.</p>
+<p>Lines is working but still has some problems. For polygons it’s pretty good, see <a href="https://github.com/ecohealthalliance/fasterize/issues/6" class="external-link">fasterize #6</a> for a remaining issue.</p>
+</div>
 <div class="section level2">
 <h2 id="outputs">Outputs<a class="anchor" aria-label="anchor" href="#outputs"></a>
 </h2>
-<p>Currently we get a list of triplets, so examples flattent this to a 3-column matrix (and add 1).</p>
+<p>Internal function <code>burn_polygon()</code> has arguments <code>sf</code>, <code>extent</code>, <code>dimension</code>. The first is a sf polygons data frame, extent is <code>c(xmin, xmax, ymin, ymax)</code> and dimension is <code>c(ncol, nrow)</code>. In fasterize you need an actual non-materialized <em>RasterLayer</em> object, but all that was really used for was the six numbers extent, dimension and as the shell for the in-memory output.</p>
+<p>The output of <code>burn_polygon()</code> is a list of triplet indexes <code>start,end,row</code> - these are zero-based atm because they reflect the underlying C++ code. Examples recorder flatten this to a 3-column matrix (and add 1).</p>
+<p>These options are still in play for what the interface/s could do:</p>
 <ul>
-<li>two options, record presence of polygon OR ID of polygon</li>
-<li>a row-indexed (<em>yline</em>) set of edge instances (start, end <em>xpix</em>) along scanlines with the two options</li>
+<li>record presence of polygon (this is all we have currently) OR ID of polygon</li>
 <li>tools to format this meaningfully, and plot lazily (see example for quick plot)</li>
 <li>tools to materialize as actual raster data</li>
 </ul>
-<p>I wanted this facility a long time, and tried to get discussion on it and tried to implement it. I also found this real world example, discussed in PROJ for very fast lookup for large non-materialized (highly compressed) grids by Thomas Knudsen:</p>
+<p>I also found this real world example for which this is relevant, discussed in PROJ for very fast lookup for large non-materialized (highly compressed) grids by Thomas Knudsen:</p>
 <p><a href="https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992" class="external-link uri">https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992</a></p>
 </div>
 <div class="section level2">
@@ -122,7 +135,7 @@
 <div class="section level2">
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
 </h2>
-<p>This is a basic example, this is fast, and shows that it works. See the todo list above.</p>
+<p>This is a basic example, this is fast, and shows that it works.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pols</span> <span class="op">&lt;-</span> <span class="fu">silicate</span><span class="fu">::</span><span class="va">inlandwaters</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">vaster</span><span class="op">)</span></span>
@@ -160,7 +173,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
 <span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;    1.09    0.04    1.13</span></span>
+<span><span class="co">#&gt;   1.060   0.048   1.107</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 989153</span></span>
 <span></span>
@@ -173,7 +186,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
 <span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.003   0.001   0.002</span></span>
+<span><span class="co">#&gt;   0.002   0.001   0.003</span></span>
 <span></span>
 <span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">r</span>, use.names <span class="op">=</span> <span class="cn">F</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">3L</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">+</span> <span class="fl">1</span> <span class="co">## plus one because 0-index internally</span></span>
 <span></span>
@@ -249,7 +262,7 @@
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.6.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.7.</p>
 </div>
 
       </footer>
