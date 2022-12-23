@@ -115,7 +115,7 @@
 <h2 id="outputs">Outputs<a class="anchor" aria-label="anchor" href="#outputs"></a>
 </h2>
 <p>Internal function <code>burn_polygon()</code> has arguments <code>sf</code>, <code>extent</code>, <code>dimension</code>. The first is a sf polygons data frame, extent is <code>c(xmin, xmax, ymin, ymax)</code> and dimension is <code>c(ncol, nrow)</code>. In fasterize you need an actual non-materialized <em>RasterLayer</em> object, but all that was really used for was the six numbers extent, dimension and as the shell for the in-memory output.</p>
-<p>The output of <code>burn_polygon()</code> is a list of triplet indexes <code>start,end,row</code> - these are zero-based atm because they reflect the underlying C++ code. Examples recorder flatten this to a 3-column matrix (and add 1).</p>
+<p>The output of <code>burn_polygon()</code> is a list of triplet indexes <code>start,end,row</code> - these are zero-based atm because they reflect the underlying C++ code. Examples shown here flatten this to a 3-column matrix (and add 1).</p>
 <p>These options are still in play for what the interface/s could do:</p>
 <ul>
 <li>record presence of polygon (this is all we have currently) OR ID of polygon</li>
@@ -173,7 +173,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
 <span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   1.060   0.048   1.107</span></span>
+<span><span class="co">#&gt;   1.094   0.028   1.123</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 989153</span></span>
 <span></span>
@@ -186,7 +186,7 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
 <span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.002   0.001   0.003</span></span>
+<span><span class="co">#&gt;   0.003   0.000   0.002</span></span>
 <span></span>
 <span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">r</span>, use.names <span class="op">=</span> <span class="cn">F</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">3L</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">+</span> <span class="fl">1</span> <span class="co">## plus one because 0-index internally</span></span>
 <span></span>
