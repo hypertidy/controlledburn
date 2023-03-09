@@ -1,6 +1,6 @@
 Package: controlledburn
 Title: Rasterize Index
-Version: 0.0.2
+Version: 0.0.2.9001
 Authors@R: c(
            person("Michael", "Sumner", role = c("aut", "cre", "ctb"),
            email = "mdsumner@gmail.com",

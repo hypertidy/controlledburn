@@ -1,4 +1,8 @@
-# controlledburn 0.0.1
+# controlledburn dev
+
+* Add poly_id to the raw output (put in options later for more efficient). 
+
+# controlledburn 0.0.2
 
 * Basic function working, we return a list of triplets of zero-index start,end,line index. 
 
