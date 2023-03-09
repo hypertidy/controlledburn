@@ -5,13 +5,13 @@
 // Rasterize a single polygon
 // Based on https://ezekiel.encs.vancouver.wsu.edu/~cs442/lectures/rasterization/polyfill/polyfill.pdf #nolint
 
-void record_polygon_scanline(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y) {
+void record_polygon_scanline(CollectorList &out_vector, unsigned int xs, unsigned int xe, unsigned int y, unsigned int poly_id) {
   if (xs == xe) return;
-  out_vector.push_back(Rcpp::IntegerVector::create(xs, xe - 1, y));
+  out_vector.push_back(Rcpp::IntegerVector::create(xs, xe - 1, y, poly_id));
   return;
 }
 void rasterize_polygon(Rcpp::RObject polygon,
-                       RasterInfo &ras, CollectorList &out_vector) {
+                       RasterInfo &ras, CollectorList &out_vector, unsigned int poly_id) {
 
   std::list<Edge_polygon>::iterator it;
   unsigned int counter, xstart, xend; //, xpix;
@@ -50,7 +50,7 @@ void rasterize_polygon(Rcpp::RObject polygon,
         xstart = ((*it).x < 0.0) ? 0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
       } else {
         xend = ((*it).x < 0.0) ?  0.0 : ((*it).x >= ras.ncold ? (ras.ncold -1) : std::ceil((*it).x));
-        record_polygon_scanline(out_vector, xstart, xend, yline);
+        record_polygon_scanline(out_vector, xstart, xend, yline, poly_id);
 
       }
     }

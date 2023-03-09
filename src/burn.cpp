@@ -49,7 +49,7 @@ Rcpp::List burn_polygon(Rcpp::DataFrame &sf,
     p = polygons.begin();
     f = field_vals.begin();
      for(; p != polygons.end(); ++p, ++f) {
-       rasterize_polygon( (*p), ras, out_vector);
+       rasterize_polygon( (*p), ras, out_vector, p.index());
     }
 
     return out_vector.vector();

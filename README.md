@@ -65,9 +65,9 @@ fasterize you need an actual non-materialized *RasterLayer* object, but
 all that was really used for was the six numbers extent, dimension and
 as the shell for the in-memory output.
 
-The output of `burn_polygon()` is a list of triplet indexes
-`start,end,row` - these are zero-based atm because they reflect the
-underlying C++ code. Examples shown here flatten this to a 3-column
+The output of `burn_polygon()` is a list of four-element indexes
+`start,end,row,poly_id` - these are zero-based atm because they reflect
+the underlying C++ code. Examples shown here flatten this to a 4-column
 matrix (and add 1).
 
 These options are still in play for what the interface/s could do:
@@ -112,7 +112,7 @@ r <- controlledburn:::burn_polygon(pols, extent = ext,
 
 ## our index is triplets of start,end,line where the polygon edge was detected - 
 ## this essentially an rle by scanline of start,end polygon coverage
-index <- matrix(unlist(r, use.names = F), ncol = 3L, byrow = TRUE) + 1 ## plus one because 0-index internally
+index <- matrix(unlist(r, use.names = F), ncol = 4L, byrow = TRUE) + 1 ## plus one because 0-index internally
 
 ## plot just the start and ends of each scanline detected
 xy0 <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, index[,c(3, 3)], index[,1:2]))
@@ -125,9 +125,10 @@ plot(silicate::PATH0(pols), add = TRUE)
 ``` r
 
 ## expand out to every cell
-cr <- do.call(rbind, apply(index, 1, \(.x) cbind(seq(.x[1], .x[2]), .x[3])))
+  
+cr <- do.call(rbind, apply(index, 1,\(.x) cbind(seq(.x[1], .x[2]), .x[3], .x[4])))
 xy <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, cr[,2], cr[,1]))
-plot(xy, pch = 19, cex = .3)
+plot(xy, pch = 19, cex = .3, col = palr::d_pal(cr[,3]))
 plot(silicate::PATH0(pols), add = TRUE)
 ```
 
@@ -140,7 +141,7 @@ dm <- c(500000, 400000)
 system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm))
 #>    user  system elapsed 
-#>   1.094   0.028   1.123
+#>   0.913   0.068   0.982
 length(r)
 #> [1] 989153
 
@@ -156,14 +157,14 @@ dm <- c(500, 400)
 system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
                                dimension = dm))
 #>    user  system elapsed 
-#>   0.003   0.000   0.002
+#>   0.002   0.001   0.003
 
-index <- matrix(unlist(r, use.names = F), ncol = 3L, byrow = TRUE) + 1 ## plus one because 0-index internally
+index <- matrix(unlist(r, use.names = F), ncol = 4L, byrow = TRUE) + 1 ## plus one because 0-index internally
 
 ## now go inefficient, this is every column,row index, then converted to cell, converted to xy
-cr <- do.call(rbind, apply(index, 1, \(.x) cbind(seq(.x[1], .x[2]), .x[3])))
+cr <- do.call(rbind, apply(index, 1, \(.x) cbind(seq(.x[1], .x[2]), .x[3], .x[4])))
 xy <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, cr[,2], cr[,1]))
-plot(xy, pch = ".", col = "darkgrey")
+plot(xy, pch = ".", col = palr::d_pal(cr[,3]))
 ```
 
 <img src="man/figures/README-bad-1.png" width="100%" />
