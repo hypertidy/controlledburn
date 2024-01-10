@@ -27,3 +27,5 @@ Suggests:
     sfheaders,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+URL: https://hypertidy.github.io/controlledburn/, https://github.com/hypertidy/controlledburn
+BugReports: https://github.com/hypertidy/controlledburn/issues
