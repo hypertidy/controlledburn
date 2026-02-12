@@ -4,12 +4,20 @@
 \name{controlledburn-package}
 \alias{controlledburn}
 \alias{controlledburn-package}
-\title{controlledburn: Rasterize Index}
+\title{controlledburn: Sparse Polygon Rasterization with Exact Coverage Fractions}
 \description{
-Rasterize without materializing any pixel values. Rasterization of polygons starts with classifying pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index of start and stops of edges by scanline. We produce these intermediate structures, so they can be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from materialized rasters. This package was derived from 'fasterize', removing Armadillo and the raster package.
+Rasterize polygons without materializing any pixel values. Computes exact coverage fractions for polygon-grid intersections and returns results in a sparse two-table format: run-length encoded interior cells and individually weighted boundary cells. The scanline algorithm is O(perimeter) in both time and memory. Uses the exactextract algorithm by Daniel Baston, vendored from the 'exactextractr' package. Derived from the 'fasterize' package by Noam Ross.
+}
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/hypertidy/controlledburn}
+  \item Report bugs at \url{https://github.com/hypertidy/controlledburn/issues}
+}
+
 }
 \author{
-\strong{Maintainer}: Michael Sumner \email{mdsumner@gmail.com} (\href{https://orcid.org/0000-0002-2471-7511}{ORCID}) [contributor]
+\strong{Maintainer}: Michael Sumner \email{mdsumner@gmail.com} (\href{https://orcid.org/0000-0002-2471-7511}{ORCID})
 
 Authors:
 \itemize{
@@ -18,8 +26,10 @@ Authors:
 
 Other contributors:
 \itemize{
-  \item EcoHealth Alliance [copyright holder]
-  \item Jim Hester (wrote CollectorList.h and advised of its use) [contributor]
+  \item EcoHealth Alliance (Original fasterize scanline logic) [copyright holder]
+  \item Jim Hester (Wrote CollectorList.h for early version) [contributor]
+  \item Daniel Baston (exactextract C++ algorithm (vendored)) [copyright holder]
+  \item ISciences, LLC (exactextract C++ algorithm (vendored)) [copyright holder]
 }
 
 }

@@ -13,146 +13,155 @@ knitr::opts_chunk$set(
 )
 ```
 
-
-# controlledburn 
+# controlledburn
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
-The goal of controlledburn is to rasterize without materializing any pixel values.
+Rasterize polygons without materializing any pixel values. controlledburn
+computes exact coverage fractions for polygon-grid intersections and returns
+results as sparse tables: run-length encoded interior cells and individually
+weighted boundary cells.
 
-A very fast rasterization algorithm for polygons in [fasterize](https://github.com/ecohealthalliance/fasterize) does the following: 
-
-- restructures polygons to edges
-- considers only non-horizontal polygon edges and indexes them in y,x order (slope always down)
-- determines all affected raster rows and scans these for edge *start* and *end* column
-- burns polygon value or identity into every pixel between those starts and ends
-
-
-controlledburn avoids that last step.  With these rasterization functions the return value is not a set of pixels or a side-effect of
-a materialized raster file but simply those row and column start and end indexes.
-
-
-
-This is an expression of the *cell abstraction* wish item [fasterize/issues/11](https://github.com/ecohealthalliance/fasterize/issues/11). 
-
-## TODO 
-
-- [ ] move to cpp11
-- [ ] rasterize lines [fasterize/issues/30](https://github.com/ecohealthalliance/fasterize/issues/30)
-- [ ] formats for import (wk, geos, grd, rct, triangles etc.)
-- [ ] streaming with wkb/xy unpack with wk
-- [ ] provide output options (see next section)
-- [ ] port back into fasterize, with options for efficiently writing out to a tiled and sparse GeoTIFF
-- [x] points is too easy, see vaster::cell_from_xy
-- [x] name the package
-- [x] copy logic from fasterize, and remove Armadillo array handling
-- [x] remove use of raster objects, in favour of input extent and dimension
-- [x] remove all trace of the raster package
-- [x] implement return of the 'yline, xpix' and polygon ID info to user (see below)
-- [x] make return of ylin,xpix structure efficient (CollectorList.h ftw)
-
-Lines is working but still has some problems. For polygons it's pretty good, see [fasterize #6](https://github.com/ecohealthalliance/fasterize/issues/6) for a remaining issue. 
-
-## Outputs
-
-Internal function `burn_polygon()` has arguments `sf`, `extent`, `dimension`. The first is a sf polygons data frame, extent is `c(xmin, xmax, ymin, ymax)` and dimension is `c(ncol, nrow)`. In fasterize you need an actual non-materialized *RasterLayer* object, but all that was
-really used for was the six numbers extent, dimension and as the shell for the in-memory output. 
-
-The output of `burn_polygon()` is a list of four-element indexes `start,end,row,poly_id` - these are zero-based atm because they reflect the underlying C++ code. Examples shown here flatten this to a 4-column matrix (and add 1). 
-
-
-These options are still in play for what the interface/s could do: 
-
-* record presence of polygon (this is all we have currently) OR ID of polygon
-* tools to format this meaningfully, and plot lazily (see example for quick plot)
-* tools to materialize as actual raster data
-
-I also found this real world example for which this is relevant, discussed in PROJ for
-very fast lookup for large non-materialized (highly compressed) grids by Thomas
-Knudsen:
-
-https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992
-
+The scanline algorithm is O(perimeter) in both time and memory.
 
 ## Installation
 
-You can install the development version of controlledburn like so:
-
-``` r
+```r
 remotes::install_github("hypertidy/controlledburn")
 ```
 
-## Example
+## Usage
 
-This is a basic example, this is fast, and shows that it works. 
+```{r usage}
+library(controlledburn)
+library(geos)
 
-```{r example}
-pols <- silicate::inlandwaters
-library(vaster)
-## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)
-ext <- unlist(lapply(silicate::sc_vertex(pols), range))
-dm <- c(50, 40)
-r <- controlledburn:::burn_polygon(pols, extent = ext,
-                               dimension = dm)
+poly <- as_geos_geometry("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
 
-## our index is triplets of start,end,line where the polygon edge was detected - 
-## this essentially an rle by scanline of start,end polygon coverage
-index <- matrix(unlist(r, use.names = F), ncol = 4L, byrow = TRUE) + 1 ## plus one because 0-index internally
+# Sparse output — no dense matrix allocated
+r <- burn_scanline(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
+r
+#> <controlledburn> 20 x 20 grid, 1 geometry
+#>   runs:  N (interior cells)
+#>   edges: N boundary cells
 
-## plot just the start and ends of each scanline detected
-xy0 <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, index[,c(3, 3)], index[,1:2]))
-plot(xy0)
-plot(silicate::PATH0(pols), add = TRUE)
-
-## expand out to every cell
-  
-cr <- do.call(rbind, apply(index, 1,\(.x) cbind(seq(.x[1], .x[2]), .x[3], .x[4])))
-xy <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, cr[,2], cr[,1]))
-plot(xy, pch = 19, cex = .3, col = palr::d_pal(cr[,3]))
-plot(silicate::PATH0(pols), add = TRUE)
-
+# Materialise only when you need it
+mat <- materialise_chunk(r)
 ```
 
-It scales to very large tasks, with small output. 
+### Default grid parameters
+
+With no extent or dimension, controlledburn derives both from the geometry:
+
+```{r helpers}
+r <- burn_scanline(poly)
+# extent from wk::wk_bbox(), 256 cells on the long axis
+```
+
+Or specify resolution:
+
+```{r resolution}
+r <- burn_scanline(poly, resolution = 0.5)
+```
+
+### Geometry input
+
+Accepts `geos_geometry`, `sfc`, `wk::wkb()`, `blob`, or raw WKB list
+(compatible with vapour/gdalraster):
+
+Note that `geos::as_geos_geometry()` provides interchange for `terra::vect()`. 
+
+### Shared boundary complementarity
+
+Adjacent polygons with shared edges produce complementary coverage fractions
+that sum to exactly 1.0 in every boundary cell — no gaps, no overlaps:
+
+```{r shared}
+left  <- as_geos_geometry("POLYGON ((0 0, 5 0, 5 10, 0 10, 0 0))")
+right <- as_geos_geometry("POLYGON ((5 0, 10 0, 10 10, 5 10, 5 0))")
+
+r <- burn_scanline(c(left, right), extent = c(0,10,0,10), dimension = c(20L,20L))
+
+# Coverage sums to 1.0 in every touched cell
+mat1 <- materialise_chunk(r, id = 1)
+mat2 <- materialise_chunk(r, id = 2)
+max(mat1 + mat2)
+#> [1] 1
+```
+
+## Output format
+
+`burn_scanline()` and `burn_sparse()` return a list with class
+`"controlledburn"` containing:
+
+- **`runs`**: `data.frame(row, col_start, col_end, id)` — interior cells
+  with coverage = 1.0, run-length encoded by row.
+- **`edges`**: `data.frame(row, col, weight, id)` — boundary cells with
+  exact partial coverage in (0, 1).
+- **`extent`**: `c(xmin, xmax, ymin, ymax)`
+- **`dimension`**: `c(ncol, nrow)`
+
+This is the natural output of scanline rasterization — no dense matrix is
+allocated until `materialise_chunk()` is called.
+
+## Performance
+
+Scanline algorithm scales with perimeter, not area:
+
+| Shape | Resolution | Scanline | Dense (burn_sparse) | Speedup |
+|-------|-----------|----------|-------------------|---------|
+| Star | 3200×3200 | 13 ms | 225 ms | 17× |
+| Jagged | 3200×3200 | 15 ms | 136 ms | 9× |
+| NC counties | 2000×800 | 29 ms | 61 ms | 2× |
+
+Memory for real-world grids (CGAZ at 32K×16K, ~500M cells): ~50 MB sparse
+vs ~2 GB dense.
+
+## Fast
 
 ```{r fast}
-dm <- c(500000, 400000)
-system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
-                               dimension = dm))
-length(r)
+v <- new(gdalraster::GDALVector, "/vsicurl/https://github.com/mdsumner/geoboundaries/releases/download/latest/geoBoundariesCGAZ_ADM0.parquet")
+v$returnGeomAs ## WKB
+gcol <- v$getGeometryColumn()
+v$setIgnoredFields( setdiff(v$getFieldNames(), gcol))
+wkbgeom <- wk::wkb(v$fetch(-1)[[gcol]])
+v$close()
 
-## consider a prod(dm) raster of type double (or even bool) obviously would compress again but why churn
-pryr::object_size(r)  
+system.time(burn_scanline(wkbgeom))
+
+system.time(r1 <- burn_scanline(wkbgeom, dimension = c(8192, 4096)))
+str(r1)
+```
+
+Really fast. 
+
+```{r faast}
+system.time(r1 <- burn_scanline(wkbgeom, dimension = c(8192, 4096) * 20))
+pryr::object_size(r1)
+tibble::as_tibble(r1$runs)
+tibble::as_tibble(r1$edges)
+r1[c("extent", "dimension")]
 ```
 
 
+## History
 
-The following is inefficient, but shows that we get the right result. 
+controlledburn was derived from [fasterize](https://github.com/ecohealthalliance/fasterize)
+by Noam Ross (EcoHealth Alliance), removing Armadillo and raster package
+dependencies to return bare scanline indexes.
 
-```{r bad}
-dm <- c(500, 400)
-system.time(r <- controlledburn:::burn_polygon(pols, extent = ext,
-                               dimension = dm))
+Version 0.1.0 is a complete rewrite using the exactextract algorithm
+(Daniel Baston, vendored from [exactextractr](https://github.com/isciences/exactextractr))
+for exact coverage fractions via a new O(perimeter) scanline sweep.
 
-index <- matrix(unlist(r, use.names = F), ncol = 4L, byrow = TRUE) + 1 ## plus one because 0-index internally
-
-## now go inefficient, this is every column,row index, then converted to cell, converted to xy
-cr <- do.call(rbind, apply(index, 1, \(.x) cbind(seq(.x[1], .x[2]), .x[3], .x[4])))
-xy <- vaster::xy_from_cell(dm, ext, vaster::cell_from_row_col(dm, cr[,2], cr[,1]))
-plot(xy, pch = ".", col = palr::d_pal(cr[,3]))
-
-rr <- terra::rast(cbind(xy, 0), type = "xyz")
-
-rr[terra::cellFromXY(rr, xy)] <- 1
-terra::plot(rr ,col = "firebrick", asp = NA)
-plot(silicate::SC0(pols), add = TRUE)
-```
-
-
-
+See also: [vaster](https://github.com/hypertidy/vaster) for grid
+cell indexing, [exactextractr](https://github.com/isciences/exactextractr)
+for raster extraction with polygon weights.
 
 ## Code of Conduct
-  
-Please note that the controlledburn project is released with a [Contributor Code of Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html). By contributing to this project, you agree to abide by its terms.
+
+Please note that the controlledburn project is released with a
+[Contributor Code of Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html).
+By contributing to this project, you agree to abide by its terms.
