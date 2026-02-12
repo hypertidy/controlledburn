@@ -5,25 +5,21 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Rasterize Index • controlledburn</title>
-<!-- jquery --><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.4.1/jquery.min.js" integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo=" crossorigin="anonymous"></script><!-- Bootstrap --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha256-bZLfwXAP04zRMK2BjiO8iu9pf4FbLqX6zitd+tIvLhE=" crossorigin="anonymous">
+<title>Sparse Polygon Rasterization with Exact Coverage Fractions • controlledburn</title>
+<!-- jquery --><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script><!-- Bootstrap --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha256-bZLfwXAP04zRMK2BjiO8iu9pf4FbLqX6zitd+tIvLhE=" crossorigin="anonymous">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/js/bootstrap.min.js" integrity="sha256-nuL8/2cJ5NDSSwnKD8VqreErSWHtnEP9E7AySL+1ev4=" crossorigin="anonymous"></script><!-- bootstrap-toc --><link rel="stylesheet" href="bootstrap-toc.css">
 <script src="bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
 <!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- pkgdown --><link href="pkgdown.css" rel="stylesheet">
-<script src="pkgdown.js"></script><meta property="og:title" content="Rasterize Index">
-<meta property="og:description" content="Rasterize without materializing any pixel values. Rasterization of polygons starts with classifying
- pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index
- of start and stops of edges by scanline. We produce these intermediate structures, so they can 
- be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from 
- materialized rasters. This package was derived from fasterize, removing Armadillo and the raster package. ">
+<script src="pkgdown.js"></script><meta property="og:title" content="Sparse Polygon Rasterization with Exact Coverage Fractions">
+<meta property="og:description" content="Rasterize polygons without materializing any pixel values. Computes exact coverage fractions for polygon-grid intersections and returns results in a sparse two-table format: run-length encoded interior cells and individually weighted boundary cells. The scanline algorithm is O(perimeter) in both time and memory. Uses the exactextract algorithm by Daniel Baston, vendored from the exactextractr package. Derived from the fasterize package by Noam Ross.">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
 <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
 <![endif]-->
 </head>
 <body data-spy="scroll" data-target="#toc">
-    
+
 
     <div class="container template-home">
       <header><div class="navbar navbar-default navbar-fixed-top" role="navigation">
@@ -37,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.0.2.9001</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.0</span>
       </span>
     </div>
 
@@ -45,6 +41,18 @@
       <ul class="nav navbar-nav">
 <li>
   <a href="reference/index.html">Reference</a>
+</li>
+<li class="dropdown">
+  <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+    Articles
+
+    <span class="caret"></span>
+  </a>
+  <ul class="dropdown-menu" role="menu">
+<li>
+      <a href="articles/controlledburn-journey.html">controlledburn-journey</a>
+    </li>
+  </ul>
 </li>
 <li>
   <a href="news/index.html">Changelog</a>
@@ -54,7 +62,7 @@
 <li>
   <a href="https://github.com/hypertidy/controlledburn/" class="external-link">
     <span class="fab fa-github fa-lg"></span>
-     
+
   </a>
 </li>
       </ul>
@@ -65,7 +73,7 @@
 </div>
 <!--/.navbar -->
 
-      
+
 
       </header><div class="row">
   <div class="contents col-md-9">
@@ -74,143 +82,211 @@
 </h1></div>
 <!-- badges: start -->
 
-<p>The goal of controlledburn is to rasterize without materializing any pixel values.</p>
-<p>A very fast rasterization algorithm for polygons in <a href="https://github.com/ecohealthalliance/fasterize" class="external-link">fasterize</a> does the following:</p>
-<ul>
-<li>restructures polygons to edges</li>
-<li>considers only non-horizontal polygon edges and indexes them in y,x order (slope always down)</li>
-<li>determines all affected raster rows and scans these for edge <em>start</em> and <em>end</em> column</li>
-<li>burns polygon value or identity into every pixel between those starts and ends</li>
-</ul>
-<p>controlledburn avoids that last step. With these rasterization functions the return value is not a set of pixels or a side-effect of a materialized raster file but simply those row and column start and end indexes.</p>
-<p>This is an expression of the <em>cell abstraction</em> wish item <a href="https://github.com/ecohealthalliance/fasterize/issues/11" class="external-link">fasterize/issues/11</a>.</p>
-<div class="section level2">
-<h2 id="todo">TODO<a class="anchor" aria-label="anchor" href="#todo"></a>
-</h2>
-<ul class="task-list">
-<li>
-<input type="checkbox" disabled>move to cpp11</li>
-<li>
-<input type="checkbox" disabled>rasterize lines <a href="https://github.com/ecohealthalliance/fasterize/issues/30" class="external-link">fasterize/issues/30</a>
-</li>
-<li>
-<input type="checkbox" disabled>formats for import (wk, geos, grd, rct, triangles etc.)</li>
-<li>
-<input type="checkbox" disabled>streaming with wkb/xy unpack with wk</li>
-<li>
-<input type="checkbox" disabled>provide output options (see next section)</li>
-<li>
-<input type="checkbox" disabled>port back into fasterize, with options for efficiently writing out to a tiled and sparse GeoTIFF</li>
-<li>
-<input type="checkbox" disabled checked>points is too easy, see vaster::cell_from_xy</li>
-<li>
-<input type="checkbox" disabled checked>name the package</li>
-<li>
-<input type="checkbox" disabled checked>copy logic from fasterize, and remove Armadillo array handling</li>
-<li>
-<input type="checkbox" disabled checked>remove use of raster objects, in favour of input extent and dimension</li>
-<li>
-<input type="checkbox" disabled checked>remove all trace of the raster package</li>
-<li>
-<input type="checkbox" disabled checked>implement return of the ‘yline, xpix’ and polygon ID info to user (see below)</li>
-<li>
-<input type="checkbox" disabled checked>make return of ylin,xpix structure efficient (CollectorList.h ftw)</li>
-</ul>
-<p>Lines is working but still has some problems. For polygons it’s pretty good, see <a href="https://github.com/ecohealthalliance/fasterize/issues/6" class="external-link">fasterize #6</a> for a remaining issue.</p>
-</div>
-<div class="section level2">
-<h2 id="outputs">Outputs<a class="anchor" aria-label="anchor" href="#outputs"></a>
-</h2>
-<p>Internal function <code>burn_polygon()</code> has arguments <code>sf</code>, <code>extent</code>, <code>dimension</code>. The first is a sf polygons data frame, extent is <code>c(xmin, xmax, ymin, ymax)</code> and dimension is <code>c(ncol, nrow)</code>. In fasterize you need an actual non-materialized <em>RasterLayer</em> object, but all that was really used for was the six numbers extent, dimension and as the shell for the in-memory output.</p>
-<p>The output of <code>burn_polygon()</code> is a list of four-element indexes <code>start,end,row,poly_id</code> - these are zero-based atm because they reflect the underlying C++ code. Examples shown here flatten this to a 4-column matrix (and add 1).</p>
-<p>These options are still in play for what the interface/s could do:</p>
-<ul>
-<li>record presence of polygon (this is all we have currently) OR ID of polygon</li>
-<li>tools to format this meaningfully, and plot lazily (see example for quick plot)</li>
-<li>tools to materialize as actual raster data</li>
-</ul>
-<p>I also found this real world example for which this is relevant, discussed in PROJ for very fast lookup for large non-materialized (highly compressed) grids by Thomas Knudsen:</p>
-<p><a href="https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992" class="external-link uri">https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992</a></p>
-</div>
+<p>Rasterize polygons without materializing any pixel values. controlledburn computes exact coverage fractions for polygon-grid intersections and returns results as sparse tables: run-length encoded interior cells and individually weighted boundary cells.</p>
+<p>The scanline algorithm is O(perimeter) in both time and memory.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>You can install the development version of controlledburn like so:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"hypertidy/controlledburn"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
+<h2 id="usage">Usage<a class="anchor" aria-label="anchor" href="#usage"></a>
 </h2>
-<p>This is a basic example, this is fast, and shows that it works.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">pols</span> <span class="op">&lt;-</span> <span class="fu">silicate</span><span class="fu">::</span><span class="va">inlandwaters</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">vaster</span><span class="op">)</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Attaching package: 'vaster'</span></span>
-<span><span class="co">#&gt; The following object is masked from 'package:stats':</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;     ts</span></span>
-<span><span class="co">## define a raster (xmin, xmax, ymin, ymax), (ncol, nrow)</span></span>
-<span><span class="va">ext</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fu">silicate</span><span class="fu">::</span><span class="fu">sc_vertex</span><span class="op">(</span><span class="va">pols</span><span class="op">)</span>, <span class="va">range</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">dm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">50</span>, <span class="fl">40</span><span class="op">)</span></span>
-<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
-<span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/hypertidy/controlledburn" class="external-link">controlledburn</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://paleolimbot.github.io/geos/" class="external-link">geos</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="co">## our index is triplets of start,end,line where the polygon edge was detected - </span></span>
-<span><span class="co">## this essentially an rle by scanline of start,end polygon coverage</span></span>
-<span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">r</span>, use.names <span class="op">=</span> <span class="cn">F</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">4L</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">+</span> <span class="fl">1</span> <span class="co">## plus one because 0-index internally</span></span>
+<span><span class="va">poly</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co">## plot just the start and ends of each scanline detected</span></span>
-<span><span class="va">xy0</span> <span class="op">&lt;-</span> <span class="fu">vaster</span><span class="fu">::</span><span class="fu">xy_from_cell</span><span class="op">(</span><span class="va">dm</span>, <span class="va">ext</span>, <span class="fu">vaster</span><span class="fu">::</span><span class="fu">cell_from_row_col</span><span class="op">(</span><span class="va">dm</span>, <span class="va">index</span><span class="op">[</span>,<span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">3</span><span class="op">)</span><span class="op">]</span>, <span class="va">index</span><span class="op">[</span>,<span class="fl">1</span><span class="op">:</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">xy0</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="fu">silicate</span><span class="fu">::</span><span class="fu">PATH0</span><span class="op">(</span><span class="va">pols</span><span class="op">)</span>, add <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-example-1.png" width="100%"></p>
+<span><span class="co"># Sparse output — no dense matrix allocated</span></span>
+<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">poly</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">r</span></span>
+<span><span class="co">#&gt; &lt;controlledburn&gt; 20 x 20 grid, 1 geometry</span></span>
+<span><span class="co">#&gt;   runs:  74 (256 interior cells)</span></span>
+<span><span class="co">#&gt;   edges: 0 boundary cells</span></span>
+<span><span class="co">#&gt;   sparsity: 36.0% empty</span></span>
+<span><span class="co">#&gt; &lt;controlledburn&gt; 20 x 20 grid, 1 geometry</span></span>
+<span><span class="co">#&gt;   runs:  N (interior cells)</span></span>
+<span><span class="co">#&gt;   edges: N boundary cells</span></span>
+<span></span>
+<span><span class="co"># Materialise only when you need it</span></span>
+<span><span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="default-grid-parameters">Default grid parameters<a class="anchor" aria-label="anchor" href="#default-grid-parameters"></a>
+</h3>
+<p>With no extent or dimension, controlledburn derives both from the geometry:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
-<span><span class="co">## expand out to every cell</span></span>
-<span>  </span>
-<span><span class="va">cr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">index</span>, <span class="fl">1</span>,\<span class="op">(</span><span class="va">.x</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="va">.x</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">3</span><span class="op">]</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">xy</span> <span class="op">&lt;-</span> <span class="fu">vaster</span><span class="fu">::</span><span class="fu">xy_from_cell</span><span class="op">(</span><span class="va">dm</span>, <span class="va">ext</span>, <span class="fu">vaster</span><span class="fu">::</span><span class="fu">cell_from_row_col</span><span class="op">(</span><span class="va">dm</span>, <span class="va">cr</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span>, <span class="va">cr</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">xy</span>, pch <span class="op">=</span> <span class="fl">19</span>, cex <span class="op">=</span> <span class="fl">.3</span>, col <span class="op">=</span> <span class="fu">palr</span><span class="fu">::</span><span class="fu">d_pal</span><span class="op">(</span><span class="va">cr</span><span class="op">[</span>,<span class="fl">3</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="fu">silicate</span><span class="fu">::</span><span class="fu">PATH0</span><span class="op">(</span><span class="va">pols</span><span class="op">)</span>, add <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-example-2.png" width="100%"></p>
-<p>It scales to very large tasks, with small output.</p>
+<code class="sourceCode R"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">poly</span><span class="op">)</span></span>
+<span><span class="co"># extent from wk::wk_bbox(), 256 cells on the long axis</span></span></code></pre></div>
+<p>Or specify resolution:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">dm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500000</span>, <span class="fl">400000</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
-<span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.913   0.068   0.982</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] 989153</span></span>
-<span></span>
-<span><span class="co">## consider a prod(dm) raster of type double (or even bool) obviously would compress again but why churn</span></span>
-<span><span class="fu">pryr</span><span class="fu">::</span><span class="fu">object_size</span><span class="op">(</span><span class="va">r</span><span class="op">)</span>  </span>
-<span><span class="co">#&gt; 71.22 MB</span></span></code></pre></div>
-<p>The following is inefficient, but shows that we get the right result.</p>
+<code class="sourceCode R"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">poly</span>, resolution <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="geometry-input">Geometry input<a class="anchor" aria-label="anchor" href="#geometry-input"></a>
+</h3>
+<p>Accepts <code>geos_geometry</code>, <code>sfc</code>, <code><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wk::wkb()</a></code>, <code>blob</code>, or raw WKB list (compatible with vapour/gdalraster):</p>
+<p>Note that <code><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">geos::as_geos_geometry()</a></code> provides interchange for <code>terra::vect()</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="shared-boundary-complementarity">Shared boundary complementarity<a class="anchor" aria-label="anchor" href="#shared-boundary-complementarity"></a>
+</h3>
+<p>Adjacent polygons with shared edges produce complementary coverage fractions that sum to exactly 1.0 in every boundary cell — no gaps, no overlaps:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">dm</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">500</span>, <span class="fl">400</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">controlledburn</span><span class="fu">:::</span><span class="fu">burn_polygon</span><span class="op">(</span><span class="va">pols</span>, extent <span class="op">=</span> <span class="va">ext</span>,</span>
-<span>                               dimension <span class="op">=</span> <span class="va">dm</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.002   0.001   0.003</span></span>
+<code class="sourceCode R"><span><span class="va">left</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((0 0, 5 0, 5 10, 0 10, 0 0))"</span><span class="op">)</span></span>
+<span><span class="va">right</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((5 0, 10 0, 10 10, 5 10, 5 0))"</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">index</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unlist.html" class="external-link">unlist</a></span><span class="op">(</span><span class="va">r</span>, use.names <span class="op">=</span> <span class="cn">F</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">4L</span>, byrow <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">+</span> <span class="fl">1</span> <span class="co">## plus one because 0-index internally</span></span>
+<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">left</span>, <span class="va">right</span><span class="op">)</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">10</span>,<span class="fl">0</span>,<span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>,<span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co">## now go inefficient, this is every column,row index, then converted to cell, converted to xy</span></span>
-<span><span class="va">cr</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">index</span>, <span class="fl">1</span>, \<span class="op">(</span><span class="va">.x</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="va">.x</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">2</span><span class="op">]</span><span class="op">)</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">3</span><span class="op">]</span>, <span class="va">.x</span><span class="op">[</span><span class="fl">4</span><span class="op">]</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">xy</span> <span class="op">&lt;-</span> <span class="fu">vaster</span><span class="fu">::</span><span class="fu">xy_from_cell</span><span class="op">(</span><span class="va">dm</span>, <span class="va">ext</span>, <span class="fu">vaster</span><span class="fu">::</span><span class="fu">cell_from_row_col</span><span class="op">(</span><span class="va">dm</span>, <span class="va">cr</span><span class="op">[</span>,<span class="fl">2</span><span class="op">]</span>, <span class="va">cr</span><span class="op">[</span>,<span class="fl">1</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">xy</span>, pch <span class="op">=</span> <span class="st">"."</span>, col <span class="op">=</span> <span class="fu">palr</span><span class="fu">::</span><span class="fu">d_pal</span><span class="op">(</span><span class="va">cr</span><span class="op">[</span>,<span class="fl">3</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-bad-1.png" width="100%"></p>
+<span><span class="co"># Coverage sums to 1.0 in every touched cell</span></span>
+<span><span class="va">mat1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r</span>, id <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">mat2</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r</span>, id <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">mat1</span> <span class="op">+</span> <span class="va">mat2</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 1</span></span>
+<span><span class="co">#&gt; [1] 1</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="output-format">Output format<a class="anchor" aria-label="anchor" href="#output-format"></a>
+</h2>
+<p><code><a href="reference/burn_scanline.html">burn_scanline()</a></code> and <code><a href="reference/burn_sparse.html">burn_sparse()</a></code> return a list with class <code>"controlledburn"</code> containing:</p>
+<ul>
+<li>
+<strong><code>runs</code></strong>: <code>data.frame(row, col_start, col_end, id)</code> — interior cells with coverage = 1.0, run-length encoded by row.</li>
+<li>
+<strong><code>edges</code></strong>: <code>data.frame(row, col, weight, id)</code> — boundary cells with exact partial coverage in (0, 1).</li>
+<li>
+<strong><code>extent</code></strong>: <code>c(xmin, xmax, ymin, ymax)</code>
+</li>
+<li>
+<strong><code>dimension</code></strong>: <code>c(ncol, nrow)</code>
+</li>
+</ul>
+<p>This is the natural output of scanline rasterization — no dense matrix is allocated until <code><a href="reference/materialise_chunk.html">materialise_chunk()</a></code> is called.</p>
+</div>
+<div class="section level2">
+<h2 id="performance">Performance<a class="anchor" aria-label="anchor" href="#performance"></a>
+</h2>
+<p>Scanline algorithm scales with perimeter, not area:</p>
+<table class="table">
+<thead><tr class="header">
+<th>Shape</th>
+<th>Resolution</th>
+<th>Scanline</th>
+<th>Dense (burn_sparse)</th>
+<th>Speedup</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>Star</td>
+<td>3200×3200</td>
+<td>13 ms</td>
+<td>225 ms</td>
+<td>17×</td>
+</tr>
+<tr class="even">
+<td>Jagged</td>
+<td>3200×3200</td>
+<td>15 ms</td>
+<td>136 ms</td>
+<td>9×</td>
+</tr>
+<tr class="odd">
+<td>NC counties</td>
+<td>2000×800</td>
+<td>29 ms</td>
+<td>61 ms</td>
+<td>2×</td>
+</tr>
+</tbody>
+</table>
+<p>Memory for real-world grids (CGAZ at 32K×16K, ~500M cells): ~50 MB sparse vs ~2 GB dense.</p>
+</div>
+<div class="section level2">
+<h2 id="fast">Fast<a class="anchor" aria-label="anchor" href="#fast"></a>
+</h2>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span></span>
-<span><span class="va">rr</span> <span class="op">&lt;-</span> <span class="fu">terra</span><span class="fu">::</span><span class="fu">rast</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">xy</span>, <span class="fl">0</span><span class="op">)</span>, type <span class="op">=</span> <span class="st">"xyz"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="va">v</span> <span class="op">&lt;-</span> <span class="fu">new</span><span class="op">(</span><span class="fu">gdalraster</span><span class="fu">::</span><span class="va">GDALVector</span>, <span class="st">"/vsicurl/https://github.com/mdsumner/geoboundaries/releases/download/latest/geoBoundariesCGAZ_ADM0.parquet"</span><span class="op">)</span></span>
+<span><span class="va">v</span><span class="op">$</span><span class="va">returnGeomAs</span> <span class="co">## WKB</span></span>
+<span><span class="co">#&gt; [1] "WKB"</span></span>
+<span><span class="va">gcol</span> <span class="op">&lt;-</span> <span class="va">v</span><span class="op">$</span><span class="fu">getGeometryColumn</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">v</span><span class="op">$</span><span class="fu">setIgnoredFields</span><span class="op">(</span> <span class="fu"><a href="https://rdrr.io/r/base/sets.html" class="external-link">setdiff</a></span><span class="op">(</span><span class="va">v</span><span class="op">$</span><span class="fu">getFieldNames</span><span class="op">(</span><span class="op">)</span>, <span class="va">gcol</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">wkbgeom</span> <span class="op">&lt;-</span> <span class="fu">wk</span><span class="fu">::</span><span class="fu"><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wkb</a></span><span class="op">(</span><span class="va">v</span><span class="op">$</span><span class="fu">fetch</span><span class="op">(</span><span class="op">-</span><span class="fl">1</span><span class="op">)</span><span class="op">[[</span><span class="va">gcol</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="va">v</span><span class="op">$</span><span class="fu">close</span><span class="op">(</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">rr</span><span class="op">[</span><span class="fu">terra</span><span class="fu">::</span><span class="fu">cellFromXY</span><span class="op">(</span><span class="va">rr</span>, <span class="va">xy</span><span class="op">)</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="fl">1</span></span>
-<span><span class="fu">terra</span><span class="fu">::</span><span class="fu">plot</span><span class="op">(</span><span class="va">rr</span> ,col <span class="op">=</span> <span class="st">"firebrick"</span>, asp <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="fu">silicate</span><span class="fu">::</span><span class="fu">SC0</span><span class="op">(</span><span class="va">pols</span><span class="op">)</span>, add <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
-<p><img src="reference/figures/README-bad-2.png" width="100%"></p>
+<span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;    user  system elapsed </span></span>
+<span><span class="co">#&gt;   0.524   0.015   0.538</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8192</span>, <span class="fl">4096</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;    user  system elapsed </span></span>
+<span><span class="co">#&gt;   0.953   0.000   0.953</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">r1</span><span class="op">)</span></span>
+<span><span class="co">#&gt; List of 4</span></span>
+<span><span class="co">#&gt;  $ runs     :'data.frame':   81149 obs. of  4 variables:</span></span>
+<span><span class="co">#&gt;   ..$ row      : int [1:81149] 1067 1068 1069 1070 1071 1072 1073 1074 1075 1076 ...</span></span>
+<span><span class="co">#&gt;   ..$ col_start: int [1:81149] 5712 5706 5706 5704 5704 5703 5702 5702 5701 5699 ...</span></span>
+<span><span class="co">#&gt;   ..$ col_end  : int [1:81149] 5712 5712 5715 5717 5719 5719 5719 5719 5718 5718 ...</span></span>
+<span><span class="co">#&gt;   ..$ id       : int [1:81149] 1 1 1 1 1 1 1 1 1 1 ...</span></span>
+<span><span class="co">#&gt;  $ edges    :'data.frame':   469461 obs. of  4 variables:</span></span>
+<span><span class="co">#&gt;   ..$ row   : int [1:469461] 1065 1066 1066 1066 1066 1066 1066 1066 1067 1067 ...</span></span>
+<span><span class="co">#&gt;   ..$ col   : int [1:469461] 5712 5707 5708 5709 5710 5711 5712 5713 5705 5706 ...</span></span>
+<span><span class="co">#&gt;   ..$ weight: num [1:469461] 0.0126 0.1343 0.0792 0.296 0.1872 ...</span></span>
+<span><span class="co">#&gt;   ..$ id    : int [1:469461] 1 1 1 1 1 1 1 1 1 1 ...</span></span>
+<span><span class="co">#&gt;  $ extent   : num [1:4] -180 180 -90 83.6</span></span>
+<span><span class="co">#&gt;  $ dimension: int [1:2] 8192 4096</span></span>
+<span><span class="co">#&gt;  - attr(*, "class")= chr "controlledburn"</span></span></code></pre></div>
+<p>Really fast.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8192</span>, <span class="fl">4096</span><span class="op">)</span> <span class="op">*</span> <span class="fl">20</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;    user  system elapsed </span></span>
+<span><span class="co">#&gt;  17.005   0.625  17.629</span></span>
+<span><span class="fu">pryr</span><span class="fu">::</span><span class="fu">object_size</span><span class="op">(</span><span class="va">r1</span><span class="op">)</span></span>
+<span><span class="co">#&gt; 278.56 MB</span></span>
+<span><span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/as_tibble.html" class="external-link">as_tibble</a></span><span class="op">(</span><span class="va">r1</span><span class="op">$</span><span class="va">runs</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 2,402,331 × 4</span></span>
+<span><span class="co">#&gt;      row col_start col_end    id</span></span>
+<span><span class="co">#&gt;    &lt;int&gt;     &lt;int&gt;   &lt;int&gt; &lt;int&gt;</span></span>
+<span><span class="co">#&gt;  1 21300    114229  114229     1</span></span>
+<span><span class="co">#&gt;  2 21301    114228  114231     1</span></span>
+<span><span class="co">#&gt;  3 21302    114227  114232     1</span></span>
+<span><span class="co">#&gt;  4 21303    114226  114232     1</span></span>
+<span><span class="co">#&gt;  5 21304    114225  114232     1</span></span>
+<span><span class="co">#&gt;  6 21305    114224  114232     1</span></span>
+<span><span class="co">#&gt;  7 21306    114210  114215     1</span></span>
+<span><span class="co">#&gt;  8 21306    114221  114234     1</span></span>
+<span><span class="co">#&gt;  9 21307    114209  114235     1</span></span>
+<span><span class="co">#&gt; 10 21308    114209  114236     1</span></span>
+<span><span class="co">#&gt; # ℹ 2,402,321 more rows</span></span>
+<span><span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/as_tibble.html" class="external-link">as_tibble</a></span><span class="op">(</span><span class="va">r1</span><span class="op">$</span><span class="va">edges</span><span class="op">)</span></span>
+<span><span class="co">#&gt; # A tibble: 12,006,186 × 4</span></span>
+<span><span class="co">#&gt;      row    col   weight    id</span></span>
+<span><span class="co">#&gt;    &lt;int&gt;  &lt;int&gt;    &lt;dbl&gt; &lt;int&gt;</span></span>
+<span><span class="co">#&gt;  1 21299 114228 0.49016      1</span></span>
+<span><span class="co">#&gt;  2 21299 114229 0.52762      1</span></span>
+<span><span class="co">#&gt;  3 21299 114230 0.029348     1</span></span>
+<span><span class="co">#&gt;  4 21300 114227 0.14377      1</span></span>
+<span><span class="co">#&gt;  5 21300 114228 0.91647      1</span></span>
+<span><span class="co">#&gt;  6 21300 114230 0.95528      1</span></span>
+<span><span class="co">#&gt;  7 21300 114231 0.61698      1</span></span>
+<span><span class="co">#&gt;  8 21300 114232 0.36007      1</span></span>
+<span><span class="co">#&gt;  9 21301 114226 0.44189      1</span></span>
+<span><span class="co">#&gt; 10 21301 114227 0.95691      1</span></span>
+<span><span class="co">#&gt; # ℹ 12,006,176 more rows</span></span>
+<span><span class="va">r1</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"extent"</span>, <span class="st">"dimension"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt; $extent</span></span>
+<span><span class="co">#&gt; [1] -180.00000  180.00000  -90.00000   83.63339</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; $dimension</span></span>
+<span><span class="co">#&gt; [1] 163840  81920</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="history">History<a class="anchor" aria-label="anchor" href="#history"></a>
+</h2>
+<p>controlledburn was derived from <a href="https://github.com/ecohealthalliance/fasterize" class="external-link">fasterize</a> by Noam Ross (EcoHealth Alliance), removing Armadillo and raster package dependencies to return bare scanline indexes.</p>
+<p>Version 0.1.0 is a complete rewrite using the exactextract algorithm (Daniel Baston, vendored from <a href="https://github.com/isciences/exactextractr" class="external-link">exactextractr</a>) for exact coverage fractions via a new O(perimeter) scanline sweep.</p>
+<p>See also: <a href="https://github.com/hypertidy/vaster" class="external-link">vaster</a> for grid cell indexing, <a href="https://github.com/isciences/exactextractr" class="external-link">exactextractr</a> for raster extraction with polygon weights.</p>
 </div>
 <div class="section level2">
 <h2 id="code-of-conduct">Code of Conduct<a class="anchor" aria-label="anchor" href="#code-of-conduct"></a>
@@ -232,8 +308,7 @@
 <div class="license">
 <h2 data-toc-skip>License</h2>
 <ul class="list-unstyled">
-<li><a href="LICENSE.html">Full license</a></li>
-<li><small><a href="https://opensource.org/licenses/mit-license.php" class="external-link">MIT</a> + file <a href="LICENSE-text.html">LICENSE</a></small></li>
+<li>Apache License (&gt;= 2)</li>
 </ul>
 </div>
 
@@ -254,8 +329,8 @@
 <div class="developers">
 <h2 data-toc-skip>Developers</h2>
 <ul class="list-unstyled">
-<li>Michael Sumner <br><small class="roles"> Author, maintainer, contributor </small> <a href="https://orcid.org/0000-0002-2471-7511" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a> </li>
-<li>Noam Ross <br><small class="roles"> Author </small> <a href="https://orcid.org/0000-0002-2136-0000" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a> </li>
+<li>Michael Sumner <br><small class="roles"> Author, maintainer </small> <a href="https://orcid.org/0000-0002-2471-7511" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
+<li>Noam Ross <br><small class="roles"> Author </small> <a href="https://orcid.org/0000-0002-2136-0000" target="orcid.widget" aria-label="ORCID" class="external-link"><span class="fab fa-orcid orcid" aria-hidden="true"></span></a>  </li>
 <li><a href="authors.html">More about authors...</a></li>
 </ul>
 </div>
@@ -278,16 +353,16 @@
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.7.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
       </footer>
 </div>
 
-  
 
 
-  
+
+
 
   </body>
 </html>
