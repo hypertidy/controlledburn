@@ -1,31 +1,45 @@
 Package: controlledburn
-Title: Rasterize Index
-Version: 0.0.2.9001
+Title: Sparse Polygon Rasterization with Exact Coverage Fractions
+Version: 0.1.0
 Authors@R: c(
-           person("Michael", "Sumner", role = c("aut", "cre", "ctb"),
-           email = "mdsumner@gmail.com",
-           comment=c(ORCID = "0000-0002-2471-7511")),
-           person("Noam", "Ross", , ,
-           role = c("aut"),
-           comment=c(ORCID = "0000-0002-2136-0000")),
-    person("EcoHealth Alliance", role="cph"), 
-     person("Jim", "Hester", role = c("ctb"), comment = "wrote CollectorList.h and advised of its use"))
-Description: Rasterize without materializing any pixel values. Rasterization of polygons starts with classifying
- pixels by polygon, and in terms of scanline algorithms this is natively stored very efficiently as an index
- of start and stops of edges by scanline. We produce these intermediate structures, so they can 
- be used as an efficient format of polygon rasterization, or for the complement of this, data extraction from 
- materialized rasters. This package was derived from 'fasterize', removing Armadillo and the raster package. 
-License: MIT + file LICENSE
+    person("Michael", "Sumner", email = "mdsumner@gmail.com",
+           role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0002-2471-7511")),
+    person("Noam", "Ross", role = "aut",
+           comment = c(ORCID = "0000-0002-2136-0000")),
+    person("EcoHealth Alliance", role = "cph",
+           comment = "Original fasterize scanline logic"),
+    person("Jim", "Hester", role = "ctb",
+           comment = "Wrote CollectorList.h for early version"),
+    person("Daniel", "Baston", role = "cph",
+           comment = "exactextract C++ algorithm (vendored)"),
+    person("ISciences, LLC", role = "cph",
+           comment = "exactextract C++ algorithm (vendored)"))
+Description: Rasterize polygons without materializing any pixel values.
+    Computes exact coverage fractions for polygon-grid intersections and
+    returns results in a sparse two-table format: run-length encoded
+    interior cells and individually weighted boundary cells. The scanline
+    algorithm is O(perimeter) in both time and memory. Uses the exactextract
+    algorithm by Daniel Baston, vendored from the 'exactextractr' package.
+    Derived from the 'fasterize' package by Noam Ross.
+License: Apache License (>= 2)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.2.1
-LinkingTo: 
-    Rcpp
-Imports: 
-    Rcpp
-Suggests: 
-    sfheaders,
-    testthat (>= 3.0.0)
-Config/testthat/edition: 3
-URL: https://hypertidy.github.io/controlledburn/, https://github.com/hypertidy/controlledburn
+RoxygenNote: 7.3.3
+LinkingTo:
+    cpp11,
+    libgeos
+Imports:
+    libgeos,
+    wk
+Suggests:
+    geos,
+    sf,
+    vaster,
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+URL: https://github.com/hypertidy/controlledburn
 BugReports: https://github.com/hypertidy/controlledburn/issues
+Config/testthat/edition: 3
+VignetteBuilder: knitr
