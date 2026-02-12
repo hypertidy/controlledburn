@@ -1,0 +1,131 @@
+---
+title: "controlledburn-journey"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{controlledburn-journey}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(controlledburn)
+```
+
+
+# Rasterizing polygons without pixels: the controlledburn story
+
+When you rasterize a polygon onto a grid, what are you actually computing? At its core, you're answering two questions for every cell: *is this cell inside the polygon?* and *how much of this cell does the polygon cover?* The first question gives you a binary mask. The second gives you exact coverage fractions — the kind of sub-pixel precision that makes zonal statistics accurate.
+
+The standard approach allocates a dense matrix the size of the grid, fills it with zeros, walks the polygon edges to compute boundary cell coverage, then flood-fills the interior. For a 32,000 × 16,000 grid — not unusual for continental-scale work — that's 500 million cells, about 2 GB of floats, most of which are either 0.0 (outside) or 1.0 (inside). The interesting information lives almost entirely on the boundary.
+
+controlledburn takes a different path. It computes exact coverage fractions for every boundary cell, classifies interior cells by winding number, and returns two small tables: run-length encoded interior spans and individually weighted boundary cells. No dense matrix is ever allocated. Memory is O(perimeter), not O(area). For that 32K × 16K grid, the output is about 50 MB instead of 2 GB.
+
+This post traces how controlledburn got here — through exactextract's elegant geometry engine, a series of prototype packages, and a scanline algorithm that replaces flood fill with winding arithmetic.
+
+## Inside exactextract
+
+The exactextract C++ library, written by Daniel Baston at ISciences, is the algorithmic core behind the exactextractr R package and its Python counterpart. It computes exact polygon-grid coverage fractions — not sampling, not approximation, but analytical computation of the area of intersection between each polygon and each grid cell it touches.
+
+The algorithm works by walking polygon ring edges through the grid, cell by cell. When an edge enters a cell, exactextract records the entry point and side. When it exits, it records the exit point and side. The polygon fragment inside the cell — a trapezoid, triangle, or more complex shape — is bounded by the edge path on one side and the cell perimeter on the other. The area of this shape is the coverage fraction.
+
+The key abstraction is the `Cell` class. Each cell maintains a list of *traversals* — the paths that polygon edges trace through it. After all edges have been walked, the cell computes its coverage fraction from the geometry of those traversals. For cells with a single traversal (the common case for boundary cells), this is a simple polygon area calculation. For cells with multiple traversals (where several edges pass through the same cell), exactextract uses `left_hand_area()` — a chain-chasing algorithm that links traversal endpoints around the cell perimeter to form closed polygons, then sums their signed areas.
+
+Interior cells — those completely inside the polygon — are classified by flood fill. Starting from a seed cell known to be inside, the algorithm fills outward until it hits boundary cells. This is the O(area) step: every interior cell must be visited and written.
+
+The R package wraps this in a per-feature extraction loop. For each polygon, it computes a `RasterCellIntersection` over a subgrid (the polygon's bounding box clipped to the raster extent), then runs zonal statistics against raster values weighted by coverage fractions. The output is heavily oriented toward summary statistics — means, sums, quantiles — rather than the raw spatial intersection data.
+
+## The gap
+
+There's a valuable intermediate product that neither exactextractr nor any other R package exposes directly: the raw polygon-grid intersection itself, as a sparse data structure. Not a dense matrix, not summary statistics, but the set of (cell, coverage_fraction, polygon_id) triples that describes exactly which cells each polygon touches and by how much.
+
+This is what I've been calling a *polygon-grid intersection database* — a pluripotent intermediate from which dense rasters, zonal statistics, polygon overlays, and weighted extractions can all be derived on demand. The key property is that it's compact (proportional to boundary length, not grid area) and lossless (you can reconstruct the exact dense matrix from it).
+
+The original controlledburn package, derived from Noam Ross's fasterize, got partway there. It used the Wylie et al. scanline algorithm from fasterize to compute binary in/out classification without materializing a raster, returning (row, start_col, end_col, geometry_id) tuples. Fast and compact, but no coverage fractions — every boundary cell was classified as either fully in or fully out based on cell-centre containment.
+
+The question was: could we get exactextract's precision without its dense matrix?
+
+## gridburn: proving the vendor
+
+The first step was gridburn — a proof of concept that vendored the exactextract C++ algorithm into a standalone R package. The goal was simple: call `raster_cell_intersection()` the same way exactextractr does, but instead of feeding the result into zonal statistics, compress the dense coverage matrix into the sparse two-table format.
+
+Vendoring meant extracting the algorithmic core from exactextract's ~50 source files — just the geometry engine (Cell, Box, Grid, traversal areas, flood fill, GEOS utilities) without the GDAL I/O, statistics framework, or processing pipeline. About 13 C++ files, compiled directly against libgeos for GEOS access without a system dependency.
+
+gridburn's `burn_sparse()` function proved the concept: exact coverage fractions in a compact format. A `dense_to_sparse.h` header walks the dense matrix output by `raster_cell_intersection()`, classifying each cell as interior (coverage ≈ 1.0, emitted as part of a run), boundary (0 < coverage < 1, emitted individually), or exterior (skipped). The output: two data frames, typically 100-1000× smaller than the dense matrix.
+
+But gridburn still allocated the dense matrix internally. For a 256K × 512K grid, that's 131 billion cells — the matrix just existed briefly before being compressed. The O(area) flood fill was still running. For large grids with simple polygons, most of the computation was wasted on interior cells that would all be 1.0.
+
+## The key insight
+
+The exactextract algorithm already does O(perimeter) work to compute boundary cell coverage fractions. The expensive part is the flood fill that classifies interior cells. But interior classification is exactly what a scanline rasterizer does — by counting edge crossings per row, you know which spans are inside without ever touching interior cells.
+
+The insight: keep exactextract's per-cell coverage computation for boundary cells, replace the flood fill with a scanline winding-count sweep.
+
+This isn't a new idea in computer graphics — winding-number classification is textbook. What makes it non-trivial here is combining it with exact coverage fractions. The winding count tells you which cells are interior (coverage = 1.0) and the exactextract traversal machinery tells you the exact fraction for boundary cells. The two computations share the same edge walk but produce different outputs.
+
+## denseburn: the refactor
+
+The implementation went through six items, each building on the last.
+
+**Item 1: Scanline winding sweep.** The core algorithm. Walk each polygon ring through the grid using exactextract's `Cell` class, collecting traversals per cell. Then sweep each row left to right: at each boundary cell, compute the coverage fraction from traversals and accumulate a winding delta (+1 for upward crossings, -1 for downward). Between boundary cells, if the winding count is nonzero, emit an interior run. No flood fill, no dense matrix.
+
+The winding delta computation is simple: if a traversal enters above the cell's vertical midpoint and exits below (or vice versa), it contributes ±1 to the winding count. This is the same ray-casting principle used in point-in-polygon tests, applied incrementally along each scanline.
+
+**Item 2: Lightweight walk.** The Cell class allocates heap memory for each cell visit (vectors of traversals, coordinate lists). For boundary cells this is unavoidable — you need the geometry. But for the walk itself, most of the Cell machinery (chain lists, area computation) is unnecessary until the coverage fraction is actually needed. Replacing Cell with a lightweight `LightTraversal` struct and direct `Box::crossing()` calls eliminated per-cell allocation overhead.
+
+**Item 3: Analytical single-traversal coverage.** About 90% of boundary cells see exactly one traversal — a single edge path through the cell. For these cells, the coverage fraction can be computed analytically without the full `left_hand_area()` chain-chasing algorithm. The traversal path plus a segment of the cell perimeter form a simple polygon; its area (via the shoelace formula) is the coverage fraction.
+
+The subtlety was getting the perimeter walk direction right. After a traversal exits the cell, the left-hand polygon closes by walking *clockwise* along the cell boundary back to the entry point, collecting cell corners that fall within that arc. The initial implementation walked counter-clockwise and got complement areas — 0.75 instead of 0.25 for cells where the polygon covers a small corner. The fix used exactextract's `perimeter_distance()` function to parameterize corner positions along the cell boundary, then selected corners whose CW distance from the exit fell within the arc to the entry.
+
+**Item 4: O(perimeter) benchmarks.** Systematic timing across five geometry types (square, sliver, star, donut, jagged coastline) at six resolutions (100² to 3200²) confirmed the scaling hypothesis. Scanline time grew linearly with resolution (doubling resolution roughly doubled time), while the dense algorithm grew quadratically. At 3200×3200, the star polygon showed a 17× speedup; the jagged coastline 9×. The advantage grows with resolution — exactly the regime where sparse output matters most.
+
+**Item 5: Shared-boundary complementarity.** Two adjacent polygons sharing an edge should produce coverage fractions that sum to exactly 1.0 in every boundary cell, with no gaps and no overlaps. This property fell out naturally from the algorithm: `Box::crossing()` is deterministic for coincident edges, opposite traversal directions produce complementary left-hand areas, and independent walks of adjacent polygons produce correct complementarity without any coordination between them. Validated across 18 test cases including NC county boundaries.
+
+**Item 6: Edge cases.** Vertex on grid node, vertex on cell edge, horizontal and vertical edges (including on grid lines), thin slivers (sub-cell thickness), polygons within a single cell, near-degenerate shapes (acute triangles, needles), extreme resolution ratios (1×1 to 500×500), polygons extending beyond the grid extent, and collinear vertices. Twenty-six tests, twenty-five exact matches, one accepted divergence for invalid overlapping multipolygon geometry.
+
+The extent-clipping fix was the most interesting: a polygon extending beyond the grid extent has edges in the grid's "padding columns" — cells that don't correspond to any grid column. These edges still carry winding deltas that affect grid rows. The fix was to allow padding-column cells to propagate winding into the sweep without contributing coverage, so the first grid column after a padding boundary cell correctly begins an interior run.
+
+## Coming home to controlledburn
+
+The final step was migrating the code back to controlledburn — the package that started this whole line of work. The old Rcpp-based scanline code was removed entirely, replaced with the new cpp11 implementation. The package name was always right; it just needed better internals.
+
+controlledburn 0.1.0 exports three functions. `burn_scanline()` is the new O(perimeter) algorithm. `burn_sparse()` is the exactextract-backed reference implementation, useful for validation and as a fallback. `materialise_chunk()` expands the sparse output to a dense matrix — opt-in, when you actually need pixels.
+
+The input interface accepts anything wk can handle: `geos_geometry`, `sfc`, `wk::wkb()`, `blob`, or raw WKB lists from vapour and gdalraster. The grid specification is extent + dimension, with sensible defaults derived from the geometry bounding box.
+
+## Validation
+
+controlledburn was validated against itself (scanline vs sparse agreement), against the previous controlledburn (interior cell agreement, boundary disagreements at O(perimeter)), and against a comprehensive edge-case suite:
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| Scanline vs sparse | 8 | all pass (max diff 9.4e-08) |
+| Shared boundaries | 18 | all pass (NC counties included) |
+| Edge cases | 26 | 25 exact, 1 accepted divergence |
+| Grid parameters | 6 | all pass |
+| Input types | 5 | all pass |
+| Materialisation | 4 | all pass |
+
+The cross-package comparison with the old controlledburn showed zero cases where the new algorithm missed interior cells that the old one found. All disagreements were boundary cells — the old algorithm classified them binary (in/out by cell centre), the new one gives the exact fraction.
+
+## What's next
+
+The sparse two-table output is the foundation, not the final product. The immediate next steps:
+
+**Materialisation to tiles.** `materialise_chunk()` currently expands to a full-grid matrix. For large grids, you want to materialise to arbitrary tile extents — a 256×256 window into a million-cell grid, producing a dense tile suitable for writing to a GeoTIFF block or feeding into a raster algebra operation. The sparse output is naturally suited to this: filter runs and edges to the tile extent, materialise only that window.
+
+**Streaming to files.** Combine tiled materialisation with GDAL write to produce raster files directly from the sparse output, tile by tile, without holding the full grid in memory. This closes the loop from polygon to raster file without intermediate dense allocation.
+
+**Multi-polygon fusion.** Given a collection of polygons with attributes, produce a raster where each cell gets the attribute of the polygon with the greatest coverage fraction. This is exactextractr's `rasterize_polygons()` but from the sparse intermediate — faster for repeated rasterizations of the same geometry at different resolutions.
+
+**Raster extraction.** The inverse operation: given a raster and a set of polygons, use the sparse intersection to extract weighted cell values. This is what exactextractr does, but the sparse intermediate can be computed once and reused across multiple rasters on the same grid.
+
+The sparse polygon-grid intersection is the centre of gravity. Everything else — rasterization, extraction, overlay, statistics — is a view onto it. controlledburn computes that intersection once, compactly, and lets you choose what to do with it.
+
+The code is at [github.com/hypertidy/controlledburn](https://github.com/hypertidy/controlledburn).

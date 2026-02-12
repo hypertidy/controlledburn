@@ -1,0 +1,10 @@
+This package includes code from the exactextract library.
+
+Files: src/exactextract/*
+Copyright: 2018-2022 ISciences, LLC
+License: Apache-2.0
+Source: https://github.com/isciences/exactextract
+Notes: Subset of the exactextract C++ library (algorithm core only),
+  vendored for computing exact raster cell coverage fractions.
+  Excludes GDAL I/O, CLI, statistics framework, and processing pipeline.
+  The same code is vendored in the exactextractr R package on CRAN.
