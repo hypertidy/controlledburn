@@ -150,63 +150,6 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
   result
 }
 
-#' Materialise a controlledburn result to a dense matrix or vector
-#'
-#' Expands the sparse two-table representation into a dense coverage fraction
-#' matrix. Primarily for visualisation and testing.
-#'
-#' @param x a `"controlledburn"` object from [burn_sparse()]
-#' @param id integer polygon id to materialise, or `NULL` (default) for all
-#' @param type character, one of `"matrix"` (default) or `"vector"`
-#'
-#' @return A numeric matrix (nrow × ncol) or vector (length nrow*ncol) of
-#'   coverage fractions. Values range from 0 (outside) to 1 (fully inside).
-#'
-#' @export
-materialise_chunk <- function(x, id = NULL, type = c("matrix", "vector")) {
-  stopifnot(inherits(x, "controlledburn"))
-  type <- match.arg(type)
-
-  ncol <- x$dimension[1]
-  nrow <- x$dimension[2]
-
-  mat <- matrix(0, nrow = nrow, ncol = ncol)
-
-  runs <- x$runs
-  edges <- x$edges
-
-  if (!is.null(id)) {
-    runs <- runs[runs$id %in% id, , drop = FALSE]
-    edges <- edges[edges$id %in% id, , drop = FALSE]
-  }
-
-  # Fill interior runs
-  if (nrow(runs) > 0) {
-    for (i in seq_len(nrow(runs))) {
-      r <- runs$row[i]
-      cs <- runs$col_start[i]
-      ce <- runs$col_end[i]
-      mat[r, cs:ce] <- 1
-    }
-  }
-
-  # Fill edge cells
-  if (nrow(edges) > 0) {
-    for (i in seq_len(nrow(edges))) {
-      r <- edges$row[i]
-      c <- edges$col[i]
-      w <- edges$weight[i]
-      # For overlapping polygons, sum weights (or take max depending on use case)
-      mat[r, c] <- mat[r, c] + w
-    }
-  }
-
-  if (type == "vector") {
-    as.vector(t(mat))  # row-major order
-  } else {
-    mat
-  }
-}
 
 #' @export
 print.controlledburn <- function(x, ...) {
