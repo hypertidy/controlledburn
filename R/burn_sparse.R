@@ -150,6 +150,7 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
   result
 }
 
+
 #' Materialise a controlledburn result to a dense matrix or vector
 #'
 #' Expands the sparse two-table representation into a dense coverage fraction
