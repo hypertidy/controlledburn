@@ -150,6 +150,191 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
   result
 }
 
+#' Materialise a controlledburn result to a dense matrix or vector
+#'
+#' Expands the sparse two-table representation into a dense coverage fraction
+#' matrix, optionally for a subwindow of the parent grid.
+#'
+#' @param x a `"controlledburn"` object from [burn_sparse()] or [burn_scanline()]
+#' @param target numeric extent `c(xmin, xmax, ymin, ymax)` to materialise, or
+#'   `NULL` (default) for the full grid. The target extent is snapped outward to
+#'   cell boundaries of the source grid and clamped to the source extent.
+#' @param id integer polygon id to materialise, or `NULL` (default) for all
+#' @param type character, one of `"matrix"` (default) or `"vector"`
+#' @param max_cells maximum number of cells to allocate (default 1e8). Set to
+#'   `Inf` to disable the safety check.
+#'
+#' @return A numeric matrix (nrow × ncol) or vector (length nrow*ncol) of
+#'   coverage fractions. Values range from 0 (outside) to 1 (fully inside).
+#'   When `target` is specified, the matrix dimensions correspond to the
+#'   snapped subwindow. The snapped extent is available as `attr(result, "extent")`.
+#'
+#' @export
+materialise_chunk <- function(x, target = NULL, id = NULL,
+                              type = c("matrix", "vector"),
+                              max_cells = 1e8) {
+  stopifnot(inherits(x, "controlledburn"))
+  type <- match.arg(type)
+
+  src_nc <- x$dimension[1]
+  src_nr <- x$dimension[2]
+  dx <- (x$extent[2] - x$extent[1]) / src_nc
+  dy <- (x$extent[4] - x$extent[3]) / src_nr
+
+  if (is.null(target)) {
+    # Full grid
+    col_off <- 0L
+    row_off <- 0L
+    out_nc <- src_nc
+    out_nr <- src_nr
+    out_extent <- x$extent
+  } else {
+    stopifnot(is.numeric(target), length(target) == 4L, target[2] > target[1], target[4] > target[3])
+
+    # Snap outward to source cell boundaries, then clamp to source extent
+    snap <- .snap_extent(target, x$extent, dx, dy)
+    out_extent <- snap$extent
+
+    col_off <- snap$col_off
+    row_off <- snap$row_off
+    out_nc  <- snap$ncol
+    out_nr  <- snap$nrow
+
+    if (out_nc <= 0L || out_nr <= 0L) {
+      warning("Target extent does not intersect source grid")
+      mat <- matrix(0, nrow = 0L, ncol = 0L)
+      attr(mat, "extent") <- out_extent
+      if (type == "vector") return(numeric(0))
+      return(mat)
+    }
+  }
+
+  n_cells <- as.double(out_nc) * as.double(out_nr)
+  if (n_cells > max_cells) {
+    stop(sprintf(
+      "Requested window is %d x %d = %.0f cells (max_cells = %.0f). Use a smaller target extent or increase max_cells.",
+      out_nc, out_nr, n_cells, max_cells), call. = FALSE)
+  }
+
+  mat <- matrix(0, nrow = out_nr, ncol = out_nc)
+
+  runs <- x$runs
+  edges <- x$edges
+
+  if (!is.null(id)) {
+    runs <- runs[runs$id %in% id, , drop = FALSE]
+    edges <- edges[edges$id %in% id, , drop = FALSE]
+  }
+
+  # Fill interior runs (with offset + clipping for subwindow)
+  if (nrow(runs) > 0) {
+    for (i in seq_len(nrow(runs))) {
+      r <- runs$row[i] - row_off
+      if (r < 1L || r > out_nr) next
+      cs <- runs$col_start[i] - col_off
+      ce <- runs$col_end[i] - col_off
+      cs <- max(cs, 1L)
+      ce <- min(ce, out_nc)
+      if (cs > ce) next
+      mat[r, cs:ce] <- 1
+    }
+  }
+
+  # Fill edge cells (with offset + bounds check)
+  if (nrow(edges) > 0) {
+    for (i in seq_len(nrow(edges))) {
+      r <- edges$row[i] - row_off
+      cc <- edges$col[i] - col_off
+      if (r < 1L || r > out_nr || cc < 1L || cc > out_nc) next
+      mat[r, cc] <- mat[r, cc] + edges$weight[i]
+    }
+  }
+
+  attr(mat, "extent") <- out_extent
+
+  if (type == "vector") {
+    v <- as.vector(t(mat))
+    attr(v, "extent") <- out_extent
+    v
+  } else {
+    mat
+  }
+}
+
+
+# ---- Snap extent outward to source cell boundaries, clamp to source ----
+#
+# Returns a list with snapped extent, col/row offsets, and output dimensions.
+# Snap-out: requested boundary moves outward to include any partially covered cell.
+# Clamp: snapped boundary is clamped to the source grid extent (no implied expand).
+# On-boundary tolerance: if a requested boundary is within tol * cell_size of a
+# cell boundary, it's treated as exactly on that boundary (no snap needed).
+
+.snap_extent <- function(target, src_extent, dx, dy) {
+  tol <- 1e-8
+
+  src_xmin <- src_extent[1]; src_xmax <- src_extent[2]
+  src_ymin <- src_extent[3]; src_ymax <- src_extent[4]
+
+  # Snap outward: floor for min edges, ceiling for max edges
+  # (relative to source origin)
+  x_off_min <- (target[1] - src_xmin) / dx
+  x_off_max <- (target[2] - src_xmin) / dx
+  y_off_min <- (target[3] - src_ymin) / dy
+  y_off_max <- (target[4] - src_ymin) / dy
+
+  # Snap: floor for min (outward = leftward/downward),
+  #        ceil for max (outward = rightward/upward).
+  # Tolerance: if within tol of integer, treat as on-boundary.
+  snap_floor <- function(v) {
+    r <- floor(v)
+    if (abs(v - round(v)) < tol) r <- round(v)
+    r
+  }
+  snap_ceil <- function(v) {
+    r <- ceiling(v)
+    if (abs(v - round(v)) < tol) r <- round(v)
+    r
+  }
+
+  col_start_0 <- snap_floor(x_off_min)  # 0-based column start
+  col_end_0   <- snap_ceil(x_off_max)    # 0-based column end (exclusive)
+  row_end_0   <- snap_ceil(y_off_max)    # 0-based row end (from bottom)
+  row_start_0 <- snap_floor(y_off_min)   # 0-based row start (from bottom)
+
+  # Clamp to source grid
+  src_nc <- round((src_xmax - src_xmin) / dx)
+  src_nr <- round((src_ymax - src_ymin) / dy)
+
+  col_start_0 <- max(col_start_0, 0L)
+  col_end_0   <- min(col_end_0, src_nc)
+  row_start_0 <- max(row_start_0, 0L)
+  row_end_0   <- min(row_end_0, src_nr)
+
+  # Output dimensions
+  out_nc <- as.integer(col_end_0 - col_start_0)
+  out_nr <- as.integer(row_end_0 - row_start_0)
+
+  # Snapped extent in source coordinates
+  snapped_xmin <- src_xmin + col_start_0 * dx
+  snapped_xmax <- src_xmin + col_end_0 * dx
+  snapped_ymin <- src_ymin + row_start_0 * dy
+  snapped_ymax <- src_ymin + row_end_0 * dy
+
+  # Row/col offsets: source row/col 1 maps to output row/col 1 - offset
+  # Source rows are numbered top-to-bottom: row 1 = ymax.
+  # row_start_0/row_end_0 are from bottom, so convert.
+  row_off_top <- as.integer(src_nr - row_end_0)   # how many source rows above the window
+  col_off <- as.integer(col_start_0)
+
+  list(
+    extent = c(snapped_xmin, snapped_xmax, snapped_ymin, snapped_ymax),
+    col_off = col_off,
+    row_off = row_off_top,
+    ncol = out_nc,
+    nrow = out_nr
+  )
+}
 
 #' @export
 print.controlledburn <- function(x, ...) {
