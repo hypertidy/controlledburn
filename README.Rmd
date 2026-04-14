@@ -48,7 +48,7 @@ r
 #>   edges: N boundary cells
 
 # Materialise only when you need it
-mat <- materialise_chunk(r)
+mat <- materialise_chunk(r, c(0, 10, 0, 10))
 ```
 
 ### Default grid parameters
