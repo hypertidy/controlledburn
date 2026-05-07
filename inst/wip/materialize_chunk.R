@@ -1,15 +1,15 @@
 ## prototype for working with align
 materialise_chunk_align <- function(burn, target, what = c("coverage", "id")) {
   what <- match.arg(what)
-  parent <- as_vast(burn)
+  parent <- align::as_vast(burn)
   if (missing(target)) target <- align::as_vast(burn)
 
 
-  if (!is_aligned(target, parent)) {
+  if (!align::is_aligned(target, parent)) {
     stop("target is not aligned to burn grid")
   }
 
-  off <- offset(target, parent)
+  off <- align::offset(target, parent)
   nr <- nrow(target)
   nc <- ncol(target)
 

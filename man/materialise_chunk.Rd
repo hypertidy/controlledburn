@@ -4,20 +4,35 @@
 \alias{materialise_chunk}
 \title{Materialise a controlledburn result to a dense matrix or vector}
 \usage{
-materialise_chunk(x, id = NULL, type = c("matrix", "vector"))
+materialise_chunk(
+  x,
+  target = NULL,
+  id = NULL,
+  type = c("matrix", "vector"),
+  max_cells = 1e+08
+)
 }
 \arguments{
-\item{x}{a \code{"controlledburn"} object from \code{\link[=burn_sparse]{burn_sparse()}}}
+\item{x}{a \code{"controlledburn"} object from \code{\link[=burn_sparse]{burn_sparse()}} or \code{\link[=burn_scanline]{burn_scanline()}}}
+
+\item{target}{numeric extent \code{c(xmin, xmax, ymin, ymax)} to materialise, or
+\code{NULL} (default) for the full grid. The target extent is snapped outward to
+cell boundaries of the source grid and clamped to the source extent.}
 
 \item{id}{integer polygon id to materialise, or \code{NULL} (default) for all}
 
 \item{type}{character, one of \code{"matrix"} (default) or \code{"vector"}}
+
+\item{max_cells}{maximum number of cells to allocate (default 1e8). Set to
+\code{Inf} to disable the safety check.}
 }
 \value{
 A numeric matrix (nrow × ncol) or vector (length nrow*ncol) of
 coverage fractions. Values range from 0 (outside) to 1 (fully inside).
+When \code{target} is specified, the matrix dimensions correspond to the
+snapped subwindow. The snapped extent is available as \code{attr(result, "extent")}.
 }
 \description{
 Expands the sparse two-table representation into a dense coverage fraction
-matrix. Primarily for visualisation and testing.
+matrix, optionally for a subwindow of the parent grid.
 }

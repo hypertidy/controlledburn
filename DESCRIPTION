@@ -37,8 +37,10 @@ Suggests:
     sf,
     testthat (>= 3.0.0),
     knitr,
-    rmarkdown
+    rmarkdown,
+    align
 URL: https://github.com/hypertidy/controlledburn
 BugReports: https://github.com/hypertidy/controlledburn/issues
 Config/testthat/edition: 3
 VignetteBuilder: knitr
+Remotes: mdsumner/align
