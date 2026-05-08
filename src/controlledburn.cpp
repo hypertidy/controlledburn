@@ -129,20 +129,33 @@ cpp11::writable::list cpp_burn_sparse(
       continue;
     }
 
-    // Reject point input early with a clear error rather than letting
-    // raster_cell_intersection throw "Unsupported geometry type." which
-    // the per-geometry try/catch then demotes to a warning + skip,
-    // producing a silent-empty result for the caller. burn_sparse
-    // is the polygon-only entry point; points (and lines) belong on
-    // burn_scanline which produces the unified output schema.
+    // Reject non-polygon input early with a clear error. burn_sparse() is
+    // the polygon-only entry point — line and point support belongs on
+    // burn_scanline(), which produces the type-pure unified output schema
+    // (\$runs, \$edges, \$lines, \$points). Without this check, lines fall
+    // through to raster_cell_intersection's LINESTRING path which produces
+    // edge-only output with length-in-cell values that share a column name
+    // with polygon fractions but mean a different thing — exactly the
+    // semantic confusion Phase 4 split into separate tables to avoid.
+    // Points throw an unhandled exception inside raster_cell_intersection
+    // that the per-geometry try/catch swallows as a warning + skip,
+    // producing a silent-empty result.
     int type = GEOSGeomTypeId_r(ctx, geom.get());
-    if (type == GEOS_POINT || type == GEOS_MULTIPOINT) {
+    if (type != GEOS_POLYGON && type != GEOS_MULTIPOLYGON) {
+      const char* type_name = "unknown";
+      switch (type) {
+        case GEOS_POINT:           type_name = "POINT"; break;
+        case GEOS_MULTIPOINT:      type_name = "MULTIPOINT"; break;
+        case GEOS_LINESTRING:      type_name = "LINESTRING"; break;
+        case GEOS_MULTILINESTRING: type_name = "MULTILINESTRING"; break;
+        case GEOS_LINEARRING:      type_name = "LINEARRING"; break;
+        case GEOS_GEOMETRYCOLLECTION: type_name = "GEOMETRYCOLLECTION"; break;
+      }
       cpp11::stop(
-        "burn_sparse() does not support point input "
-        "(geometry %d is %s). Use burn_scanline() for point and "
-        "line geometries; burn_sparse() handles polygons only.",
-        k + 1,
-        type == GEOS_POINT ? "POINT" : "MULTIPOINT"
+        "burn_sparse() supports polygon input only "
+        "(geometry %d is %s). Use burn_scanline() for line and point "
+        "geometries; it produces a type-pure table for each geometry kind.",
+        k + 1, type_name
       );
     }
 
@@ -212,26 +225,26 @@ cpp11::writable::list cpp_burn_sparse(
   runs_df.attr("class") = "data.frame";
   runs_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_runs)});
 
-  // edges table
+  // edges table — polygon boundary cells with fractional coverage in [0, 1]
   size_t n_edges = all_edges.size();
   cpp11::writable::integers edges_row(n_edges);
   cpp11::writable::integers edges_col(n_edges);
-  cpp11::writable::doubles edges_weight(n_edges);
+  cpp11::writable::doubles edges_fraction(n_edges);
   cpp11::writable::integers edges_id(n_edges);
 
   for (size_t i = 0; i < n_edges; i++) {
     edges_row[i] = all_edges[i].row;
     edges_col[i] = all_edges[i].col;
-    edges_weight[i] = static_cast<double>(all_edges[i].weight);
+    edges_fraction[i] = static_cast<double>(all_edges[i].fraction);
     edges_id[i] = all_edges[i].id;
   }
 
   cpp11::writable::list edges_df(4);
   edges_df[0] = static_cast<SEXP>(edges_row);
   edges_df[1] = static_cast<SEXP>(edges_col);
-  edges_df[2] = static_cast<SEXP>(edges_weight);
+  edges_df[2] = static_cast<SEXP>(edges_fraction);
   edges_df[3] = static_cast<SEXP>(edges_id);
-  edges_df.attr("names") = cpp11::writable::strings({"row", "col", "weight", "id"});
+  edges_df.attr("names") = cpp11::writable::strings({"row", "col", "fraction", "id"});
   edges_df.attr("class") = "data.frame";
   edges_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_edges)});
 

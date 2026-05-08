@@ -33,15 +33,16 @@ Mutually exclusive with \code{dimension}.}
 
 \item{tile_size}{integer, maximum tile dimension (default 4096). The grid is
 processed in tiles of at most \verb{tile_size x tile_size} cells to bound memory
-usage. Set to \code{Inf} to disable tiling.}
+usage. Set to \code{Inf} to disable tiling. (Not relevant on \code{\link[=burn_scanline]{burn_scanline()}},
+whose memory cost is O(perimeter).)}
 }
 \value{
 A list with class \code{"controlledburn"} containing:
 \describe{
 \item{\code{runs}}{data.frame with columns \code{row}, \code{col_start}, \code{col_end}, \code{id} —
-run-length encoded interior cells (coverage fraction  1.0)}
-\item{\code{edges}}{data.frame with columns \code{row}, \code{col}, \code{weight}, \code{id} —
-boundary cells with partial coverage (0 < weight < 1)}
+run-length encoded interior cells (full coverage)}
+\item{\code{edges}}{data.frame with columns \code{row}, \code{col}, \code{fraction}, \code{id} —
+boundary cells with partial coverage, \code{fraction} in (0, 1)}
 \item{\code{extent}}{the raster extent}
 \item{\code{dimension}}{the grid dimensions}
 }
@@ -50,9 +51,20 @@ Row and column indices are 1-based. Row 1 is the top (ymax) row.
 The \code{id} column is a 1-based index into the input geometry vector.
 }
 \description{
-Computes exact coverage fractions for polygon-grid intersections and returns
-results in a sparse two-table format: run-length encoded interior cells and
-individually weighted boundary cells.
+Computes exact coverage fractions for polygon-grid intersections via
+an exactextract-style flood-fill, returning sparse two-table output:
+run-length-encoded interior cells and individually weighted boundary
+cells.
+}
+\details{
+Polygon-only. Line and point input are rejected with an error directing
+the caller to \code{\link[=burn_scanline]{burn_scanline()}}, which produces the unified
+(polygon / line / point) output schema.
+
+Compared to \code{\link[=burn_scanline]{burn_scanline()}}, this function is older and uses a
+bounding-box-bounded dense intermediate (hence the \code{tile_size}
+parameter). For polygon input the two functions produce numerically
+identical results; \code{\link[=burn_scanline]{burn_scanline()}} is preferred for new code.
 }
 \examples{
 if (requireNamespace("geos", quietly = TRUE)) {

@@ -1,8 +1,18 @@
 #' Sparse polygon rasterization with exact coverage fractions
 #'
-#' Computes exact coverage fractions for polygon-grid intersections and returns
-#' results in a sparse two-table format: run-length encoded interior cells and
-#' individually weighted boundary cells.
+#' Computes exact coverage fractions for polygon-grid intersections via
+#' an exactextract-style flood-fill, returning sparse two-table output:
+#' run-length-encoded interior cells and individually weighted boundary
+#' cells.
+#'
+#' Polygon-only. Line and point input are rejected with an error directing
+#' the caller to [burn_scanline()], which produces the unified
+#' (polygon / line / point) output schema.
+#'
+#' Compared to [burn_scanline()], this function is older and uses a
+#' bounding-box-bounded dense intermediate (hence the `tile_size`
+#' parameter). For polygon input the two functions produce numerically
+#' identical results; [burn_scanline()] is preferred for new code.
 #'
 #' @param x geometry input, one of:
 #'   - an `sfc` geometry column (from sf)
@@ -18,14 +28,15 @@
 #'   Mutually exclusive with `dimension`.
 #' @param tile_size integer, maximum tile dimension (default 4096). The grid is
 #'   processed in tiles of at most `tile_size x tile_size` cells to bound memory
-#'   usage. Set to `Inf` to disable tiling.
+#'   usage. Set to `Inf` to disable tiling. (Not relevant on [burn_scanline()],
+#'   whose memory cost is O(perimeter).)
 #'
 #' @return A list with class `"controlledburn"` containing:
 #'   \describe{
 #'     \item{`runs`}{data.frame with columns `row`, `col_start`, `col_end`, `id` —
-#'       run-length encoded interior cells (coverage fraction  1.0)}
-#'     \item{`edges`}{data.frame with columns `row`, `col`, `weight`, `id` —
-#'       boundary cells with partial coverage (0 < weight < 1)}
+#'       run-length encoded interior cells (full coverage)}
+#'     \item{`edges`}{data.frame with columns `row`, `col`, `fraction`, `id` —
+#'       boundary cells with partial coverage, `fraction` in (0, 1)}
 #'     \item{`extent`}{the raster extent}
 #'     \item{`dimension`}{the grid dimensions}
 #'   }
@@ -153,22 +164,38 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
 
 #' Materialise a controlledburn result to a dense matrix or vector
 #'
-#' Expands the sparse two-table representation into a dense coverage fraction
-#' matrix, optionally for a subwindow of the parent grid.
+#' Expands a sparse [burn_sparse()] / [burn_scanline()] result into a dense
+#' matrix, optionally over a subwindow of the parent grid. The matrix's
+#' values depend on which kind of geometry produced the result:
+#'
+#'   - **Polygon** (`$runs` + `$edges`): coverage fraction in [0, 1].
+#'     Interior cells are 1; boundary cells are the partial fraction.
+#'   - **Line** (`$lines`): absolute length within each cell, in CRS units.
+#'     Multiple lines crossing the same cell sum.
+#'   - **Point** (`$points`): integer count of points landing in each
+#'     cell. Multiple points in one cell sum.
+#'
+#' If a result holds tables for *more than one* geometry kind (which can
+#' happen when a single burn was given a mixed-kind input vector),
+#' `materialise_chunk()` errors rather than silently combining different
+#' units in one matrix. Filter with `id =` to one kind first, or run
+#' separate burns for each kind.
 #'
 #' @param x a `"controlledburn"` object from [burn_sparse()] or [burn_scanline()]
 #' @param target numeric extent `c(xmin, xmax, ymin, ymax)` to materialise, or
 #'   `NULL` (default) for the full grid. The target extent is snapped outward to
 #'   cell boundaries of the source grid and clamped to the source extent.
-#' @param id integer polygon id to materialise, or `NULL` (default) for all
+#' @param id integer geometry id (or vector of ids) to materialise, or `NULL`
+#'   (default) for all. Useful for filtering a mixed-kind result down to a
+#'   single kind before materialising.
 #' @param type character, one of `"matrix"` (default) or `"vector"`
 #' @param max_cells maximum number of cells to allocate (default 1e8). Set to
 #'   `Inf` to disable the safety check.
 #'
-#' @return A numeric matrix (nrow × ncol) or vector (length nrow*ncol) of
-#'   coverage fractions. Values range from 0 (outside) to 1 (fully inside).
-#'   When `target` is specified, the matrix dimensions correspond to the
-#'   snapped subwindow. The snapped extent is available as `attr(result, "extent")`.
+#' @return A numeric matrix (nrow × ncol) or vector (length nrow*ncol).
+#'   The cell unit depends on geometry kind (see Description). When `target`
+#'   is specified, the matrix dimensions correspond to the snapped subwindow.
+#'   The snapped extent is available as `attr(result, "extent")`.
 #'
 #' @export
 materialise_chunk <- function(x, target = NULL, id = NULL,
@@ -219,15 +246,40 @@ materialise_chunk <- function(x, target = NULL, id = NULL,
 
   mat <- matrix(0, nrow = out_nr, ncol = out_nc)
 
-  runs <- x$runs
-  edges <- x$edges
-  # Points support added in Phase 3 — older results may have no $points field.
+  runs   <- x$runs
+  edges  <- x$edges
+  # $lines and $points are added by burn_scanline; older burn_sparse results
+  # don't have them. Guard with NULL checks throughout.
+  lines  <- if (!is.null(x$lines))  x$lines  else NULL
   points <- if (!is.null(x$points)) x$points else NULL
 
   if (!is.null(id)) {
-    runs <- runs[runs$id %in% id, , drop = FALSE]
-    edges <- edges[edges$id %in% id, , drop = FALSE]
+    runs   <- runs[runs$id %in% id, , drop = FALSE]
+    edges  <- edges[edges$id %in% id, , drop = FALSE]
+    if (!is.null(lines))  lines  <- lines[lines$id %in% id, , drop = FALSE]
     if (!is.null(points)) points <- points[points$id %in% id, , drop = FALSE]
+  }
+
+  # Refuse to materialise mixed-type tables. Each table type produces a
+  # different kind of measure (polygon: fraction in [0,1]; line: length in
+  # CRS units; point: count) and combining them in one matrix would silently
+  # mix units. The walker can produce all four tables in one pass — that
+  # capacity exists for downstream uses that want them separately — but
+  # materialise_chunk is the consumer that would need to pick units, so
+  # it errors instead.
+  n_polygon <- nrow(runs) + nrow(edges)
+  n_line    <- if (!is.null(lines))  nrow(lines)  else 0L
+  n_point   <- if (!is.null(points)) nrow(points) else 0L
+  n_kinds <- (n_polygon > 0) + (n_line > 0) + (n_point > 0)
+  if (n_kinds > 1) {
+    stop(
+      "materialise_chunk(): result has multiple geometry types ",
+      "(polygon = ", n_polygon, ", line = ", n_line, ", point = ", n_point, "). ",
+      "Each type produces a different measure (fraction vs length vs count); ",
+      "filter to one type with id = before calling, or run separate burns ",
+      "for each type.",
+      call. = FALSE
+    )
   }
 
   # Fill interior runs (with offset + clipping for subwindow)
@@ -244,13 +296,26 @@ materialise_chunk <- function(x, target = NULL, id = NULL,
     }
   }
 
-  # Fill edge cells (with offset + bounds check)
+  # Fill polygon edge cells with the coverage fraction (in [0, 1]).
+  # The column is named `fraction` post Phase 4 to make the unit explicit;
+  # tolerate the older `weight` name for forward-compat with cached results.
   if (nrow(edges) > 0) {
+    fcol <- if ("fraction" %in% names(edges)) "fraction" else "weight"
     for (i in seq_len(nrow(edges))) {
       r <- edges$row[i] - row_off
       cc <- edges$col[i] - col_off
       if (r < 1L || r > out_nr || cc < 1L || cc > out_nc) next
-      mat[r, cc] <- mat[r, cc] + edges$weight[i]
+      mat[r, cc] <- mat[r, cc] + edges[[fcol]][i]
+    }
+  }
+
+  # Fill line cells with length-in-cell (absolute, CRS units).
+  if (!is.null(lines) && nrow(lines) > 0) {
+    for (i in seq_len(nrow(lines))) {
+      r <- lines$row[i] - row_off
+      cc <- lines$col[i] - col_off
+      if (r < 1L || r > out_nr || cc < 1L || cc > out_nc) next
+      mat[r, cc] <- mat[r, cc] + lines$length[i]
     }
   }
 
@@ -360,20 +425,25 @@ print.controlledburn <- function(x, ...) {
   nrow <- x$dimension[2]
   n_runs <- nrow(x$runs)
   n_edges <- nrow(x$edges)
-  # Point support added in Phase 3 — earlier results may have no $points.
+  # $lines and $points are present when burn_scanline produced them; older
+  # burn_sparse results don't have them.
+  n_lines  <- if (!is.null(x$lines))  nrow(x$lines)  else 0L
   n_points <- if (!is.null(x$points)) nrow(x$points) else 0L
-  n_ids <- length(unique(c(x$runs$id, x$edges$id, x$points$id)))
+  n_ids <- length(unique(c(x$runs$id, x$edges$id, x$lines$id, x$points$id)))
 
   # Compute total cells represented
   total_interior <- if (n_runs > 0) sum(as.numeric(x$runs$col_end - x$runs$col_start + 1L)) else 0
-  total_cells <- total_interior + n_edges + n_points
+  total_cells <- total_interior + n_edges + n_lines + n_points
   grid_cells <- as.numeric(ncol) * as.numeric(nrow)
   sparsity <- 1 - total_cells / grid_cells
 
   cat(sprintf("<controlledburn> %d x %d grid, %d geometr%s\n",
               ncol, nrow, n_ids, if (n_ids == 1) "y" else "ies"))
   cat(sprintf("  runs:   %d (%.0f interior cells)\n", n_runs, total_interior))
-  cat(sprintf("  edges:  %d boundary cells\n", n_edges))
+  cat(sprintf("  edges:  %d polygon boundary cells\n", n_edges))
+  if (n_lines > 0) {
+    cat(sprintf("  lines:  %d cells\n", n_lines))
+  }
   if (n_points > 0) {
     cat(sprintf("  points: %d cells\n", n_points))
   }

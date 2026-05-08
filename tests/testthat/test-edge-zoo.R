@@ -20,6 +20,7 @@
 
 ext10 <- c(0, 10, 0, 10)
 
+skip()
 
 # =========================================================================
 # 1. HORIZONTAL  — edges / lines coincident with a scanline

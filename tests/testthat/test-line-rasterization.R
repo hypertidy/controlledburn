@@ -19,11 +19,11 @@ test_that("simple horizontal line crossing three cells emits length per cell", {
   expect_equal(nrow(r$runs), 0)
 
   # Three edge cells with the expected lengths
-  expect_equal(nrow(r$edges), 3)
-  expect_equal(sort(r$edges$weight), c(0.5, 0.5, 1.0))
+  expect_equal(nrow(r$lines), 3)
+  expect_equal(sort(r$lines$length), c(0.5, 0.5, 1.0))
 
   # Sum of per-cell lengths equals total line length
-  expect_equal(sum(r$edges$weight), 2.0)
+  expect_equal(sum(r$lines$length), 2.0)
 })
 
 test_that("vertical line crossing three cells emits length per cell", {
@@ -31,8 +31,8 @@ test_that("vertical line crossing three cells emits length per cell", {
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 0.5 2.5)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(nrow(r$edges), 3)
-  expect_equal(sum(r$edges$weight), 2.0)
+  expect_equal(nrow(r$lines), 3)
+  expect_equal(sum(r$lines$length), 2.0)
 })
 
 test_that("diagonal line: per-cell lengths sum to total length", {
@@ -41,8 +41,8 @@ test_that("diagonal line: per-cell lengths sum to total length", {
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 2.5 2.5)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
-  expect_true(nrow(r$edges) > 0)
-  expect_equal(sum(r$edges$weight), sqrt(8), tolerance = 1e-6)
+  expect_true(nrow(r$lines) > 0)
+  expect_equal(sum(r$lines$length), sqrt(8), tolerance = 1e-6)
 })
 
 test_that("line with vertex inside a cell sums sub-segment lengths", {
@@ -53,9 +53,9 @@ test_that("line with vertex inside a cell sums sub-segment lengths", {
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 1.5 0.5, 1.5 2.5)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
-  expect_true(nrow(r$edges) > 0)
+  expect_true(nrow(r$lines) > 0)
   # Total length: 1.0 (horizontal) + 2.0 (vertical) = 3.0
-  expect_equal(sum(r$edges$weight), 3.0, tolerance = 1e-6)
+  expect_equal(sum(r$lines$length), 3.0, tolerance = 1e-6)
 })
 
 test_that("line entirely within a single cell", {
@@ -64,8 +64,8 @@ test_that("line entirely within a single cell", {
   line <- geos::as_geos_geometry("LINESTRING (0.2 0.2, 0.8 0.8)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(nrow(r$edges), 1)
-  expect_equal(r$edges$weight, sqrt(0.72), tolerance = 1e-6) # sqrt(0.6^2 + 0.6^2)
+  expect_equal(nrow(r$lines), 1)
+  expect_equal(r$lines$length, sqrt(0.72), tolerance = 1e-6) # sqrt(0.6^2 + 0.6^2)
 })
 
 test_that("MULTILINESTRING accumulates lengths across components", {
@@ -76,7 +76,7 @@ test_that("MULTILINESTRING accumulates lengths across components", {
   )
   r <- burn_scanline(ml, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(sum(r$edges$weight), 4.0, tolerance = 1e-6)
+  expect_equal(sum(r$lines$length), 4.0, tolerance = 1e-6)
 })
 
 test_that("degenerate line (single point repeated) emits no edges", {
@@ -84,7 +84,7 @@ test_that("degenerate line (single point repeated) emits no edges", {
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 0.5 0.5)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(nrow(r$edges), 0)
+  expect_equal(nrow(r$lines), 0)
 })
 
 test_that("line outside grid extent emits no edges", {
@@ -92,7 +92,7 @@ test_that("line outside grid extent emits no edges", {
   line <- geos::as_geos_geometry("LINESTRING (-2 -2, -1 -1)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(nrow(r$edges), 0)
+  expect_equal(nrow(r$lines), 0)
 })
 
 test_that("GeometryCollection input is rejected with a warning", {
@@ -105,7 +105,7 @@ test_that("GeometryCollection input is rejected with a warning", {
     "GeometryCollection"
   )
   expect_equal(nrow(r$runs), 0)
-  expect_equal(nrow(r$edges), 0)
+  expect_equal(nrow(r$lines), 0)
 })
 
 test_that("mixed POLYGON + LINESTRING input via separate burns", {
@@ -123,6 +123,6 @@ test_that("mixed POLYGON + LINESTRING input via separate burns", {
   rl <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
 
   expect_true(nrow(rp$edges) > 0 || nrow(rp$runs) > 0)
-  expect_true(nrow(rl$edges) > 0)
+  expect_true(nrow(rl$lines) > 0)
   expect_equal(nrow(rl$runs), 0)
 })

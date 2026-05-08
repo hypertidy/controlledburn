@@ -563,7 +563,7 @@ static void process_line(
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
     double dx, double dy,
     int line_id,
-    std::vector<GridEdge>& all_edges
+    std::vector<GridLine>& all_lines
 ) {
   using namespace exactextract;
   (void) dx; (void) dy;  // kept in signature for parity with process_polygon
@@ -593,9 +593,9 @@ static void process_line(
   // Walk the open polyline
   CellMap cells = walk_polyline(std::move(coords), grid, /*closed=*/false);
 
-  // Sum segment lengths per cell, emit one edge record per non-empty cell.
-  // Lines have no interior — every touched cell is an "edge" in the polygon
-  // sense — so all output goes to all_edges with weight = length in CRS units.
+  // Sum segment lengths per cell, emit one GridLine record per non-empty cell.
+  // Lines have no interior — every touched cell is a line cell — so all
+  // output goes to all_lines with `length` = absolute length in CRS units.
   for (const auto& kv : cells) {
     size_t r = kv.first.first;
     size_t c = kv.first.second;
@@ -621,7 +621,7 @@ static void process_line(
       // Map infinite_extent (r, c) to 1-based bounded grid (full_row, full_col)
       int full_row = static_cast<int>(r);  // padding=1 absorbs the +1
       int full_col = static_cast<int>(c);
-      all_edges.push_back({
+      all_lines.push_back({
         full_row, full_col,
         static_cast<float>(total_length),
         line_id
@@ -694,6 +694,7 @@ static void process_geometry(
     int geom_id,
     std::vector<GridRun>& all_runs,
     std::vector<GridEdge>& all_edges,
+    std::vector<GridLine>& all_lines,
     std::vector<GridPoint>& all_points
 ) {
   int type = GEOSGeomTypeId_r(ctx, g);
@@ -704,7 +705,7 @@ static void process_geometry(
     return;
 
   case GEOS_LINESTRING:
-    process_line(ctx, g, full_grid, dx, dy, geom_id, all_edges);
+    process_line(ctx, g, full_grid, dx, dy, geom_id, all_lines);
     return;
 
   case GEOS_POINT:
@@ -721,7 +722,7 @@ static void process_geometry(
     for (int i = 0; i < GEOSGetNumGeometries_r(ctx, g); i++) {
       process_geometry(ctx, GEOSGetGeometryN_r(ctx, g, i),
                        full_grid, dx, dy, geom_id,
-                       all_runs, all_edges, all_points);
+                       all_runs, all_edges, all_lines, all_points);
     }
     return;
 
@@ -773,6 +774,7 @@ cpp11::writable::list cpp_scanline_burn(
 
   std::vector<GridRun> all_runs;
   std::vector<GridEdge> all_edges;
+  std::vector<GridLine> all_lines;
   std::vector<GridPoint> all_points;
 
   for (int k = 0; k < n_geoms; k++) {
@@ -795,7 +797,7 @@ cpp11::writable::list cpp_scanline_burn(
     try {
       int poly_id = k + 1;
       process_geometry(ctx, geom.get(), full_grid, dx, dy,
-                       poly_id, all_runs, all_edges, all_points);
+                       poly_id, all_runs, all_edges, all_lines, all_points);
     } catch (const std::exception& e) {
       cpp11::warning("Error processing geometry %d: %s, skipping", k + 1, e.what());
       continue;
@@ -804,7 +806,14 @@ cpp11::writable::list cpp_scanline_burn(
 
   GEOSWKBReader_destroy_r(ctx, wkb_reader);
 
-  // Build R data.frames
+  // Build R data.frames — four tables, one per geometry kind.
+  // Polygon → runs (interior RLE) + edges (boundary fractions in [0, 1]).
+  // Line    → lines (length in CRS units).
+  // Point   → points (no measure column; implicit 1).
+  // The schemas are intentionally type-pure: each table's measure column
+  // (or absence thereof) means exactly one thing. See the unified
+  // geometry rasterization design doc.
+
   size_t n_runs = all_runs.size();
   cpp11::writable::integers runs_row(n_runs);
   cpp11::writable::integers runs_col_start(n_runs);
@@ -827,30 +836,54 @@ cpp11::writable::list cpp_scanline_burn(
   runs_df.attr("class") = "data.frame";
   runs_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_runs)});
 
+  // edges table — polygon boundary cells, fraction in (0, 1)
   size_t n_edges = all_edges.size();
   cpp11::writable::integers edges_row(n_edges);
   cpp11::writable::integers edges_col(n_edges);
-  cpp11::writable::doubles edges_weight(n_edges);
+  cpp11::writable::doubles edges_fraction(n_edges);
   cpp11::writable::integers edges_id(n_edges);
 
   for (size_t i = 0; i < n_edges; i++) {
     edges_row[i] = all_edges[i].row;
     edges_col[i] = all_edges[i].col;
-    edges_weight[i] = static_cast<double>(all_edges[i].weight);
+    edges_fraction[i] = static_cast<double>(all_edges[i].fraction);
     edges_id[i] = all_edges[i].id;
   }
 
   cpp11::writable::list edges_df(4);
   edges_df[0] = static_cast<SEXP>(edges_row);
   edges_df[1] = static_cast<SEXP>(edges_col);
-  edges_df[2] = static_cast<SEXP>(edges_weight);
+  edges_df[2] = static_cast<SEXP>(edges_fraction);
   edges_df[3] = static_cast<SEXP>(edges_id);
-  edges_df.attr("names") = cpp11::writable::strings({"row", "col", "weight", "id"});
+  edges_df.attr("names") = cpp11::writable::strings({"row", "col", "fraction", "id"});
   edges_df.attr("class") = "data.frame";
   edges_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_edges)});
 
-  // Points table — schema (row, col, id), no weight column. Materialise
-  // treats the absent-weight column as implicit 1.
+  // lines table — line cells, length in CRS units (absolute, not fraction)
+  size_t n_lines = all_lines.size();
+  cpp11::writable::integers lines_row(n_lines);
+  cpp11::writable::integers lines_col(n_lines);
+  cpp11::writable::doubles lines_length(n_lines);
+  cpp11::writable::integers lines_id(n_lines);
+
+  for (size_t i = 0; i < n_lines; i++) {
+    lines_row[i] = all_lines[i].row;
+    lines_col[i] = all_lines[i].col;
+    lines_length[i] = static_cast<double>(all_lines[i].length);
+    lines_id[i] = all_lines[i].id;
+  }
+
+  cpp11::writable::list lines_df(4);
+  lines_df[0] = static_cast<SEXP>(lines_row);
+  lines_df[1] = static_cast<SEXP>(lines_col);
+  lines_df[2] = static_cast<SEXP>(lines_length);
+  lines_df[3] = static_cast<SEXP>(lines_id);
+  lines_df.attr("names") = cpp11::writable::strings({"row", "col", "length", "id"});
+  lines_df.attr("class") = "data.frame";
+  lines_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_lines)});
+
+  // points table — schema (row, col, id), no measure column. Materialise
+  // treats absence of a measure column as implicit 1.
   size_t n_points = all_points.size();
   cpp11::writable::integers points_row(n_points);
   cpp11::writable::integers points_col(n_points);
@@ -870,11 +903,12 @@ cpp11::writable::list cpp_scanline_burn(
   points_df.attr("class") = "data.frame";
   points_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_points)});
 
-  cpp11::writable::list result(3);
+  cpp11::writable::list result(4);
   result[0] = static_cast<SEXP>(runs_df);
   result[1] = static_cast<SEXP>(edges_df);
-  result[2] = static_cast<SEXP>(points_df);
-  result.attr("names") = cpp11::writable::strings({"runs", "edges", "points"});
+  result[2] = static_cast<SEXP>(lines_df);
+  result[3] = static_cast<SEXP>(points_df);
+  result.attr("names") = cpp11::writable::strings({"runs", "edges", "lines", "points"});
 
   return result;
 }

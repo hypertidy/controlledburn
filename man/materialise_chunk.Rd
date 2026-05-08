@@ -19,7 +19,9 @@ materialise_chunk(
 \code{NULL} (default) for the full grid. The target extent is snapped outward to
 cell boundaries of the source grid and clamped to the source extent.}
 
-\item{id}{integer polygon id to materialise, or \code{NULL} (default) for all}
+\item{id}{integer geometry id (or vector of ids) to materialise, or \code{NULL}
+(default) for all. Useful for filtering a mixed-kind result down to a
+single kind before materialising.}
 
 \item{type}{character, one of \code{"matrix"} (default) or \code{"vector"}}
 
@@ -27,12 +29,29 @@ cell boundaries of the source grid and clamped to the source extent.}
 \code{Inf} to disable the safety check.}
 }
 \value{
-A numeric matrix (nrow × ncol) or vector (length nrow*ncol) of
-coverage fractions. Values range from 0 (outside) to 1 (fully inside).
-When \code{target} is specified, the matrix dimensions correspond to the
-snapped subwindow. The snapped extent is available as \code{attr(result, "extent")}.
+A numeric matrix (nrow × ncol) or vector (length nrow*ncol).
+The cell unit depends on geometry kind (see Description). When \code{target}
+is specified, the matrix dimensions correspond to the snapped subwindow.
+The snapped extent is available as \code{attr(result, "extent")}.
 }
 \description{
-Expands the sparse two-table representation into a dense coverage fraction
-matrix, optionally for a subwindow of the parent grid.
+Expands a sparse \code{\link[=burn_sparse]{burn_sparse()}} / \code{\link[=burn_scanline]{burn_scanline()}} result into a dense
+matrix, optionally over a subwindow of the parent grid. The matrix's
+values depend on which kind of geometry produced the result:
+}
+\details{
+\itemize{
+\item \strong{Polygon} (\verb{$runs} + \verb{$edges}): coverage fraction in \link{0, 1}.
+Interior cells are 1; boundary cells are the partial fraction.
+\item \strong{Line} (\verb{$lines}): absolute length within each cell, in CRS units.
+Multiple lines crossing the same cell sum.
+\item \strong{Point} (\verb{$points}): integer count of points landing in each
+cell. Multiple points in one cell sum.
+}
+
+If a result holds tables for \emph{more than one} geometry kind (which can
+happen when a single burn was given a mixed-kind input vector),
+\code{materialise_chunk()} errors rather than silently combining different
+units in one matrix. Filter with \verb{id =} to one kind first, or run
+separate burns for each kind.
 }

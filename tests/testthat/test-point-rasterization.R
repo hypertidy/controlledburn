@@ -197,7 +197,7 @@ test_that("mixed polygon + line + point requires separate burns", {
   rt <- burn_scanline(pt,   extent = ext, dimension = dim)
 
   expect_true(nrow(rp$edges) + nrow(rp$runs) > 0)
-  expect_true(nrow(rl$edges) > 0)
+  expect_true(nrow(rl$lines) > 0)
   expect_equal(nrow(rt$points), 1)
 })
 
