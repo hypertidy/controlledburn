@@ -56,7 +56,7 @@ For geodesic measures, project to an appropriate CRS first.
 Rasterizes geometry into a sparse output schema, with one type-pure
 table per geometry kind. Polygons produce run-length-encoded interior
 cells (\verb{$runs}) and weighted boundary cells (\verb{$edges}, with a
-coverage \code{fraction} in \link{0, 1}). Lines produce one record per touched
+coverage \code{fraction} in \verb{[0, 1]}). Lines produce one record per touched
 cell with the absolute \code{length} of line within the cell, in CRS units
 (\verb{$lines}). Points produce one record per touched cell, with no
 measure column (\verb{$points}). See the unified geometry rasterization

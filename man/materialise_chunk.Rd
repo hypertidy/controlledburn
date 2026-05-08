@@ -41,7 +41,7 @@ values depend on which kind of geometry produced the result:
 }
 \details{
 \itemize{
-\item \strong{Polygon} (\verb{$runs} + \verb{$edges}): coverage fraction in \link{0, 1}.
+\item \strong{Polygon} (\verb{$runs} + \verb{$edges}): coverage fraction in \verb{[0, 1]}.
 Interior cells are 1; boundary cells are the partial fraction.
 \item \strong{Line} (\verb{$lines}): absolute length within each cell, in CRS units.
 Multiple lines crossing the same cell sum.

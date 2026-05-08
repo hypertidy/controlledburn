@@ -168,7 +168,7 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
 #' matrix, optionally over a subwindow of the parent grid. The matrix's
 #' values depend on which kind of geometry produced the result:
 #'
-#'   - **Polygon** (`$runs` + `$edges`): coverage fraction in [0, 1].
+#'   - **Polygon** (`$runs` + `$edges`): coverage fraction in `[0, 1]`.
 #'     Interior cells are 1; boundary cells are the partial fraction.
 #'   - **Line** (`$lines`): absolute length within each cell, in CRS units.
 #'     Multiple lines crossing the same cell sum.

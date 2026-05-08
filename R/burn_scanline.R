@@ -3,7 +3,7 @@
 #' Rasterizes geometry into a sparse output schema, with one type-pure
 #' table per geometry kind. Polygons produce run-length-encoded interior
 #' cells (`$runs`) and weighted boundary cells (`$edges`, with a
-#' coverage `fraction` in [0, 1]). Lines produce one record per touched
+#' coverage `fraction` in `[0, 1]`). Lines produce one record per touched
 #' cell with the absolute `length` of line within the cell, in CRS units
 #' (`$lines`). Points produce one record per touched cell, with no
 #' measure column (`$points`). See the unified geometry rasterization

@@ -20,7 +20,7 @@
 
 ext10 <- c(0, 10, 0, 10)
 
-skip()
+#skip()
 
 # =========================================================================
 # 1. HORIZONTAL  — edges / lines coincident with a scanline
@@ -62,7 +62,7 @@ test_that("horizontal line exactly on a cell-row boundary — pinned ownership",
   line <- geos::as_geos_geometry("LINESTRING (1 5, 9 5)")
   r <- burn_scanline(line, extent = ext10, dimension = c(10L, 10L))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(sum(r$edges$weight), 8.0, tolerance = 1e-6,
+  expect_equal(sum(r$lines$length), 8.0, tolerance = 1e-6,
                label = "total length preserved")
   # Line lies on a single row boundary; pin which row owns it.
   # (TODO: fill in the row number once we observe and decide which
@@ -76,7 +76,7 @@ test_that("vertical line exactly on a cell-column boundary — pinned ownership"
   line <- geos::as_geos_geometry("LINESTRING (5 1, 5 9)")
   r <- burn_scanline(line, extent = ext10, dimension = c(10L, 10L))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(sum(r$edges$weight), 8.0, tolerance = 1e-6,
+  expect_equal(sum(r$lines$length), 8.0, tolerance = 1e-6,
                label = "total length preserved")
 })
 
@@ -94,8 +94,8 @@ test_that("line entirely inside one cell — single edge, exact length", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (0.2 0.2, 0.8 0.8)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
-  expect_equal(nrow(r$edges), 1)
-  expect_equal(r$edges$weight, sqrt(0.72), tolerance = 1e-6)
+  expect_equal(nrow(r$lines), 1)
+  expect_equal(r$lines$length, sqrt(0.72), tolerance = 1e-6)
 })
 
 test_that("microscopic line — well below one cell, still exact", {
@@ -103,15 +103,15 @@ test_that("microscopic line — well below one cell, still exact", {
   # Tiny segment inside a cell; cell dx=dy=1, segment length ~1.4e-3.
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 0.501 0.501)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
-  expect_equal(nrow(r$edges), 1)
-  expect_equal(r$edges$weight, sqrt(2 * 0.001^2), tolerance = 1e-9)
+  expect_equal(nrow(r$lines), 1)
+  expect_equal(r$lines$length, sqrt(2 * 0.001^2), tolerance = 1e-9)
 })
 
 test_that("zero-length segment between identical coords — no edge", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 0.5 0.5)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
-  expect_equal(nrow(r$edges), 0)
+  expect_equal(nrow(r$lines), 0)
 })
 
 test_that("triangle with sub-pixel area — coverage stays in [0, 1]", {
@@ -122,7 +122,7 @@ test_that("triangle with sub-pixel area — coverage stays in [0, 1]", {
     "POLYGON ((1.1 1.1, 1.2 1.1, 1.15 1.2, 1.1 1.1))"
   )
   r <- burn_scanline(p, extent = ext10, dimension = c(10L, 10L))
-  expect_true(all(r$edges$weight >= 0 & r$edges$weight <= 1))
+  expect_true(all(r$lines$length >= 0 & r$lines$length <= 1))
 })
 
 
@@ -159,7 +159,7 @@ test_that("line passing exactly through a cell corner", {
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 2.5 2.5)")
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(sum(r$edges$weight), sqrt(8), tolerance = 1e-6)
+  expect_equal(sum(r$lines$length), sqrt(8), tolerance = 1e-6)
   # Total length is preserved; per-cell distribution may have ties at
   # corners, but the SUM is invariant. (TODO: pin per-cell distribution
   #  once observed.)
@@ -184,7 +184,7 @@ test_that("very long line — sum of per-cell lengths matches analytical", {
                      extent = c(0, 1000, 0, 1000),
                      dimension = c(1000L, 1000L))
   expect_equal(nrow(r$runs), 0)
-  expect_equal(sum(r$edges$weight), 999.0, tolerance = 1e-3)
+  expect_equal(sum(r$lines$length), 999.0, tolerance = 1e-3)
 })
 
 test_that("very long diagonal — sum matches sqrt(2)*length", {
@@ -193,7 +193,7 @@ test_that("very long diagonal — sum matches sqrt(2)*length", {
   r <- burn_scanline(line,
                      extent = c(0, 1000, 0, 1000),
                      dimension = c(1000L, 1000L))
-  expect_equal(sum(r$edges$weight), sqrt(2) * 999.0, tolerance = 1e-2)
+  expect_equal(sum(r$lines$length), sqrt(2) * 999.0, tolerance = 1e-2)
 })
 
 
@@ -231,10 +231,10 @@ test_that("self-intersecting line — lengths sum, not unioned", {
   )
   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   # Total length analytical: 0.6 + 0.3 + 0.6 + 0.6 = 2.1
-  expect_equal(sum(r$edges$weight), 2.1, tolerance = 1e-6)
+  expect_equal(sum(r$lines$length), 2.1, tolerance = 1e-6)
   # Single cell, so single edge, weight equals total length.
-  expect_equal(nrow(r$edges), 1)
-  expect_equal(r$edges$weight, 2.1, tolerance = 1e-6)
+  expect_equal(nrow(r$lines), 1)
+  expect_equal(r$lines$length, 2.1, tolerance = 1e-6)
 })
 
 
@@ -323,7 +323,7 @@ test_that("antimeridian-crossing line is treated as planar (no unwrapping)", {
                      dimension = c(360L, 20L))
   expect_equal(nrow(r$runs), 0)
   # 340 units of length, not 20.
-  expect_equal(sum(r$edges$weight), 340.0, tolerance = 1e-3)
+  expect_equal(sum(r$lines$length), 340.0, tolerance = 1e-3)
 })
 
 test_that("geometry far outside extent is silently dropped, no error", {
@@ -334,7 +334,7 @@ test_that("geometry far outside extent is silently dropped, no error", {
   expect_silent(
     r <- burn_scanline(line, extent = ext10, dimension = c(10L, 10L))
   )
-  expect_equal(nrow(r$edges), 0)
+  expect_equal(nrow(r$lines), 0)
   expect_equal(nrow(r$runs), 0)
 })
 
