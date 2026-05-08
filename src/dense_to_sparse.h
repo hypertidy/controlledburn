@@ -15,11 +15,35 @@ struct GridRun {
     int id;
 };
 
-// A single edge cell: row, col, weight (all 1-based, full raster coords)
+// A single polygon-edge cell: row, col, fraction (all 1-based, full raster coords).
+// `fraction` is the dimensionless coverage fraction in [0, 1] — the area of
+// polygon ∩ cell divided by cell area. Polygon coverage is the natural ratio
+// of two like things (areas), so fraction is well-defined and unitless.
 struct GridEdge {
     int row;
     int col;
-    float weight;
+    float fraction;
+    int id;
+};
+
+// A single line cell: row, col, length (all 1-based, full raster coords).
+// `length` is the absolute length of the line within the cell, in CRS units.
+// Unlike polygon coverage, line presence has no like-thing ratio (length and
+// area are different dimensions), so the only honest measure is absolute.
+struct GridLine {
+    int row;
+    int col;
+    float length;
+    int id;
+};
+
+// A single point cell: row, col (all 1-based, full raster coords).
+// Points carry no measure column — a point is either in a cell or it isn't,
+// and the implicit per-row weight is 1. See the unified geometry
+// rasterization design doc.
+struct GridPoint {
+    int row;
+    int col;
     int id;
 };
 

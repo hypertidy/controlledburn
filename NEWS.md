@@ -1,3 +1,70 @@
+# controlledburn (development version)
+
+Iteration extending controlledburn from polygon-only to a unified
+geometry rasterizer over polygon, line, and point input. Output schema
+gains type-pure tables; the unification follows the geometric structure
+of measure-on-a-grid as one operation parameterised by Hausdorff
+dimension. Design philosophy and decisions are recorded in
+`inst/docs-design/unified-geometry-rasterization.md`.
+
+## Breaking changes
+
+* Polygon boundary cells: `$edges$weight` renamed to `$edges$fraction`
+  to reflect what the column carries (a dimensionless fraction in
+  [0, 1]). [`materialise_chunk()`] reads either name for forward
+  compatibility with cached results, but new code should use
+  `$edges$fraction`.
+
+* `burn_sparse()` now errors on line and point input. Previously it
+  fell through to a path that produced silent-empty (points) or
+  silently-mistyped (lines) output. The error message redirects to
+  `burn_scanline()`.
+
+## What's new
+
+* `burn_scanline()` accepts LINESTRING, MULTILINESTRING, POINT, and
+  MULTIPOINT alongside the existing POLYGON / MULTIPOLYGON support.
+  Output schema gains `$lines` (`row, col, length, id`; absolute
+  length in CRS units) and `$points` (`row, col, id`; no measure
+  column — implicit weight = 1).
+
+* `materialise_chunk()` handles all four tables. Line cells contribute
+  length, point cells contribute count, polygon cells contribute
+  fraction. Mixed-kind input errors rather than silently combining
+  units; filter to one kind via `id =` first.
+
+* `print.controlledburn` reports `$lines` and `$points` counts when
+  present.
+
+* GeometryCollection input is rejected with a warning. Mixed-dimension
+  input would produce a sparse table where rows from different kinds
+  carry different units — caller must split into homogeneous groups
+  and run separate burns. Curved types (CircularString, CompoundCurve,
+  etc.) must be linearised by the caller before passing in.
+
+## Internals
+
+* `walk_polyline()`: cell-stepping walker extracted from `walk_ring()`.
+  Geometry-agnostic; takes a `closed` parameter that selects whether
+  to push back coords for the start-cell-reentry case (true for rings,
+  false for open lines). The polygon path runs the existing
+  winding-sweep post-processing on the walker's output; the line path
+  sums per-cell segment lengths from the same `CellMap`.
+
+* `process_line()`: walks lines on the full grid (no `shrink_to_fit`),
+  because horizontal/vertical lines have a degenerate bbox that
+  `Box::empty()` reports as true. Walker cost is O(cells touched), so
+  the bbox-shrinking optimisation is dead weight for lines anyway.
+
+* `process_point()`: trivial. Computes cell index via
+  `Grid::get_row` / `get_column`, drops out-of-extent silently.
+
+* Edge zoo (`tests/testthat/test-edge-zoo.R`) pins canonical
+  rasterizer edge cases by category (Horizontal, Sub-pixel,
+  Alignment, Precision, Topology, Collinear, CRS-boundary). Each
+  test pins a *convention*, not just a numerical expectation, so
+  the test surface doubles as API contract documentation.
+
 # controlledburn 0.1.0
 
 Complete rewrite of controlledburn using the exactextract algorithm (Daniel
