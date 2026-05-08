@@ -21,7 +21,7 @@ jobs:
       matrix:
         config:
           - {os: macOS-latest,  r: 'release'}
-          - {os: ubuntu-latest, r: 'release', container: 'ghcr.io/mdsumner/gdal-r-full:latest'}
+          - {os: ubuntu-latest, r: 'release', container: 'ghcr.io/hypertidy/gdal-r-full:latest'}
 
     permissions:
       contents: read
