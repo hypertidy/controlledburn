@@ -23,7 +23,7 @@
 #' @return A list with class `"controlledburn"` containing:
 #'   \describe{
 #'     \item{`runs`}{data.frame with columns `row`, `col_start`, `col_end`, `id` —
-#'       run-length encoded interior cells (coverage fraction ≈ 1.0)}
+#'       run-length encoded interior cells (coverage fraction  1.0)}
 #'     \item{`edges`}{data.frame with columns `row`, `col`, `weight`, `id` —
 #'       boundary cells with partial coverage (0 < weight < 1)}
 #'     \item{`extent`}{the raster extent}

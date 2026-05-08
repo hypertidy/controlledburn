@@ -39,7 +39,7 @@ usage. Set to \code{Inf} to disable tiling.}
 A list with class \code{"controlledburn"} containing:
 \describe{
 \item{\code{runs}}{data.frame with columns \code{row}, \code{col_start}, \code{col_end}, \code{id} —
-run-length encoded interior cells (coverage fraction ≈ 1.0)}
+run-length encoded interior cells (coverage fraction  1.0)}
 \item{\code{edges}}{data.frame with columns \code{row}, \code{col}, \code{weight}, \code{id} —
 boundary cells with partial coverage (0 < weight < 1)}
 \item{\code{extent}}{the raster extent}
