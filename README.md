@@ -196,11 +196,11 @@ v$close()
 
 system.time(burn_scanline(wkbgeom))
 #>    user  system elapsed 
-#>   0.513   0.014   0.527
+#>   0.522   0.009   0.531
 
 system.time(r1 <- burn_scanline(wkbgeom, dimension = c(8192, 4096)))
 #>    user  system elapsed 
-#>   0.926   0.016   0.943
+#>   0.919   0.005   0.923
 str(r1)
 #> List of 6
 #>  $ runs     :'data.frame':   81149 obs. of  4 variables:
@@ -234,7 +234,7 @@ perimeter as the resolution increases." -->
 ``` r
 system.time(r1 <- burn_scanline(wkbgeom, dimension = c(8192, 4096) * 20))
 #>    user  system elapsed 
-#>  16.975   0.828  17.804
+#>  16.998   0.686  17.685
 pryr::object_size(r1)
 #> 278.57 MB
 tibble::as_tibble(r1$runs)
