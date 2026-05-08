@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3</span>
       </span>
     </div>
 
@@ -82,8 +82,9 @@
 </h1></div>
 <!-- badges: start -->
 
-<p>Rasterize polygons without materializing any pixel values. controlledburn computes exact coverage fractions for polygon-grid intersections and returns results as sparse tables: run-length encoded interior cells and individually weighted boundary cells.</p>
-<p>The scanline algorithm is O(perimeter) in both time and memory.</p>
+<p>Rasterize geometry without materializing any pixel values. controlledburn produces sparse tables for polygon, line, and point input — one type-pure table per geometry kind.</p>
+<p>For polygons: run-length-encoded interior cells and boundary cells with exact partial coverage (<code>fraction</code> in [0, 1]). For lines: per-cell absolute length in CRS units. For points: per-cell records with no measure column.</p>
+<p>The scanline algorithm is O(perimeter) in time and memory; no dense matrix is allocated.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
@@ -103,15 +104,12 @@
 <span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">poly</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">r</span></span>
 <span><span class="co">#&gt; &lt;controlledburn&gt; 20 x 20 grid, 1 geometry</span></span>
-<span><span class="co">#&gt;   runs:  74 (256 interior cells)</span></span>
-<span><span class="co">#&gt;   edges: 0 boundary cells</span></span>
+<span><span class="co">#&gt;   runs:   74 (256 interior cells)</span></span>
+<span><span class="co">#&gt;   edges:  0 polygon boundary cells</span></span>
 <span><span class="co">#&gt;   sparsity: 36.0% empty</span></span>
-<span><span class="co">#&gt; &lt;controlledburn&gt; 20 x 20 grid, 1 geometry</span></span>
-<span><span class="co">#&gt;   runs:  N (interior cells)</span></span>
-<span><span class="co">#&gt;   edges: N boundary cells</span></span>
 <span></span>
 <span><span class="co"># Materialise only when you need it</span></span>
-<span><span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="default-grid-parameters">Default grid parameters<a class="anchor" aria-label="anchor" href="#default-grid-parameters"></a>
 </h3>
@@ -124,16 +122,53 @@
 <code class="sourceCode R"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">poly</span>, resolution <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
+<h3 id="lines-and-points">Lines and points<a class="anchor" aria-label="anchor" href="#lines-and-points"></a>
+</h3>
+<p>Lines produce a <code>$lines</code> table with absolute length within each cell (in CRS units, not a fraction):</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">line</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"LINESTRING (0 5, 10 5)"</span><span class="op">)</span></span>
+<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">line</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">r</span><span class="op">$</span><span class="va">lines</span></span>
+<span><span class="co">#&gt;    row col length id</span></span>
+<span><span class="co">#&gt; 1   11   1    0.5  1</span></span>
+<span><span class="co">#&gt; 2   11   2    0.5  1</span></span>
+<span><span class="co">#&gt; 3   11   3    0.5  1</span></span>
+<span><span class="co">#&gt; 4   11   4    0.5  1</span></span>
+<span><span class="co">#&gt; 5   11   5    0.5  1</span></span>
+<span><span class="co">#&gt; 6   11   6    0.5  1</span></span>
+<span><span class="co">#&gt; 7   11   7    0.5  1</span></span>
+<span><span class="co">#&gt; 8   11   8    0.5  1</span></span>
+<span><span class="co">#&gt; 9   11   9    0.5  1</span></span>
+<span><span class="co">#&gt; 10  11  10    0.5  1</span></span>
+<span><span class="co">#&gt; 11  11  11    0.5  1</span></span>
+<span><span class="co">#&gt; 12  11  12    0.5  1</span></span>
+<span><span class="co">#&gt; 13  11  13    0.5  1</span></span>
+<span><span class="co">#&gt; 14  11  14    0.5  1</span></span>
+<span><span class="co">#&gt; 15  11  15    0.5  1</span></span>
+<span><span class="co">#&gt; 16  11  16    0.5  1</span></span>
+<span><span class="co">#&gt; 17  11  17    0.5  1</span></span>
+<span><span class="co">#&gt; 18  11  18    0.5  1</span></span>
+<span><span class="co">#&gt; 19  11  19    0.5  1</span></span>
+<span><span class="co">#&gt; 20  11  20    0.5  1</span></span></code></pre></div>
+<p>Points produce a <code>$points</code> table with one record per cell hit (no measure column — a point is either in a cell or it isn’t):</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">pts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"POINT (2 3)"</span>, <span class="st">"POINT (7 8)"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">pts</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">r</span><span class="op">$</span><span class="va">points</span></span>
+<span><span class="co">#&gt;   row col id</span></span>
+<span><span class="co">#&gt; 1  15   5  1</span></span>
+<span><span class="co">#&gt; 2   5  15  2</span></span></code></pre></div>
+</div>
+<div class="section level3">
 <h3 id="geometry-input">Geometry input<a class="anchor" aria-label="anchor" href="#geometry-input"></a>
 </h3>
-<p>Accepts <code>geos_geometry</code>, <code>sfc</code>, <code><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wk::wkb()</a></code>, <code>blob</code>, or raw WKB list (compatible with vapour/gdalraster):</p>
-<p>Note that <code><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">geos::as_geos_geometry()</a></code> provides interchange for <code>terra::vect()</code>.</p>
+<p><code><a href="reference/burn_scanline.html">burn_scanline()</a></code> accepts <code>geos_geometry</code>, <code>sfc</code> (sf), <code><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wk::wkb()</a></code>, <code>blob</code>, or a list of raw WKB vectors. The raw-WKB path is compatible with <code>vapour::vapour_read_geometry()</code> and <code>gdalraster::GDALVector</code> output. For <code>terra::vect()</code> input, round-trip via <code><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">geos::as_geos_geometry()</a></code>.</p>
 </div>
 <div class="section level3">
 <h3 id="shared-boundary-complementarity">Shared boundary complementarity<a class="anchor" aria-label="anchor" href="#shared-boundary-complementarity"></a>
 </h3>
 <p>Adjacent polygons with shared edges produce complementary coverage fractions that sum to exactly 1.0 in every boundary cell — no gaps, no overlaps:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">left</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((0 0, 5 0, 5 10, 0 10, 0 0))"</span><span class="op">)</span></span>
 <span><span class="va">right</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((5 0, 10 0, 10 10, 5 10, 5 0))"</span><span class="op">)</span></span>
 <span></span>
@@ -150,12 +185,16 @@
 <div class="section level2">
 <h2 id="output-format">Output format<a class="anchor" aria-label="anchor" href="#output-format"></a>
 </h2>
-<p><code><a href="reference/burn_scanline.html">burn_scanline()</a></code> and <code><a href="reference/burn_sparse.html">burn_sparse()</a></code> return a list with class <code>"controlledburn"</code> containing:</p>
+<p><code><a href="reference/burn_scanline.html">burn_scanline()</a></code> returns a list with class <code>"controlledburn"</code>:</p>
 <ul>
 <li>
-<strong><code>runs</code></strong>: <code>data.frame(row, col_start, col_end, id)</code> — interior cells with coverage = 1.0, run-length encoded by row.</li>
+<strong><code>runs</code></strong>: <code>data.frame(row, col_start, col_end, id)</code> — polygon interior cells (full coverage), run-length encoded by row.</li>
 <li>
-<strong><code>edges</code></strong>: <code>data.frame(row, col, weight, id)</code> — boundary cells with exact partial coverage in (0, 1).</li>
+<strong><code>edges</code></strong>: <code>data.frame(row, col, fraction, id)</code> — polygon boundary cells with partial coverage; <code>fraction</code> is in (0, 1).</li>
+<li>
+<strong><code>lines</code></strong>: <code>data.frame(row, col, length, id)</code> — line cells; <code>length</code> is the absolute length of the line within the cell, in CRS units.</li>
+<li>
+<strong><code>points</code></strong>: <code>data.frame(row, col, id)</code> — point cells; no measure column (a point is either in a cell or it isn’t).</li>
 <li>
 <strong><code>extent</code></strong>: <code>c(xmin, xmax, ymin, ymax)</code>
 </li>
@@ -163,12 +202,14 @@
 <strong><code>dimension</code></strong>: <code>c(ncol, nrow)</code>
 </li>
 </ul>
+<p>Tables are populated for whichever geometry kinds are in the input. Each table’s measure column means exactly one thing — <code>$edges$fraction</code> is dimensionless, <code>$lines$length</code> is in CRS units, points have no measure. This separation is deliberate: the three measures are different mathematical objects and combining them in one column would silently mix units.</p>
+<p><code><a href="reference/burn_sparse.html">burn_sparse()</a></code> is polygon-only and returns just <code>$runs</code> and <code>$edges</code>. Line and point input there is rejected with an error pointing at <code><a href="reference/burn_scanline.html">burn_scanline()</a></code>.</p>
 <p>This is the natural output of scanline rasterization — no dense matrix is allocated until <code><a href="reference/materialise_chunk.html">materialise_chunk()</a></code> is called.</p>
 </div>
 <div class="section level2">
 <h2 id="performance">Performance<a class="anchor" aria-label="anchor" href="#performance"></a>
 </h2>
-<p>Scanline algorithm scales with perimeter, not area:</p>
+<p>Scanline algorithm scales with perimeter, not area. The comparison table is polygon-only — <code><a href="reference/burn_sparse.html">burn_sparse()</a></code> is the older bbox-bounded exactextract path and does not accept line or point input:</p>
 <table class="table">
 <thead><tr>
 <th>Shape</th>
@@ -204,9 +245,11 @@
 <p>Memory for real-world grids (CGAZ at 32K×16K, ~500M cells): ~50 MB sparse vs ~2 GB dense.</p>
 </div>
 <div class="section level2">
-<h2 id="fast">Fast<a class="anchor" aria-label="anchor" href="#fast"></a>
+<h2 id="real-world-example-global-administrative-boundaries">Real-world example: global administrative boundaries<a class="anchor" aria-label="anchor" href="#real-world-example-global-administrative-boundaries"></a>
 </h2>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<p>The CGAZ (Geo Boundaries) ADM0 dataset is roughly <!-- TODO: a few hundred MB
+of WKB across ~250 polygons of varying complexity --> a useful stress test for both shape complexity and scale.</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">v</span> <span class="op">&lt;-</span> <span class="fu">new</span><span class="op">(</span><span class="fu">gdalraster</span><span class="fu">::</span><span class="va">GDALVector</span>, <span class="st">"/vsicurl/https://github.com/mdsumner/geoboundaries/releases/download/latest/geoBoundariesCGAZ_ADM0.parquet"</span><span class="op">)</span></span>
 <span><span class="va">v</span><span class="op">$</span><span class="va">returnGeomAs</span> <span class="co">## WKB</span></span>
 <span><span class="co">#&gt; [1] "WKB"</span></span>
@@ -217,33 +260,44 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.524   0.015   0.538</span></span>
+<span><span class="co">#&gt;   0.522   0.009   0.531</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8192</span>, <span class="fl">4096</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.953   0.000   0.953</span></span>
+<span><span class="co">#&gt;   0.919   0.005   0.923</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">r1</span><span class="op">)</span></span>
-<span><span class="co">#&gt; List of 4</span></span>
+<span><span class="co">#&gt; List of 6</span></span>
 <span><span class="co">#&gt;  $ runs     :'data.frame':   81149 obs. of  4 variables:</span></span>
 <span><span class="co">#&gt;   ..$ row      : int [1:81149] 1067 1068 1069 1070 1071 1072 1073 1074 1075 1076 ...</span></span>
 <span><span class="co">#&gt;   ..$ col_start: int [1:81149] 5712 5706 5706 5704 5704 5703 5702 5702 5701 5699 ...</span></span>
 <span><span class="co">#&gt;   ..$ col_end  : int [1:81149] 5712 5712 5715 5717 5719 5719 5719 5719 5718 5718 ...</span></span>
 <span><span class="co">#&gt;   ..$ id       : int [1:81149] 1 1 1 1 1 1 1 1 1 1 ...</span></span>
 <span><span class="co">#&gt;  $ edges    :'data.frame':   469461 obs. of  4 variables:</span></span>
-<span><span class="co">#&gt;   ..$ row   : int [1:469461] 1065 1066 1066 1066 1066 1066 1066 1066 1067 1067 ...</span></span>
-<span><span class="co">#&gt;   ..$ col   : int [1:469461] 5712 5707 5708 5709 5710 5711 5712 5713 5705 5706 ...</span></span>
-<span><span class="co">#&gt;   ..$ weight: num [1:469461] 0.0126 0.1343 0.0792 0.296 0.1872 ...</span></span>
-<span><span class="co">#&gt;   ..$ id    : int [1:469461] 1 1 1 1 1 1 1 1 1 1 ...</span></span>
+<span><span class="co">#&gt;   ..$ row     : int [1:469461] 1065 1066 1066 1066 1066 1066 1066 1066 1067 1067 ...</span></span>
+<span><span class="co">#&gt;   ..$ col     : int [1:469461] 5712 5707 5708 5709 5710 5711 5712 5713 5705 5706 ...</span></span>
+<span><span class="co">#&gt;   ..$ fraction: num [1:469461] 0.0126 0.1343 0.0792 0.296 0.1872 ...</span></span>
+<span><span class="co">#&gt;   ..$ id      : int [1:469461] 1 1 1 1 1 1 1 1 1 1 ...</span></span>
+<span><span class="co">#&gt;  $ lines    :'data.frame':   0 obs. of  4 variables:</span></span>
+<span><span class="co">#&gt;   ..$ row   : int(0) </span></span>
+<span><span class="co">#&gt;   ..$ col   : int(0) </span></span>
+<span><span class="co">#&gt;   ..$ length: num(0) </span></span>
+<span><span class="co">#&gt;   ..$ id    : int(0) </span></span>
+<span><span class="co">#&gt;  $ points   :'data.frame':   0 obs. of  3 variables:</span></span>
+<span><span class="co">#&gt;   ..$ row: int(0) </span></span>
+<span><span class="co">#&gt;   ..$ col: int(0) </span></span>
+<span><span class="co">#&gt;   ..$ id : int(0) </span></span>
 <span><span class="co">#&gt;  $ extent   : num [1:4] -180 180 -90 83.6</span></span>
 <span><span class="co">#&gt;  $ dimension: int [1:2] 8192 4096</span></span>
 <span><span class="co">#&gt;  - attr(*, "class")= chr "controlledburn"</span></span></code></pre></div>
-<p>Really fast.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<!-- TODO: short observation about what the timing demonstrates —
+e.g. "X seconds for the full world at 8K×4K, scaling linearly with
+perimeter as the resolution increases." -->
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8192</span>, <span class="fl">4096</span><span class="op">)</span> <span class="op">*</span> <span class="fl">20</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;  17.005   0.625  17.629</span></span>
+<span><span class="co">#&gt;  16.998   0.686  17.685</span></span>
 <span><span class="fu">pryr</span><span class="fu">::</span><span class="fu">object_size</span><span class="op">(</span><span class="va">r1</span><span class="op">)</span></span>
-<span><span class="co">#&gt; 278.56 MB</span></span>
+<span><span class="co">#&gt; 278.57 MB</span></span>
 <span><span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/as_tibble.html" class="external-link">as_tibble</a></span><span class="op">(</span><span class="va">r1</span><span class="op">$</span><span class="va">runs</span><span class="op">)</span></span>
 <span><span class="co">#&gt; # A tibble: 2,402,331 × 4</span></span>
 <span><span class="co">#&gt;      row col_start col_end    id</span></span>
@@ -261,7 +315,7 @@
 <span><span class="co">#&gt; # ℹ 2,402,321 more rows</span></span>
 <span><span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/as_tibble.html" class="external-link">as_tibble</a></span><span class="op">(</span><span class="va">r1</span><span class="op">$</span><span class="va">edges</span><span class="op">)</span></span>
 <span><span class="co">#&gt; # A tibble: 12,006,186 × 4</span></span>
-<span><span class="co">#&gt;      row    col   weight    id</span></span>
+<span><span class="co">#&gt;      row    col fraction    id</span></span>
 <span><span class="co">#&gt;    &lt;int&gt;  &lt;int&gt;    &lt;dbl&gt; &lt;int&gt;</span></span>
 <span><span class="co">#&gt;  1 21299 114228 0.49016      1</span></span>
 <span><span class="co">#&gt;  2 21299 114229 0.52762      1</span></span>
@@ -284,9 +338,19 @@
 <div class="section level2">
 <h2 id="history">History<a class="anchor" aria-label="anchor" href="#history"></a>
 </h2>
-<p>controlledburn was derived from <a href="https://github.com/ecohealthalliance/fasterize" class="external-link">fasterize</a> by Noam Ross (EcoHealth Alliance), removing Armadillo and raster package dependencies to return bare scanline indexes.</p>
-<p>Version 0.1.0 is a complete rewrite using the exactextract algorithm (Daniel Baston, vendored from <a href="https://github.com/isciences/exactextractr" class="external-link">exactextractr</a>) for exact coverage fractions via a new O(perimeter) scanline sweep.</p>
-<p>See also: <a href="https://github.com/hypertidy/vaster" class="external-link">vaster</a> for grid cell indexing, <a href="https://github.com/isciences/exactextractr" class="external-link">exactextractr</a> for raster extraction with polygon weights.</p>
+<p>controlledburn was derived from <a href="https://github.com/ecohealthalliance/fasterize" class="external-link">fasterize</a> by Noam Ross (EcoHealth Alliance), removing Armadillo and raster package dependencies. See <a href="NEWS.html">NEWS</a> for the version history; the design record lives in <code>inst/docs-design/</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a>
+</h2>
+<ul>
+<li><p><a href="https://github.com/hypertidy/vaster" class="external-link">vaster</a> — primitive grid cell ↔︎ xy operations; consumes the <code>(row, col, …)</code> schema this package emits.</p></li>
+<li><p><a href="https://github.com/hypertidy/silicate" class="external-link">silicate</a> — the primitives-first geometry stance this package follows (segments and vertices as first-class objects).</p></li>
+<li><p><a href="https://github.com/hypertidy/polymer2" class="external-link">polymer2</a> — sparse geometry overlay; consumes the <code>(row, col, fraction, id)</code> schema this package emits for polygons.</p></li>
+<li><p><a href="https://github.com/isciences/exactextractr" class="external-link">exactextractr</a> — raster extraction with polygon weights; the source of the exactextract C++ algorithm vendored here.</p></li>
+<li><!-- TODO: any other neighbours worth flagging for line/point
+  consumers — `lazysf`, `wk`, `geos`, `gdalraster`? --></li>
+</ul>
 </div>
 <div class="section level2">
 <h2 id="code-of-conduct">Code of Conduct<a class="anchor" aria-label="anchor" href="#code-of-conduct"></a>

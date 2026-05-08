@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3</span>
       </span>
     </div>
 
@@ -57,6 +57,29 @@
       <small>Source: <a href="https://github.com/hypertidy/controlledburn/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="development version" id="controlledburn-development-version">controlledburn (development version)<a class="anchor" aria-label="anchor" href="#controlledburn-development-version"></a></h2>
+<p>Iteration extending controlledburn from polygon-only to a unified geometry rasterizer over polygon, line, and point input. Output schema gains type-pure tables; the unification follows the geometric structure of measure-on-a-grid as one operation parameterised by Hausdorff dimension. Design philosophy and decisions are recorded in <code>inst/docs-design/unified-geometry-rasterization.md</code>.</p>
+<div class="section level3">
+<h3 id="breaking-changes-development-version">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-development-version"></a></h3>
+<ul><li><p>Polygon boundary cells: <code>$edges$weight</code> renamed to <code>$edges$fraction</code> to reflect what the column carries (a dimensionless fraction in [0, 1]). [<code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code>] reads either name for forward compatibility with cached results, but new code should use <code>$edges$fraction</code>.</p></li>
+<li><p><code><a href="../reference/burn_sparse.html">burn_sparse()</a></code> now errors on line and point input. Previously it fell through to a path that produced silent-empty (points) or silently-mistyped (lines) output. The error message redirects to <code><a href="../reference/burn_scanline.html">burn_scanline()</a></code>.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="whats-new-development-version">What’s new<a class="anchor" aria-label="anchor" href="#whats-new-development-version"></a></h3>
+<ul><li><p><code><a href="../reference/burn_scanline.html">burn_scanline()</a></code> accepts LINESTRING, MULTILINESTRING, POINT, and MULTIPOINT alongside the existing POLYGON / MULTIPOLYGON support. Output schema gains <code>$lines</code> (<code>row, col, length, id</code>; absolute length in CRS units) and <code>$points</code> (<code>row, col, id</code>; no measure column — implicit weight = 1).</p></li>
+<li><p><code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code> handles all four tables. Line cells contribute length, point cells contribute count, polygon cells contribute fraction. Mixed-kind input errors rather than silently combining units; filter to one kind via <code>id =</code> first.</p></li>
+<li><p><code>print.controlledburn</code> reports <code>$lines</code> and <code>$points</code> counts when present.</p></li>
+<li><p>GeometryCollection input is rejected with a warning. Mixed-dimension input would produce a sparse table where rows from different kinds carry different units — caller must split into homogeneous groups and run separate burns. Curved types (CircularString, CompoundCurve, etc.) must be linearised by the caller before passing in.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="internals-development-version">Internals<a class="anchor" aria-label="anchor" href="#internals-development-version"></a></h3>
+<ul><li><p><code>walk_polyline()</code>: cell-stepping walker extracted from <code>walk_ring()</code>. Geometry-agnostic; takes a <code>closed</code> parameter that selects whether to push back coords for the start-cell-reentry case (true for rings, false for open lines). The polygon path runs the existing winding-sweep post-processing on the walker’s output; the line path sums per-cell segment lengths from the same <code>CellMap</code>.</p></li>
+<li><p><code>process_line()</code>: walks lines on the full grid (no <code>shrink_to_fit</code>), because horizontal/vertical lines have a degenerate bbox that <code>Box::empty()</code> reports as true. Walker cost is O(cells touched), so the bbox-shrinking optimisation is dead weight for lines anyway.</p></li>
+<li><p><code>process_point()</code>: trivial. Computes cell index via <code>Grid::get_row</code> / <code>get_column</code>, drops out-of-extent silently.</p></li>
+<li><p>Edge zoo (<code>tests/testthat/test-edge-zoo.R</code>) pins canonical rasterizer edge cases by category (Horizontal, Sub-pixel, Alignment, Precision, Topology, Collinear, CRS-boundary). Each test pins a <em>convention</em>, not just a numerical expectation, so the test surface doubles as API contract documentation.</p></li>
+</ul></div>
+</div>
     <div class="section level2">
 <h2 class="page-header" data-toc-text="0.1.0" id="controlledburn-010">controlledburn 0.1.0<a class="anchor" aria-label="anchor" href="#controlledburn-010"></a></h2>
 <p>Complete rewrite of controlledburn using the exactextract algorithm (Daniel Baston, vendored from exactextractr) for exact polygon-grid coverage fractions.</p>
