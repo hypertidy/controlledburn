@@ -635,6 +635,53 @@ static void process_line(
 //
 // Handles the multipart and polygon/line cases. Per the design (see
 // inst/docs-design/unified-geometry-rasterization.md), GeometryCollection
+// ---- Process point: compute cell index, emit one record ----
+//
+// Points are the 0-D member of the unified geometry rasterization family.
+// There is no fractional intersection — a point is either in a cell or
+// it isn't — so points carry no weight column. The walker is not used:
+// just compute the cell index from the (x, y) coord and emit.
+//
+// Points outside the grid extent are dropped silently, consistent with
+// how out-of-extent lines and polygons are handled.
+
+static void process_point(
+    GEOSContextHandle_t ctx,
+    const GEOSGeometry* g,
+    const exactextract::Grid<exactextract::bounded_extent>& full_grid,
+    int point_id,
+    std::vector<GridPoint>& all_points
+) {
+  // Read the single coord
+  const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(ctx, g);
+  if (!seq) return;
+
+  unsigned int n;
+  if (!GEOSCoordSeq_getSize_r(ctx, seq, &n) || n == 0) return;
+
+  double x, y;
+  if (!GEOSCoordSeq_getXY_r(ctx, seq, 0, &x, &y)) return;
+
+  // Drop points outside the grid extent (no exception, no warning).
+  // Boundary inclusion: a point exactly on xmax or ymin is assigned to
+  // the boundary-row/col by Grid::get_row / get_column's special cases.
+  const auto& ext = full_grid.extent();
+  if (x < ext.xmin || x > ext.xmax || y < ext.ymin || y > ext.ymax) return;
+
+  size_t r = full_grid.get_row(y);
+  size_t c = full_grid.get_column(x);
+
+  int full_row = static_cast<int>(r) + 1; // 1-based
+  int full_col = static_cast<int>(c) + 1;
+
+  all_points.push_back({full_row, full_col, point_id});
+}
+
+
+// ---- Process geometry: dispatch by type ----
+//
+// Handles the multipart and polygon/line/point cases. Per the design (see
+// inst/docs-design/unified-geometry-rasterization.md), GeometryCollection
 // is rejected because mixed-dimension input would produce a sparse table
 // with inconsistent weight semantics (50 m² of polygon vs 50 m of line,
 // indistinguishable in the output). Caller responsibility to split.
@@ -646,7 +693,8 @@ static void process_geometry(
     double dx, double dy,
     int geom_id,
     std::vector<GridRun>& all_runs,
-    std::vector<GridEdge>& all_edges
+    std::vector<GridEdge>& all_edges,
+    std::vector<GridPoint>& all_points
 ) {
   int type = GEOSGeomTypeId_r(ctx, g);
 
@@ -659,14 +707,21 @@ static void process_geometry(
     process_line(ctx, g, full_grid, dx, dy, geom_id, all_edges);
     return;
 
+  case GEOS_POINT:
+    process_point(ctx, g, full_grid, geom_id, all_points);
+    return;
+
   case GEOS_MULTIPOLYGON:
   case GEOS_MULTILINESTRING:
+  case GEOS_MULTIPOINT:
     // Homogeneous multipart: recurse on parts. Each component is processed
     // independently (polygons get their own winding sweep, lines accumulate
-    // length in cells alongside any other line component touching the same cell).
+    // length in cells alongside any other line component touching the same
+    // cell, points emit one record per component).
     for (int i = 0; i < GEOSGetNumGeometries_r(ctx, g); i++) {
       process_geometry(ctx, GEOSGetGeometryN_r(ctx, g, i),
-                       full_grid, dx, dy, geom_id, all_runs, all_edges);
+                       full_grid, dx, dy, geom_id,
+                       all_runs, all_edges, all_points);
     }
     return;
 
@@ -680,8 +735,8 @@ static void process_geometry(
     return;
 
   default:
-    // POINT, MULTIPOINT, and curved types not handled here. POINT support
-    // is Phase 3; curved types must be linearised by the caller.
+    // Curved types (CircularString, CompoundCurve, etc.) must be linearised
+    // by the caller before reaching the rasterizer.
     return;
   }
 }
@@ -718,6 +773,7 @@ cpp11::writable::list cpp_scanline_burn(
 
   std::vector<GridRun> all_runs;
   std::vector<GridEdge> all_edges;
+  std::vector<GridPoint> all_points;
 
   for (int k = 0; k < n_geoms; k++) {
     cpp11::raws wkb_raw(wkb_list[k]);
@@ -739,7 +795,7 @@ cpp11::writable::list cpp_scanline_burn(
     try {
       int poly_id = k + 1;
       process_geometry(ctx, geom.get(), full_grid, dx, dy,
-                       poly_id, all_runs, all_edges);
+                       poly_id, all_runs, all_edges, all_points);
     } catch (const std::exception& e) {
       cpp11::warning("Error processing geometry %d: %s, skipping", k + 1, e.what());
       continue;
@@ -793,10 +849,32 @@ cpp11::writable::list cpp_scanline_burn(
   edges_df.attr("class") = "data.frame";
   edges_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_edges)});
 
-  cpp11::writable::list result(2);
+  // Points table — schema (row, col, id), no weight column. Materialise
+  // treats the absent-weight column as implicit 1.
+  size_t n_points = all_points.size();
+  cpp11::writable::integers points_row(n_points);
+  cpp11::writable::integers points_col(n_points);
+  cpp11::writable::integers points_id(n_points);
+
+  for (size_t i = 0; i < n_points; i++) {
+    points_row[i] = all_points[i].row;
+    points_col[i] = all_points[i].col;
+    points_id[i] = all_points[i].id;
+  }
+
+  cpp11::writable::list points_df(3);
+  points_df[0] = static_cast<SEXP>(points_row);
+  points_df[1] = static_cast<SEXP>(points_col);
+  points_df[2] = static_cast<SEXP>(points_id);
+  points_df.attr("names") = cpp11::writable::strings({"row", "col", "id"});
+  points_df.attr("class") = "data.frame";
+  points_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_points)});
+
+  cpp11::writable::list result(3);
   result[0] = static_cast<SEXP>(runs_df);
   result[1] = static_cast<SEXP>(edges_df);
-  result.attr("names") = cpp11::writable::strings({"runs", "edges"});
+  result[2] = static_cast<SEXP>(points_df);
+  result.attr("names") = cpp11::writable::strings({"runs", "edges", "points"});
 
   return result;
 }

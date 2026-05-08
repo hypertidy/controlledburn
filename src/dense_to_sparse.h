@@ -23,6 +23,16 @@ struct GridEdge {
     int id;
 };
 
+// A single point cell: row, col (all 1-based, full raster coords).
+// Points carry no weight column — a point is either in a cell or it isn't,
+// and the implicit per-row weight is 1. See the unified geometry
+// rasterization design doc.
+struct GridPoint {
+    int row;
+    int col;
+    int id;
+};
+
 struct SparseResult {
     std::vector<GridRun> runs;
     std::vector<GridEdge> edges;

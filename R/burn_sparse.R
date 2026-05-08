@@ -221,10 +221,13 @@ materialise_chunk <- function(x, target = NULL, id = NULL,
 
   runs <- x$runs
   edges <- x$edges
+  # Points support added in Phase 3 — older results may have no $points field.
+  points <- if (!is.null(x$points)) x$points else NULL
 
   if (!is.null(id)) {
     runs <- runs[runs$id %in% id, , drop = FALSE]
     edges <- edges[edges$id %in% id, , drop = FALSE]
+    if (!is.null(points)) points <- points[points$id %in% id, , drop = FALSE]
   }
 
   # Fill interior runs (with offset + clipping for subwindow)
@@ -248,6 +251,20 @@ materialise_chunk <- function(x, target = NULL, id = NULL,
       cc <- edges$col[i] - col_off
       if (r < 1L || r > out_nr || cc < 1L || cc > out_nc) next
       mat[r, cc] <- mat[r, cc] + edges$weight[i]
+    }
+  }
+
+  # Fill point cells with implicit weight = 1.
+  # Multiple points landing in the same cell accumulate (count of points
+  # at this location), consistent with the line-overlap convention
+  # ("lengths sum, not unioned"). Use distinct = TRUE upstream if you
+  # want presence rather than count.
+  if (!is.null(points) && nrow(points) > 0) {
+    for (i in seq_len(nrow(points))) {
+      r <- points$row[i] - row_off
+      cc <- points$col[i] - col_off
+      if (r < 1L || r > out_nr || cc < 1L || cc > out_nc) next
+      mat[r, cc] <- mat[r, cc] + 1
     }
   }
 
@@ -343,18 +360,23 @@ print.controlledburn <- function(x, ...) {
   nrow <- x$dimension[2]
   n_runs <- nrow(x$runs)
   n_edges <- nrow(x$edges)
-  n_ids <- length(unique(c(x$runs$id, x$edges$id)))
+  # Point support added in Phase 3 — earlier results may have no $points.
+  n_points <- if (!is.null(x$points)) nrow(x$points) else 0L
+  n_ids <- length(unique(c(x$runs$id, x$edges$id, x$points$id)))
 
   # Compute total cells represented
   total_interior <- if (n_runs > 0) sum(as.numeric(x$runs$col_end - x$runs$col_start + 1L)) else 0
-  total_cells <- total_interior + n_edges
+  total_cells <- total_interior + n_edges + n_points
   grid_cells <- as.numeric(ncol) * as.numeric(nrow)
   sparsity <- 1 - total_cells / grid_cells
 
   cat(sprintf("<controlledburn> %d x %d grid, %d geometr%s\n",
               ncol, nrow, n_ids, if (n_ids == 1) "y" else "ies"))
-  cat(sprintf("  runs:  %d (%.0f interior cells)\n", n_runs, total_interior))
-  cat(sprintf("  edges: %d boundary cells\n", n_edges))
+  cat(sprintf("  runs:   %d (%.0f interior cells)\n", n_runs, total_interior))
+  cat(sprintf("  edges:  %d boundary cells\n", n_edges))
+  if (n_points > 0) {
+    cat(sprintf("  points: %d cells\n", n_points))
+  }
   cat(sprintf("  sparsity: %.1f%% empty\n", sparsity * 100))
   invisible(x)
 }
