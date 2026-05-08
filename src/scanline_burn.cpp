@@ -148,14 +148,21 @@ using CellMap = std::map<CellKey, CellRecord>;
 //
 // `coords` is taken by value because the walker may push to it (see the
 // `incomplete` reprocess branch — the case where the polyline begins
-// strictly inside a cell rather than on a boundary; for closed rings this
-// causes the start cell to be re-entered with a proper entry side on the
-// second pass).
+// strictly inside a cell rather than on a boundary).
+//
+// `closed` selects how to handle that incomplete-initial-traversal case:
+//   - true  (polygon ring): push coords to the end so the start cell gets
+//           re-entered with a proper entry side on the second pass. This
+//           stitches the start back to the closing edge of the ring.
+//   - false (open polyline): leave the partial traversal in place. The
+//           consumer accepts traversals with entry_side == NONE as valid
+//           (the line genuinely starts inside the cell with no prior edge).
 //
 // Replicates the core loop from raster_cell_intersection.cpp::process_line.
 static CellMap walk_polyline(
     std::vector<Coordinate> coords,
-    const exactextract::Grid<exactextract::infinite_extent>& grid
+    const exactextract::Grid<exactextract::infinite_extent>& grid,
+    bool closed
 ) {
   CellMap cells;
   if (coords.empty()) return cells;
@@ -236,9 +243,11 @@ static CellMap walk_polyline(
     bool incomplete = exited && (trav.entry_side == Side::NONE);
 
     // Handle incomplete initial traversal: walk started inside this cell,
-    // boundary hasn't closed yet. Push coords to end for reprocessing.
-    // For closed rings this stitches the start back to a proper entry.
-    if (incomplete) {
+    // boundary hasn't closed yet. For closed rings, push coords to end for
+    // reprocessing — this stitches the start back to a proper entry on
+    // the second pass. For open polylines, leave the partial traversal as
+    // is; the consumer accepts entry_side==NONE as valid for line input.
+    if (incomplete && closed) {
       for (const auto& c : trav.coords) {
         coords.push_back(c);
       }
@@ -292,7 +301,7 @@ static void walk_ring(
   float coverage_factor = is_exterior ? 1.0f : -1.0f;
   int winding_factor = is_exterior ? 1 : -1;
 
-  CellMap cells = walk_polyline(std::move(coords), grid);
+  CellMap cells = walk_polyline(std::move(coords), grid, /*closed=*/true);
 
   // ---- Compute coverage fractions and winding ----
 
@@ -413,14 +422,14 @@ static void walk_ring(
 }
 
 
-// ---- Process geometry: per-POLYGON processing with padding-aware sweep ----
+// ---- Process polygon: per-POLYGON processing with padding-aware sweep ----
 //
-// For MULTIPOLYGON/GEOMETRYCOLLECTION, each POLYGON component is processed
+// Single-polygon path. For MULTIPOLYGON each component is processed
 // independently with its own subgrid, row_data, and winding sweep. This
 // prevents winding from one disjoint component bleeding into another's
 // boundary cells (which would incorrectly promote partial coverage to 1.0).
 
-static void process_geometry(
+static void process_polygon(
     GEOSContextHandle_t ctx,
     const GEOSGeometry* g,
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
@@ -430,18 +439,6 @@ static void process_geometry(
     std::vector<GridEdge>& all_edges
 ) {
   using namespace exactextract;
-
-  int type = GEOSGeomTypeId_r(ctx, g);
-
-  if (type == GEOS_GEOMETRYCOLLECTION || type == GEOS_MULTIPOLYGON) {
-    for (int i = 0; i < GEOSGetNumGeometries_r(ctx, g); i++) {
-      process_geometry(ctx, GEOSGetGeometryN_r(ctx, g, i),
-                       full_grid, dx, dy, poly_id, all_runs, all_edges);
-    }
-    return;
-  }
-
-  if (type != GEOS_POLYGON) return;
 
   auto component_boxes = geos_get_component_boxes(ctx, g);
   Box region = Box::make_empty();
@@ -543,6 +540,149 @@ static void process_geometry(
       winding += mc.winding_delta;
       prev_col = mc.col;
     }
+  }
+}
+
+
+// ---- Process line: per-LINESTRING length-in-cell rasterization ----
+//
+// Walks the line through the grid using walk_polyline (closed=false) and
+// emits one (row, col, length, id) record per cell touched. Length is the
+// absolute length of the line within the cell, in CRS units — sum of
+// segment lengths across all traversal records for that cell.
+//
+// For a line that crosses a cell once: one traversal, length = entry to exit.
+// For a line with a vertex inside a cell: one traversal of [entry, vertex, exit],
+// length = sum of the two sub-segments — handled naturally by the same loop.
+// For a line that crosses a cell multiple times (e.g. self-intersecting,
+// or simply re-enters): multiple traversals, lengths sum.
+
+static void process_line(
+    GEOSContextHandle_t ctx,
+    const GEOSGeometry* g,
+    const exactextract::Grid<exactextract::bounded_extent>& full_grid,
+    double dx, double dy,
+    int line_id,
+    std::vector<GridEdge>& all_edges
+) {
+  using namespace exactextract;
+  (void) dx; (void) dy;  // kept in signature for parity with process_polygon
+
+  // Read line coords; degenerate (< 2 points) has no length to report
+  const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(ctx, g);
+  auto coords = read(ctx, seq);
+  if (coords.size() < 2) return;
+
+  // Walk the line directly on the full grid (no subgrid shrinking).
+  //
+  // The polygon path uses shrink_to_fit to bound a per-row `row_data` array
+  // allocation; the line path has no such state — just reads the walker's
+  // cells map directly — so the optimisation is dead weight here. More
+  // importantly, a horizontal or vertical line has a degenerate (zero-height
+  // or zero-width) bounding box, which Box::empty() reports as true,
+  // causing shrink_to_fit-based code paths to bail out before walking
+  // anything. Walking on the full infinite_extent grid avoids the problem
+  // entirely; the walker's cost is O(cells touched), independent of grid
+  // dimensions.
+  auto grid = make_infinite(full_grid);
+  if (grid.empty()) return;
+
+  size_t n_rows = grid.rows();
+  size_t n_cols = grid.cols();
+
+  // Walk the open polyline
+  CellMap cells = walk_polyline(std::move(coords), grid, /*closed=*/false);
+
+  // Sum segment lengths per cell, emit one edge record per non-empty cell.
+  // Lines have no interior — every touched cell is an "edge" in the polygon
+  // sense — so all output goes to all_edges with weight = length in CRS units.
+  for (const auto& kv : cells) {
+    size_t r = kv.first.first;
+    size_t c = kv.first.second;
+    const CellRecord& cr = kv.second;
+
+    // Skip padding ring (top/bottom row, left/right col of infinite_extent).
+    if (r < 1 || r >= n_rows - 1) continue;
+    if (c < 1 || c >= n_cols - 1) continue;
+
+    // Sum lengths from all traversal records in this cell.
+    double total_length = 0.0;
+    for (const auto& t : cr.traversals) {
+      const auto& tc = t.coords;
+      if (tc.size() < 2) continue;
+      for (size_t i = 1; i < tc.size(); i++) {
+        double sx = tc[i].x - tc[i-1].x;
+        double sy = tc[i].y - tc[i-1].y;
+        total_length += std::sqrt(sx * sx + sy * sy);
+      }
+    }
+
+    if (total_length > 0.0) {
+      // Map infinite_extent (r, c) to 1-based bounded grid (full_row, full_col)
+      int full_row = static_cast<int>(r);  // padding=1 absorbs the +1
+      int full_col = static_cast<int>(c);
+      all_edges.push_back({
+        full_row, full_col,
+        static_cast<float>(total_length),
+        line_id
+      });
+    }
+  }
+}
+
+
+// ---- Process geometry: dispatch by type ----
+//
+// Handles the multipart and polygon/line cases. Per the design (see
+// inst/docs-design/unified-geometry-rasterization.md), GeometryCollection
+// is rejected because mixed-dimension input would produce a sparse table
+// with inconsistent weight semantics (50 m² of polygon vs 50 m of line,
+// indistinguishable in the output). Caller responsibility to split.
+
+static void process_geometry(
+    GEOSContextHandle_t ctx,
+    const GEOSGeometry* g,
+    const exactextract::Grid<exactextract::bounded_extent>& full_grid,
+    double dx, double dy,
+    int geom_id,
+    std::vector<GridRun>& all_runs,
+    std::vector<GridEdge>& all_edges
+) {
+  int type = GEOSGeomTypeId_r(ctx, g);
+
+  switch (type) {
+  case GEOS_POLYGON:
+    process_polygon(ctx, g, full_grid, dx, dy, geom_id, all_runs, all_edges);
+    return;
+
+  case GEOS_LINESTRING:
+    process_line(ctx, g, full_grid, dx, dy, geom_id, all_edges);
+    return;
+
+  case GEOS_MULTIPOLYGON:
+  case GEOS_MULTILINESTRING:
+    // Homogeneous multipart: recurse on parts. Each component is processed
+    // independently (polygons get their own winding sweep, lines accumulate
+    // length in cells alongside any other line component touching the same cell).
+    for (int i = 0; i < GEOSGetNumGeometries_r(ctx, g); i++) {
+      process_geometry(ctx, GEOSGetGeometryN_r(ctx, g, i),
+                       full_grid, dx, dy, geom_id, all_runs, all_edges);
+    }
+    return;
+
+  case GEOS_GEOMETRYCOLLECTION:
+    // Mixed-dimension input would produce inconsistent weight semantics.
+    // Caller must split into homogeneous groups and run separate burns.
+    cpp11::warning(
+      "GeometryCollection is not supported (mixed dimensions break weight "
+      "semantics); split into homogeneous groups and pass separately"
+    );
+    return;
+
+  default:
+    // POINT, MULTIPOINT, and curved types not handled here. POINT support
+    // is Phase 3; curved types must be linearised by the caller.
+    return;
   }
 }
 
