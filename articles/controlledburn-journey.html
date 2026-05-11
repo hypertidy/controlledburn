@@ -308,7 +308,7 @@ internals.</p>
 <code><a href="../reference/burn_scanline.html">burn_scanline()</a></code> is the new O(perimeter) algorithm.
 <code><a href="../reference/burn_sparse.html">burn_sparse()</a></code> is the exactextract-backed reference
 implementation, useful for validation and as a fallback.
-<code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code> expands the sparse output to a dense
+<code><a href="../reference/materialize_chunk.html">materialise_chunk()</a></code> expands the sparse output to a dense
 matrix — opt-in, when you actually need pixels.</p>
 <p>The input interface accepts anything wk can handle:
 <code>geos_geometry</code>, <code>sfc</code>, <code><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wk::wkb()</a></code>,
@@ -374,7 +374,7 @@ exact fraction.</p>
 <p>The sparse two-table output is the foundation, not the final product.
 The immediate next steps:</p>
 <p><strong>Materialisation to tiles.</strong>
-<code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code> currently expands to a full-grid
+<code><a href="../reference/materialize_chunk.html">materialise_chunk()</a></code> currently expands to a full-grid
 matrix. For large grids, you want to materialise to arbitrary tile
 extents — a 256×256 window into a million-cell grid, producing a dense
 tile suitable for writing to a GeoTIFF block or feeding into a raster

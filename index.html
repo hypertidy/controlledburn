@@ -108,8 +108,8 @@
 <span><span class="co">#&gt;   edges:  0 polygon boundary cells</span></span>
 <span><span class="co">#&gt;   sparsity: 36.0% empty</span></span>
 <span></span>
-<span><span class="co"># Materialise only when you need it</span></span>
-<span><span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span><span class="co"># Materialize only when you need it</span></span>
+<span><span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialize_chunk.html">materialize_chunk</a></span><span class="op">(</span><span class="va">r</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="default-grid-parameters">Default grid parameters<a class="anchor" aria-label="anchor" href="#default-grid-parameters"></a>
 </h3>
@@ -163,6 +163,8 @@
 <h3 id="geometry-input">Geometry input<a class="anchor" aria-label="anchor" href="#geometry-input"></a>
 </h3>
 <p><code><a href="reference/burn_scanline.html">burn_scanline()</a></code> accepts <code>geos_geometry</code>, <code>sfc</code> (sf), <code><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wk::wkb()</a></code>, <code>blob</code>, or a list of raw WKB vectors. The raw-WKB path is compatible with <code>vapour::vapour_read_geometry()</code> and <code>gdalraster::GDALVector</code> output. For <code>terra::vect()</code> input, round-trip via <code><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">geos::as_geos_geometry()</a></code>.</p>
+<p>A note on input:</p>
+<p>controlledburn rasterizes whatever geometry it’s given. Self-intersecting rings, unclosed polygons, repeated vertices, near-degenerate inputs — all go through the same fast path. If your input has topological issues that matter for your science, you’ll see it in the output and can decide what to do. If they don’t matter, you’ve saved the cost of validating them. Either way the package trusts your judgement on what valid means in context. For when you do want to check or repair, <code><a href="https://paleolimbot.github.io/geos/reference/geos_is_valid.html" class="external-link">geos::geos_is_valid()</a></code> and <code><a href="https://paleolimbot.github.io/geos/reference/geos_centroid.html" class="external-link">geos::geos_make_valid()</a></code> are perfectly suitable.</p>
 </div>
 <div class="section level3">
 <h3 id="shared-boundary-complementarity">Shared boundary complementarity<a class="anchor" aria-label="anchor" href="#shared-boundary-complementarity"></a>
@@ -175,8 +177,8 @@
 <span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">left</span>, <span class="va">right</span><span class="op">)</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>,<span class="fl">10</span>,<span class="fl">0</span>,<span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>,<span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Coverage sums to 1.0 in every touched cell</span></span>
-<span><span class="va">mat1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r</span>, id <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
-<span><span class="va">mat2</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r</span>, id <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
+<span><span class="va">mat1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialize_chunk.html">materialize_chunk</a></span><span class="op">(</span><span class="va">r</span>, id <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="va">mat2</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialize_chunk.html">materialize_chunk</a></span><span class="op">(</span><span class="va">r</span>, id <span class="op">=</span> <span class="fl">2</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">mat1</span> <span class="op">+</span> <span class="va">mat2</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 1</span></span>
 <span><span class="co">#&gt; [1] 1</span></span></code></pre></div>
@@ -204,7 +206,7 @@
 </ul>
 <p>Tables are populated for whichever geometry kinds are in the input. Each table’s measure column means exactly one thing — <code>$edges$fraction</code> is dimensionless, <code>$lines$length</code> is in CRS units, points have no measure. This separation is deliberate: the three measures are different mathematical objects and combining them in one column would silently mix units.</p>
 <p><code><a href="reference/burn_sparse.html">burn_sparse()</a></code> is polygon-only and returns just <code>$runs</code> and <code>$edges</code>. Line and point input there is rejected with an error pointing at <code><a href="reference/burn_scanline.html">burn_scanline()</a></code>.</p>
-<p>This is the natural output of scanline rasterization — no dense matrix is allocated until <code><a href="reference/materialise_chunk.html">materialise_chunk()</a></code> is called.</p>
+<p>This is the natural output of scanline rasterization — no dense matrix is allocated until <code><a href="reference/materialize_chunk.html">materialize_chunk()</a></code> is called.</p>
 </div>
 <div class="section level2">
 <h2 id="performance">Performance<a class="anchor" aria-label="anchor" href="#performance"></a>
@@ -260,11 +262,11 @@ of WKB across ~250 polygons of varying complexity --> a useful stress test for b
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.522   0.009   0.531</span></span>
+<span><span class="co">#&gt;   0.515   0.009   0.524</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8192</span>, <span class="fl">4096</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.919   0.005   0.923</span></span>
+<span><span class="co">#&gt;   0.915   0.002   0.917</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">r1</span><span class="op">)</span></span>
 <span><span class="co">#&gt; List of 6</span></span>
 <span><span class="co">#&gt;  $ runs     :'data.frame':   81149 obs. of  4 variables:</span></span>
@@ -295,7 +297,7 @@ perimeter as the resolution increases." -->
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r1</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn_scanline.html">burn_scanline</a></span><span class="op">(</span><span class="va">wkbgeom</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">8192</span>, <span class="fl">4096</span><span class="op">)</span> <span class="op">*</span> <span class="fl">20</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;  16.998   0.686  17.685</span></span>
+<span><span class="co">#&gt;  16.869   0.731  17.600</span></span>
 <span><span class="fu">pryr</span><span class="fu">::</span><span class="fu">object_size</span><span class="op">(</span><span class="va">r1</span><span class="op">)</span></span>
 <span><span class="co">#&gt; 278.57 MB</span></span>
 <span><span class="fu">tibble</span><span class="fu">::</span><span class="fu"><a href="https://tibble.tidyverse.org/reference/as_tibble.html" class="external-link">as_tibble</a></span><span class="op">(</span><span class="va">r1</span><span class="op">$</span><span class="va">runs</span><span class="op">)</span></span>
