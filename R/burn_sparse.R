@@ -44,6 +44,8 @@
 #'   Row and column indices are 1-based. Row 1 is the top (ymax) row.
 #'   The `id` column is a 1-based index into the input geometry vector.
 #'
+#' @details  controlledburn does not validate input geometry. It rasterizes what you pass it,
+#' valid or not, and trusts you to judge the result.
 #' @export
 #' @examples
 #' if (requireNamespace("geos", quietly = TRUE)) {

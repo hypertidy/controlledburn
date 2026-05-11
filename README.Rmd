@@ -96,6 +96,10 @@ with `vapour::vapour_read_geometry()` and `gdalraster::GDALVector`
 output. For `terra::vect()` input, round-trip via
 `geos::as_geos_geometry()`.
 
+A note on input: 
+
+controlledburn rasterizes whatever geometry it's given. Self-intersecting rings, unclosed polygons, repeated vertices, near-degenerate inputs — all go through the same fast path. If your input has topological issues that matter for your science, you'll see it in the output and can decide what to do. If they don't matter, you've saved the cost of validating them. Either way the package trusts your judgement on what valid means in context. For when you do want to check or repair, `geos::geos_is_valid()` and `geos::geos_make_valid()` are perfectly suitable. 
+
 ### Shared boundary complementarity
 
 Adjacent polygons with shared edges produce complementary coverage fractions
