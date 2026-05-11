@@ -42,8 +42,8 @@ r
 #>   edges:  0 polygon boundary cells
 #>   sparsity: 36.0% empty
 
-# Materialise only when you need it
-mat <- materialise_chunk(r, c(0, 10, 0, 10))
+# Materialize only when you need it
+mat <- materialize_chunk(r, c(0, 10, 0, 10))
 ```
 
 ### Default grid parameters
@@ -114,6 +114,18 @@ with `vapour::vapour_read_geometry()` and `gdalraster::GDALVector`
 output. For `terra::vect()` input, round-trip via
 `geos::as_geos_geometry()`.
 
+A note on input:
+
+controlledburn rasterizes whatever geometry it’s given.
+Self-intersecting rings, unclosed polygons, repeated vertices,
+near-degenerate inputs — all go through the same fast path. If your
+input has topological issues that matter for your science, you’ll see it
+in the output and can decide what to do. If they don’t matter, you’ve
+saved the cost of validating them. Either way the package trusts your
+judgement on what valid means in context. For when you do want to check
+or repair, `geos::geos_is_valid()` and `geos::geos_make_valid()` are
+perfectly suitable.
+
 ### Shared boundary complementarity
 
 Adjacent polygons with shared edges produce complementary coverage
@@ -127,8 +139,8 @@ right <- as_geos_geometry("POLYGON ((5 0, 10 0, 10 10, 5 10, 5 0))")
 r <- burn_scanline(c(left, right), extent = c(0,10,0,10), dimension = c(20L,20L))
 
 # Coverage sums to 1.0 in every touched cell
-mat1 <- materialise_chunk(r, id = 1)
-mat2 <- materialise_chunk(r, id = 2)
+mat1 <- materialize_chunk(r, id = 1)
+mat2 <- materialize_chunk(r, id = 2)
 max(mat1 + mat2)
 #> [1] 1
 #> [1] 1
@@ -161,7 +173,7 @@ Line and point input there is rejected with an error pointing at
 `burn_scanline()`.
 
 This is the natural output of scanline rasterization — no dense matrix
-is allocated until `materialise_chunk()` is called.
+is allocated until `materialize_chunk()` is called.
 
 ## Performance
 
@@ -196,11 +208,11 @@ v$close()
 
 system.time(burn_scanline(wkbgeom))
 #>    user  system elapsed 
-#>   0.522   0.009   0.531
+#>   0.515   0.009   0.524
 
 system.time(r1 <- burn_scanline(wkbgeom, dimension = c(8192, 4096)))
 #>    user  system elapsed 
-#>   0.919   0.005   0.923
+#>   0.915   0.002   0.917
 str(r1)
 #> List of 6
 #>  $ runs     :'data.frame':   81149 obs. of  4 variables:
@@ -234,7 +246,7 @@ perimeter as the resolution increases." -->
 ``` r
 system.time(r1 <- burn_scanline(wkbgeom, dimension = c(8192, 4096) * 20))
 #>    user  system elapsed 
-#>  16.998   0.686  17.685
+#>  16.869   0.731  17.600
 pryr::object_size(r1)
 #> 278.57 MB
 tibble::as_tibble(r1$runs)

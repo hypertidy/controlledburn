@@ -164,7 +164,7 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
 }
 
 
-#' Materialise a controlledburn result to a dense matrix or vector
+#' Materialize a controlledburn result to a dense matrix or vector
 #'
 #' Expands a sparse [burn_sparse()] / [burn_scanline()] result into a dense
 #' matrix, optionally over a subwindow of the parent grid. The matrix's
@@ -179,15 +179,15 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
 #'
 #' If a result holds tables for *more than one* geometry kind (which can
 #' happen when a single burn was given a mixed-kind input vector),
-#' `materialise_chunk()` errors rather than silently combining different
+#' `materialize_chunk()` errors rather than silently combining different
 #' units in one matrix. Filter with `id =` to one kind first, or run
 #' separate burns for each kind.
 #'
 #' @param x a `"controlledburn"` object from [burn_sparse()] or [burn_scanline()]
-#' @param target numeric extent `c(xmin, xmax, ymin, ymax)` to materialise, or
+#' @param target numeric extent `c(xmin, xmax, ymin, ymax)` to materialize, or
 #'   `NULL` (default) for the full grid. The target extent is snapped outward to
 #'   cell boundaries of the source grid and clamped to the source extent.
-#' @param id integer geometry id (or vector of ids) to materialise, or `NULL`
+#' @param id integer geometry id (or vector of ids) to materialize, or `NULL`
 #'   (default) for all. Useful for filtering a mixed-kind result down to a
 #'   single kind before materialising.
 #' @param type character, one of `"matrix"` (default) or `"vector"`
@@ -200,7 +200,7 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
 #'   The snapped extent is available as `attr(result, "extent")`.
 #'
 #' @export
-materialise_chunk <- function(x, target = NULL, id = NULL,
+materialize_chunk <- function(x, target = NULL, id = NULL,
                               type = c("matrix", "vector"),
                               max_cells = 1e8) {
   stopifnot(inherits(x, "controlledburn"))
@@ -262,12 +262,12 @@ materialise_chunk <- function(x, target = NULL, id = NULL,
     if (!is.null(points)) points <- points[points$id %in% id, , drop = FALSE]
   }
 
-  # Refuse to materialise mixed-type tables. Each table type produces a
+  # Refuse to materialize mixed-type tables. Each table type produces a
   # different kind of measure (polygon: fraction in [0,1]; line: length in
   # CRS units; point: count) and combining them in one matrix would silently
   # mix units. The walker can produce all four tables in one pass — that
   # capacity exists for downstream uses that want them separately — but
-  # materialise_chunk is the consumer that would need to pick units, so
+  # materialize_chunk is the consumer that would need to pick units, so
   # it errors instead.
   n_polygon <- nrow(runs) + nrow(edges)
   n_line    <- if (!is.null(lines))  nrow(lines)  else 0L
@@ -275,7 +275,7 @@ materialise_chunk <- function(x, target = NULL, id = NULL,
   n_kinds <- (n_polygon > 0) + (n_line > 0) + (n_point > 0)
   if (n_kinds > 1) {
     stop(
-      "materialise_chunk(): result has multiple geometry types ",
+      "materialize_chunk(): result has multiple geometry types ",
       "(polygon = ", n_polygon, ", line = ", n_line, ", point = ", n_point, "). ",
       "Each type produces a different measure (fraction vs length vs count); ",
       "filter to one type with id = before calling, or run separate burns ",
@@ -346,6 +346,9 @@ materialise_chunk <- function(x, target = NULL, id = NULL,
   }
 }
 
+#' @rdname materialize_chunk
+#' @export
+materialise_chunk <- materialize_chunk
 
 # ---- Snap extent outward to source cell boundaries, clamp to source ----
 #

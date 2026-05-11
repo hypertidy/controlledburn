@@ -14,8 +14,8 @@
 #' kinds are present. Each table's measure column means exactly one
 #' thing — polygon `$edges$fraction` is dimensionless, `$lines$length`
 #' is in CRS units, points have no measure — so combining them in a
-#' single materialised matrix would silently mix units.
-#' [materialise_chunk()] therefore refuses mixed-kind input; filter to
+#' single materialized matrix would silently mix units.
+#' [materialize_chunk()] therefore refuses mixed-kind input; filter to
 #' one kind via `id =` first, or run separate burns for each kind.
 #'
 #' GeometryCollection input warns and is skipped. Curved types

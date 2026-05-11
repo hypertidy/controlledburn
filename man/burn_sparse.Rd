@@ -65,6 +65,9 @@ Compared to \code{\link[=burn_scanline]{burn_scanline()}}, this function is olde
 bounding-box-bounded dense intermediate (hence the \code{tile_size}
 parameter). For polygon input the two functions produce numerically
 identical results; \code{\link[=burn_scanline]{burn_scanline()}} is preferred for new code.
+
+controlledburn does not validate input geometry. It rasterizes what you pass it,
+valid or not, and trusts you to judge the result.
 }
 \examples{
 if (requireNamespace("geos", quietly = TRUE)) {

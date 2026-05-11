@@ -49,8 +49,8 @@ poly <- as_geos_geometry("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
 r <- burn_scanline(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
 r
 
-# Materialise only when you need it
-mat <- materialise_chunk(r, c(0, 10, 0, 10))
+# Materialize only when you need it
+mat <- materialize_chunk(r, c(0, 10, 0, 10))
 ```
 
 ### Default grid parameters
@@ -112,8 +112,8 @@ right <- as_geos_geometry("POLYGON ((5 0, 10 0, 10 10, 5 10, 5 0))")
 r <- burn_scanline(c(left, right), extent = c(0,10,0,10), dimension = c(20L,20L))
 
 # Coverage sums to 1.0 in every touched cell
-mat1 <- materialise_chunk(r, id = 1)
-mat2 <- materialise_chunk(r, id = 2)
+mat1 <- materialize_chunk(r, id = 1)
+mat2 <- materialize_chunk(r, id = 2)
 max(mat1 + mat2)
 #> [1] 1
 ```
@@ -145,7 +145,7 @@ Line and point input there is rejected with an error pointing at
 `burn_scanline()`.
 
 This is the natural output of scanline rasterization — no dense matrix is
-allocated until `materialise_chunk()` is called.
+allocated until `materialize_chunk()` is called.
 
 ## Performance
 

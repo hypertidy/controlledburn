@@ -68,8 +68,8 @@ and lines) is permitted and produces tables populated for whichever
 kinds are present. Each table's measure column means exactly one
 thing — polygon \verb{$edges$fraction} is dimensionless, \verb{$lines$length}
 is in CRS units, points have no measure — so combining them in a
-single materialised matrix would silently mix units.
-\code{\link[=materialise_chunk]{materialise_chunk()}} therefore refuses mixed-kind input; filter to
+single materialized matrix would silently mix units.
+\code{\link[=materialize_chunk]{materialize_chunk()}} therefore refuses mixed-kind input; filter to
 one kind via \verb{id =} first, or run separate burns for each kind.
 
 GeometryCollection input warns and is skipped. Curved types
