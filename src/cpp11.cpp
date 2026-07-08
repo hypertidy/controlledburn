@@ -20,7 +20,7 @@ extern "C" SEXP _controlledburn_cpp_controlledburn_init() {
     return R_NilValue;
   END_CPP11
 }
-// scanline_burn.cpp
+// scanline_shim.cpp
 cpp11::writable::list cpp_scanline_burn(cpp11::list wkb_list, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow);
 extern "C" SEXP _controlledburn_cpp_scanline_burn(SEXP wkb_list, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow) {
   BEGIN_CPP11

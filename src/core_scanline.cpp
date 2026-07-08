@@ -1,81 +1,61 @@
-// scanline_burn.cpp — scanline polygon rasterization with exact coverage fractions
+// scanline.cpp -- scanline polygon/line/point rasterization with exact
+// coverage fractions. Pure C++17: no GEOS, no R, no materialized raster.
 //
-// Item 6: edge case fixes:
-// - Padding column winding: edges outside the grid (padding columns) now
+// The walker (walk_polyline), ring processing (walk_ring), and winding
+// sweep are carried over verbatim from the R package's scanline_burn.cpp;
+// only the geometry access layer changed (plain coordinate vectors in
+// place of GEOS ring accessors, shoelace orientation in place of
+// geos_is_ccw, coordinate min/max in place of GEOS envelopes).
+//
+// Edge cases handled (see the R package history for provenance):
+// - Padding column winding: edges outside the grid (padding columns)
 //   contribute winding deltas to grid rows, fixing beyond-extent polygons.
 // - Sweep start condition: prev_col > -2 allows runs after padding cells.
-// - Analytical single-traversal coverage via perimeter_distance (Item 3).
-// - No Cell class allocation (Item 2).
+// - Analytical single-traversal coverage via perimeter_distance.
 // - MULTIPOLYGON components processed independently (each gets own sweep).
 //
 // Copyright (c) 2025 Michael Sumner
 // Licensed under Apache License 2.0
 
-#include <cpp11.hpp>
-#include <cpp11/list.hpp>
-#include <cpp11/integers.hpp>
-#include <cpp11/doubles.hpp>
-#include <cpp11/raws.hpp>
-#include <cpp11/strings.hpp>
+#include "controlledburn/burn.hpp"
+#include "controlledburn/geometry.hpp"
+#include "controlledburn/output.hpp"
+#include "controlledburn/wkb.hpp"
 
-#include <cstdarg>
 #include <map>
 #include <algorithm>
 #include <cmath>
-
-#include "libgeos.h"
-#include "dense_to_sparse.h"
-#include "analytical_coverage.h"
+#include <utility>
 
 #include "exactextract/grid.h"
 #include "exactextract/box.h"
-#include "exactextract/geos_utils.h"
 #include "exactextract/coordinate.h"
 #include "exactextract/side.h"
 #include "exactextract/crossing.h"
 #include "exactextract/traversal_areas.h"
 #include "exactextract/measures.h"
+#include "analytical_coverage.h"
 
-// ---- GEOS context management ----
+namespace controlledburn {
 
-static void sl_geos_notice_handler(const char* /*fmt*/, ...) {}
-static void sl_geos_error_handler(const char* fmt, ...) {
-  char buf[1024];
-  va_list ap;
-  va_start(ap, fmt);
-  vsnprintf(buf, sizeof(buf), fmt, ap);
-  va_end(ap);
-  cpp11::stop("GEOS error: %s", buf);
+double signed_area(const CoordSeq& ring) {
+    // Standard shoelace: positive = counter-clockwise. Note this is the
+    // OPPOSITE sign convention to polygon_signed_area in
+    // ee/analytical_coverage.h, whose sign is internal to the coverage
+    // math (it mirrors exactextract::area).
+    if (ring.size() < 3) return 0.0;
+    double sum = 0.0;
+    double x0 = ring[0].x;
+    for (size_t i = 1; i + 1 < ring.size(); i++) {
+        double x = ring[i].x - x0;
+        double y_next = ring[i + 1].y;
+        double y_prev = ring[i - 1].y;
+        sum += x * (y_next - y_prev);
+    }
+    return sum / 2.0;
 }
 
-class SLGEOSContextGuard {
-public:
-  SLGEOSContextGuard() {
-    ctx_ = GEOS_init_r();
-    if (!ctx_) cpp11::stop("Failed to create GEOS context");
-    GEOSContext_setNoticeHandler_r(ctx_, sl_geos_notice_handler);
-    GEOSContext_setErrorHandler_r(ctx_, sl_geos_error_handler);
-  }
-  ~SLGEOSContextGuard() { if (ctx_) GEOS_finish_r(ctx_); }
-  GEOSContextHandle_t get() const { return ctx_; }
-  SLGEOSContextGuard(const SLGEOSContextGuard&) = delete;
-  SLGEOSContextGuard& operator=(const SLGEOSContextGuard&) = delete;
-private:
-  GEOSContextHandle_t ctx_;
-};
-
-class SLGEOSGeomGuard {
-public:
-  SLGEOSGeomGuard(GEOSContextHandle_t ctx, GEOSGeometry* g) : ctx_(ctx), g_(g) {}
-  ~SLGEOSGeomGuard() { if (g_) GEOSGeom_destroy_r(ctx_, g_); }
-  GEOSGeometry* get() const { return g_; }
-  bool valid() const { return g_ != nullptr; }
-  SLGEOSGeomGuard(const SLGEOSGeomGuard&) = delete;
-  SLGEOSGeomGuard& operator=(const SLGEOSGeomGuard&) = delete;
-private:
-  GEOSContextHandle_t ctx_;
-  GEOSGeometry* g_;
-};
+namespace {
 
 // ---- Lightweight traversal tracking ----
 
@@ -85,7 +65,7 @@ using exactextract::Box;
 using exactextract::Crossing;
 
 struct LightTraversal {
-  std::vector<Coordinate> coords;   // entry → intermediates → exit
+  std::vector<Coordinate> coords;   // entry -> intermediates -> exit
   Side entry_side = Side::NONE;
   Side exit_side = Side::NONE;
 
@@ -147,7 +127,7 @@ using CellMap = std::map<CellKey, CellRecord>;
 // (row, col) in the supplied infinite_extent grid.
 //
 // `coords` is taken by value because the walker may push to it (see the
-// `incomplete` reprocess branch — the case where the polyline begins
+// `incomplete` reprocess branch -- the case where the polyline begins
 // strictly inside a cell rather than on a boundary).
 //
 // `closed` selects how to handle that incomplete-initial-traversal case:
@@ -198,7 +178,7 @@ static CellMap walk_polyline(
       const Coordinate* prev_original = pos > 0 ? &coords[pos - 1] : nullptr;
 
       if (trav.coords.empty()) {
-        // First coordinate for this traversal — enter the cell
+        // First coordinate for this traversal -- enter the cell
         trav.entry_side = box.side(*next);
         trav.coords.push_back(*next);
         if (last_exit) { last_exit = nullptr; } else { pos++; }
@@ -208,11 +188,11 @@ static CellMap walk_polyline(
       Location loc = point_location(box, *next);
 
       if (loc != Location::OUTSIDE) {
-        // Inside or on boundary — add to traversal
+        // Inside or on boundary -- add to traversal
         trav.coords.push_back(*next);
         if (last_exit) { last_exit = nullptr; } else { pos++; }
       } else {
-        // Outside — compute exit crossing using Box::crossing()
+        // Outside -- compute exit crossing using Box::crossing()
         // Use prev_original for robustness (same as Cell::take)
         Crossing x = prev_original ?
         box.crossing(*prev_original, *next) :
@@ -244,7 +224,7 @@ static CellMap walk_polyline(
 
     // Handle incomplete initial traversal: walk started inside this cell,
     // boundary hasn't closed yet. For closed rings, push coords to end for
-    // reprocessing — this stitches the start back to a proper entry on
+    // reprocessing -- this stitches the start back to a proper entry on
     // the second pass. For open polylines, leave the partial traversal as
     // is; the consumer accepts entry_side==NONE as valid for line input.
     if (incomplete && closed) {
@@ -311,7 +291,7 @@ static void walk_ring(
     CellRecord& cr = kv.second;
 
     // Map from infinite_extent grid coords to subgrid coords.
-    // Skip padding ROWS — they don't affect any grid row's winding.
+    // Skip padding ROWS -- they don't affect any grid row's winding.
     if (r < 1) continue;
     size_t sub_r = r - 1;
     if (sub_r >= sub_rows) continue;
@@ -322,13 +302,13 @@ static void walk_ring(
     bool in_grid_cols;
     int full_col;
     if (c < 1) {
-      // Left padding column — virtual column before grid
+      // Left padding column -- virtual column before grid
       full_col = static_cast<int>(col_off) - 1;
       in_grid_cols = false;
     } else {
       size_t sub_c = c - 1;
       if (sub_c >= sub_cols) {
-        // Right padding column — virtual column after grid
+        // Right padding column -- virtual column after grid
         full_col = static_cast<int>(col_off + sub_cols);
         in_grid_cols = false;
       } else {
@@ -422,6 +402,34 @@ static void walk_ring(
 }
 
 
+// ---- Coordinate conversion at the geometry boundary ----
+//
+// The walker owns and may mutate its coordinate vector (the incomplete
+// initial traversal reprocess branch pushes to it), so a copy at the
+// boundary is inherent to the design, not overhead added by the
+// conversion.
+
+static std::vector<Coordinate> to_coordinates(const CoordSeq& seq) {
+  std::vector<Coordinate> out;
+  out.reserve(seq.size());
+  for (const auto& c : seq) out.emplace_back(c.x, c.y);
+  return out;
+}
+
+static Box ring_envelope(const CoordSeq& ring) {
+  Box b = Box::make_empty();
+  if (ring.empty()) return b;
+  double xmin = ring[0].x, xmax = ring[0].x;
+  double ymin = ring[0].y, ymax = ring[0].y;
+  for (const auto& c : ring) {
+    if (c.x < xmin) xmin = c.x;
+    if (c.x > xmax) xmax = c.x;
+    if (c.y < ymin) ymin = c.y;
+    if (c.y > ymax) ymax = c.y;
+  }
+  return Box(xmin, ymin, xmax, ymax);
+}
+
 // ---- Process polygon: per-POLYGON processing with padding-aware sweep ----
 //
 // Single-polygon path. For MULTIPOLYGON each component is processed
@@ -430,8 +438,7 @@ static void walk_ring(
 // boundary cells (which would incorrectly promote partial coverage to 1.0).
 
 static void process_polygon(
-    GEOSContextHandle_t ctx,
-    const GEOSGeometry* g,
+    const Polygon& poly,
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
     double dx, double dy,
     int poly_id,
@@ -440,17 +447,14 @@ static void process_polygon(
 ) {
   using namespace exactextract;
 
-  auto component_boxes = geos_get_component_boxes(ctx, g);
-  Box region = Box::make_empty();
-  for (const auto& box : component_boxes) {
-    if (!box.intersects(full_grid.extent())) continue;
-    Box isect = full_grid.extent().intersection(box);
-    if (region.empty()) {
-      region = isect;
-    } else if (!region.contains(isect)) {
-      region = region.expand_to_include(isect);
-    }
-  }
+  if (poly.rings.empty() || poly.rings[0].size() < 4) return;
+
+  // Region of interest: exterior-ring envelope clipped to the grid.
+  // Holes lie inside the exterior, so envelope(exterior) ==
+  // envelope(polygon); this replaces geos_get_component_boxes.
+  Box env = ring_envelope(poly.rings[0]);
+  if (!env.intersects(full_grid.extent())) return;
+  Box region = full_grid.extent().intersection(env);
   if (region.empty()) return;
 
   auto subgrid_bounded = full_grid.shrink_to_fit(region);
@@ -467,26 +471,13 @@ static void process_polygon(
 
   std::vector<std::vector<BoundaryCellRecord>> row_data(sub_rows);
 
-  // Exterior ring
-  {
-    const GEOSGeometry* ring = GEOSGetExteriorRing_r(ctx, g);
-    const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(ctx, ring);
-    auto coords = read(ctx, seq);
-    bool is_ccw = geos_is_ccw(ctx, seq);
-
-    walk_ring(coords, is_ccw, true, subgrid, dy,
-              row_data, sub_rows, sub_cols, row_off, col_off);
-  }
-
-  // Holes
-  int n_holes = GEOSGetNumInteriorRings_r(ctx, g);
-  for (int h = 0; h < n_holes; h++) {
-    const GEOSGeometry* ring = GEOSGetInteriorRingN_r(ctx, g, h);
-    const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(ctx, ring);
-    auto coords = read(ctx, seq);
-    bool is_ccw = geos_is_ccw(ctx, seq);
-
-    walk_ring(coords, is_ccw, false, subgrid, dy,
+  // Exterior ring, then holes. Orientation from shoelace sign (replaces
+  // geos_is_ccw); walk_ring normalises to CCW internally.
+  for (size_t r = 0; r < poly.rings.size(); r++) {
+    const CoordSeq& ring = poly.rings[r];
+    if (ring.size() < 4) continue;
+    bool is_exterior = (r == 0);
+    walk_ring(to_coordinates(ring), is_ccw(ring), is_exterior, subgrid, dy,
               row_data, sub_rows, sub_cols, row_off, col_off);
   }
 
@@ -543,59 +534,35 @@ static void process_polygon(
   }
 }
 
-
 // ---- Process line: per-LINESTRING length-in-cell rasterization ----
 //
 // Walks the line through the grid using walk_polyline (closed=false) and
 // emits one (row, col, length, id) record per cell touched. Length is the
-// absolute length of the line within the cell, in CRS units — sum of
+// absolute length of the line within the cell, in CRS units -- sum of
 // segment lengths across all traversal records for that cell.
-//
-// For a line that crosses a cell once: one traversal, length = entry to exit.
-// For a line with a vertex inside a cell: one traversal of [entry, vertex, exit],
-// length = sum of the two sub-segments — handled naturally by the same loop.
-// For a line that crosses a cell multiple times (e.g. self-intersecting,
-// or simply re-enters): multiple traversals, lengths sum.
 
 static void process_line(
-    GEOSContextHandle_t ctx,
-    const GEOSGeometry* g,
+    const CoordSeq& line,
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
-    double dx, double dy,
     int line_id,
     std::vector<GridLine>& all_lines
 ) {
   using namespace exactextract;
-  (void) dx; (void) dy;  // kept in signature for parity with process_polygon
 
-  // Read line coords; degenerate (< 2 points) has no length to report
-  const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(ctx, g);
-  auto coords = read(ctx, seq);
-  if (coords.size() < 2) return;
+  if (line.size() < 2) return;
 
-  // Walk the line directly on the full grid (no subgrid shrinking).
-  //
-  // The polygon path uses shrink_to_fit to bound a per-row `row_data` array
-  // allocation; the line path has no such state — just reads the walker's
-  // cells map directly — so the optimisation is dead weight here. More
-  // importantly, a horizontal or vertical line has a degenerate (zero-height
-  // or zero-width) bounding box, which Box::empty() reports as true,
-  // causing shrink_to_fit-based code paths to bail out before walking
-  // anything. Walking on the full infinite_extent grid avoids the problem
-  // entirely; the walker's cost is O(cells touched), independent of grid
-  // dimensions.
+  // Walk the line directly on the full grid (no subgrid shrinking):
+  // horizontal or vertical lines have degenerate bounding boxes that
+  // Box::empty() reports as empty, and the walker's cost is O(cells
+  // touched) regardless of grid dimensions.
   auto grid = make_infinite(full_grid);
   if (grid.empty()) return;
 
   size_t n_rows = grid.rows();
   size_t n_cols = grid.cols();
 
-  // Walk the open polyline
-  CellMap cells = walk_polyline(std::move(coords), grid, /*closed=*/false);
+  CellMap cells = walk_polyline(to_coordinates(line), grid, /*closed=*/false);
 
-  // Sum segment lengths per cell, emit one GridLine record per non-empty cell.
-  // Lines have no interior — every touched cell is a line cell — so all
-  // output goes to all_lines with `length` = absolute length in CRS units.
   for (const auto& kv : cells) {
     size_t r = kv.first.first;
     size_t c = kv.first.second;
@@ -605,7 +572,6 @@ static void process_line(
     if (r < 1 || r >= n_rows - 1) continue;
     if (c < 1 || c >= n_cols - 1) continue;
 
-    // Sum lengths from all traversal records in this cell.
     double total_length = 0.0;
     for (const auto& t : cr.traversals) {
       const auto& tc = t.coords;
@@ -618,11 +584,10 @@ static void process_line(
     }
 
     if (total_length > 0.0) {
-      // Map infinite_extent (r, c) to 1-based bounded grid (full_row, full_col)
-      int full_row = static_cast<int>(r);  // padding=1 absorbs the +1
-      int full_col = static_cast<int>(c);
+      // Map infinite_extent (r, c) to 1-based bounded grid; padding=1
+      // absorbs the +1.
       all_lines.push_back({
-        full_row, full_col,
+        static_cast<int>(r), static_cast<int>(c),
         static_cast<float>(total_length),
         line_id
       });
@@ -630,285 +595,119 @@ static void process_line(
   }
 }
 
-
-// ---- Process geometry: dispatch by type ----
-//
-// Handles the multipart and polygon/line cases. Per the design (see
-// inst/docs-design/unified-geometry-rasterization.md), GeometryCollection
 // ---- Process point: compute cell index, emit one record ----
 //
-// Points are the 0-D member of the unified geometry rasterization family.
-// There is no fractional intersection — a point is either in a cell or
-// it isn't — so points carry no weight column. The walker is not used:
-// just compute the cell index from the (x, y) coord and emit.
-//
-// Points outside the grid extent are dropped silently, consistent with
-// how out-of-extent lines and polygons are handled.
+// No fractional intersection for the 0-D case: a point is either in a
+// cell or it isn't, so points carry no weight column. Points outside
+// the grid extent are dropped silently, consistent with lines/polygons.
 
 static void process_point(
-    GEOSContextHandle_t ctx,
-    const GEOSGeometry* g,
+    const CoordSeq& pt,
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
     int point_id,
     std::vector<GridPoint>& all_points
 ) {
-  // Read the single coord
-  const GEOSCoordSequence* seq = GEOSGeom_getCoordSeq_r(ctx, g);
-  if (!seq) return;
+  if (pt.empty()) return;
+  double x = pt[0].x;
+  double y = pt[0].y;
+  if (!std::isfinite(x) || !std::isfinite(y)) return; // POINT EMPTY
 
-  unsigned int n;
-  if (!GEOSCoordSeq_getSize_r(ctx, seq, &n) || n == 0) return;
-
-  double x, y;
-  if (!GEOSCoordSeq_getXY_r(ctx, seq, 0, &x, &y)) return;
-
-  // Drop points outside the grid extent (no exception, no warning).
   // Boundary inclusion: a point exactly on xmax or ymin is assigned to
-  // the boundary-row/col by Grid::get_row / get_column's special cases.
+  // the boundary row/col by Grid::get_row / get_column's special cases.
   const auto& ext = full_grid.extent();
   if (x < ext.xmin || x > ext.xmax || y < ext.ymin || y > ext.ymax) return;
 
   size_t r = full_grid.get_row(y);
   size_t c = full_grid.get_column(x);
 
-  int full_row = static_cast<int>(r) + 1; // 1-based
-  int full_col = static_cast<int>(c) + 1;
-
-  all_points.push_back({full_row, full_col, point_id});
+  all_points.push_back({
+    static_cast<int>(r) + 1, // 1-based
+    static_cast<int>(c) + 1,
+    point_id
+  });
 }
 
-
-// ---- Process geometry: dispatch by type ----
-//
-// Handles the multipart and polygon/line/point cases. Per the design (see
-// inst/docs-design/unified-geometry-rasterization.md), GeometryCollection
-// is rejected because mixed-dimension input would produce a sparse table
-// with inconsistent weight semantics (50 m² of polygon vs 50 m of line,
-// indistinguishable in the output). Caller responsibility to split.
+// ---- Process geometry: dispatch by kind ----
 
 static void process_geometry(
-    GEOSContextHandle_t ctx,
-    const GEOSGeometry* g,
+    const Geometry& g,
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
     double dx, double dy,
     int geom_id,
-    std::vector<GridRun>& all_runs,
-    std::vector<GridEdge>& all_edges,
-    std::vector<GridLine>& all_lines,
-    std::vector<GridPoint>& all_points
+    BurnResult& out
 ) {
-  int type = GEOSGeomTypeId_r(ctx, g);
-
-  switch (type) {
-  case GEOS_POLYGON:
-    process_polygon(ctx, g, full_grid, dx, dy, geom_id, all_runs, all_edges);
-    return;
-
-  case GEOS_LINESTRING:
-    process_line(ctx, g, full_grid, dx, dy, geom_id, all_lines);
-    return;
-
-  case GEOS_POINT:
-    process_point(ctx, g, full_grid, geom_id, all_points);
-    return;
-
-  case GEOS_MULTIPOLYGON:
-  case GEOS_MULTILINESTRING:
-  case GEOS_MULTIPOINT:
-    // Homogeneous multipart: recurse on parts. Each component is processed
-    // independently (polygons get their own winding sweep, lines accumulate
-    // length in cells alongside any other line component touching the same
-    // cell, points emit one record per component).
-    for (int i = 0; i < GEOSGetNumGeometries_r(ctx, g); i++) {
-      process_geometry(ctx, GEOSGetGeometryN_r(ctx, g, i),
-                       full_grid, dx, dy, geom_id,
-                       all_runs, all_edges, all_lines, all_points);
-    }
-    return;
-
-  case GEOS_GEOMETRYCOLLECTION:
-    // Mixed-dimension input would produce inconsistent weight semantics.
-    // Caller must split into homogeneous groups and run separate burns.
-    cpp11::warning(
-      "GeometryCollection is not supported (mixed dimensions break weight "
-      "semantics); split into homogeneous groups and pass separately"
-    );
-    return;
-
-  default:
-    // Curved types (CircularString, CompoundCurve, etc.) must be linearised
-    // by the caller before reaching the rasterizer.
-    return;
+  // Multi types iterate the same containers as their singular
+  // counterparts; each component is processed independently (polygons
+  // get their own winding sweep).
+  for (const auto& poly : g.polygons) {
+    process_polygon(poly, full_grid, dx, dy, geom_id, out.runs, out.edges);
+  }
+  for (const auto& line : g.lines) {
+    process_line(line, full_grid, geom_id, out.lines);
+  }
+  for (const auto& pt : g.points) {
+    process_point(pt, full_grid, geom_id, out.points);
   }
 }
 
+} // anonymous namespace
 
-// ---- cpp11 entry point ----
+// ---- Public entry points ----
 
-[[cpp11::register]]
-cpp11::writable::list cpp_scanline_burn(
-    cpp11::list wkb_list,
-    double xmin, double ymin, double xmax, double ymax,
-    int ncol, int nrow
-) {
-  if (ncol <= 0 || nrow <= 0) {
-    cpp11::stop("ncol and nrow must be positive");
-  }
-  if (xmax <= xmin || ymax <= ymin) {
-    cpp11::stop("Invalid extent: xmax must be > xmin, ymax must be > ymin");
-  }
+BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs) {
+  gs.validate();
 
-  double dx = (xmax - xmin) / ncol;
-  double dy = (ymax - ymin) / nrow;
+  double dx = gs.dx();
+  double dy = gs.dy();
 
   exactextract::Grid<exactextract::bounded_extent> full_grid(
-      exactextract::Box(xmin, ymin, xmax, ymax), dx, dy);
+      exactextract::Box(gs.xmin, gs.ymin, gs.xmax, gs.ymax), dx, dy);
 
-  SLGEOSContextGuard geos_guard;
-  GEOSContextHandle_t ctx = geos_guard.get();
+  BurnResult out;
+  for (size_t k = 0; k < geoms.size(); k++) {
+    const Geometry& g = geoms[k];
+    if (g.empty()) continue;
+    try {
+      process_geometry(g, full_grid, dx, dy, static_cast<int>(k) + 1, out);
+    } catch (const std::exception& e) {
+      out.notes.push_back({static_cast<int32_t>(k) + 1,
+                           std::string("error processing geometry: ") + e.what()});
+    }
+  }
+  return out;
+}
 
-  GEOSWKBReader* wkb_reader = GEOSWKBReader_create_r(ctx);
-  if (!wkb_reader) cpp11::stop("Failed to create WKB reader");
+BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& gs) {
+  gs.validate();
 
-  int n_geoms = wkb_list.size();
+  double dx = gs.dx();
+  double dy = gs.dy();
 
-  std::vector<GridRun> all_runs;
-  std::vector<GridEdge> all_edges;
-  std::vector<GridLine> all_lines;
-  std::vector<GridPoint> all_points;
+  exactextract::Grid<exactextract::bounded_extent> full_grid(
+      exactextract::Box(gs.xmin, gs.ymin, gs.xmax, gs.ymax), dx, dy);
 
-  for (int k = 0; k < n_geoms; k++) {
-    cpp11::raws wkb_raw(wkb_list[k]);
-    int wkb_size = wkb_raw.size();
-    if (wkb_size == 0) continue;
+  BurnResult out;
+  for (size_t k = 0; k < wkb.size(); k++) {
+    if (!wkb[k].data || wkb[k].size == 0) continue;
 
-    const unsigned char* wkb_data = reinterpret_cast<const unsigned char*>(RAW(wkb_raw));
-
-    SLGEOSGeomGuard geom(ctx,
-                         GEOSWKBReader_read_r(ctx, wkb_reader, wkb_data, static_cast<size_t>(wkb_size)));
-
-    if (!geom.valid()) {
-      cpp11::warning("Failed to parse WKB for geometry %d, skipping", k + 1);
+    Geometry g;
+    try {
+      g = parse_wkb(wkb[k].data, wkb[k].size);
+    } catch (const WKBParseError& e) {
+      out.notes.push_back({static_cast<int32_t>(k) + 1,
+                           std::string("failed to parse WKB: ") + e.what()});
       continue;
     }
-
-    if (GEOSisEmpty_r(ctx, geom.get())) continue;
+    if (g.empty()) continue;
 
     try {
-      int poly_id = k + 1;
-      process_geometry(ctx, geom.get(), full_grid, dx, dy,
-                       poly_id, all_runs, all_edges, all_lines, all_points);
+      process_geometry(g, full_grid, dx, dy, static_cast<int>(k) + 1, out);
     } catch (const std::exception& e) {
-      cpp11::warning("Error processing geometry %d: %s, skipping", k + 1, e.what());
-      continue;
+      out.notes.push_back({static_cast<int32_t>(k) + 1,
+                           std::string("error processing geometry: ") + e.what()});
     }
   }
-
-  GEOSWKBReader_destroy_r(ctx, wkb_reader);
-
-  // Build R data.frames — four tables, one per geometry kind.
-  // Polygon → runs (interior RLE) + edges (boundary fractions in [0, 1]).
-  // Line    → lines (length in CRS units).
-  // Point   → points (no measure column; implicit 1).
-  // The schemas are intentionally type-pure: each table's measure column
-  // (or absence thereof) means exactly one thing. See the unified
-  // geometry rasterization design doc.
-
-  size_t n_runs = all_runs.size();
-  cpp11::writable::integers runs_row(n_runs);
-  cpp11::writable::integers runs_col_start(n_runs);
-  cpp11::writable::integers runs_col_end(n_runs);
-  cpp11::writable::integers runs_id(n_runs);
-
-  for (size_t i = 0; i < n_runs; i++) {
-    runs_row[i] = all_runs[i].row;
-    runs_col_start[i] = all_runs[i].col_start;
-    runs_col_end[i] = all_runs[i].col_end;
-    runs_id[i] = all_runs[i].id;
-  }
-
-  cpp11::writable::list runs_df(4);
-  runs_df[0] = static_cast<SEXP>(runs_row);
-  runs_df[1] = static_cast<SEXP>(runs_col_start);
-  runs_df[2] = static_cast<SEXP>(runs_col_end);
-  runs_df[3] = static_cast<SEXP>(runs_id);
-  runs_df.attr("names") = cpp11::writable::strings({"row", "col_start", "col_end", "id"});
-  runs_df.attr("class") = "data.frame";
-  runs_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_runs)});
-
-  // edges table — polygon boundary cells, fraction in (0, 1)
-  size_t n_edges = all_edges.size();
-  cpp11::writable::integers edges_row(n_edges);
-  cpp11::writable::integers edges_col(n_edges);
-  cpp11::writable::doubles edges_fraction(n_edges);
-  cpp11::writable::integers edges_id(n_edges);
-
-  for (size_t i = 0; i < n_edges; i++) {
-    edges_row[i] = all_edges[i].row;
-    edges_col[i] = all_edges[i].col;
-    edges_fraction[i] = static_cast<double>(all_edges[i].fraction);
-    edges_id[i] = all_edges[i].id;
-  }
-
-  cpp11::writable::list edges_df(4);
-  edges_df[0] = static_cast<SEXP>(edges_row);
-  edges_df[1] = static_cast<SEXP>(edges_col);
-  edges_df[2] = static_cast<SEXP>(edges_fraction);
-  edges_df[3] = static_cast<SEXP>(edges_id);
-  edges_df.attr("names") = cpp11::writable::strings({"row", "col", "fraction", "id"});
-  edges_df.attr("class") = "data.frame";
-  edges_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_edges)});
-
-  // lines table — line cells, length in CRS units (absolute, not fraction)
-  size_t n_lines = all_lines.size();
-  cpp11::writable::integers lines_row(n_lines);
-  cpp11::writable::integers lines_col(n_lines);
-  cpp11::writable::doubles lines_length(n_lines);
-  cpp11::writable::integers lines_id(n_lines);
-
-  for (size_t i = 0; i < n_lines; i++) {
-    lines_row[i] = all_lines[i].row;
-    lines_col[i] = all_lines[i].col;
-    lines_length[i] = static_cast<double>(all_lines[i].length);
-    lines_id[i] = all_lines[i].id;
-  }
-
-  cpp11::writable::list lines_df(4);
-  lines_df[0] = static_cast<SEXP>(lines_row);
-  lines_df[1] = static_cast<SEXP>(lines_col);
-  lines_df[2] = static_cast<SEXP>(lines_length);
-  lines_df[3] = static_cast<SEXP>(lines_id);
-  lines_df.attr("names") = cpp11::writable::strings({"row", "col", "length", "id"});
-  lines_df.attr("class") = "data.frame";
-  lines_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_lines)});
-
-  // points table — schema (row, col, id), no measure column. Materialise
-  // treats absence of a measure column as implicit 1.
-  size_t n_points = all_points.size();
-  cpp11::writable::integers points_row(n_points);
-  cpp11::writable::integers points_col(n_points);
-  cpp11::writable::integers points_id(n_points);
-
-  for (size_t i = 0; i < n_points; i++) {
-    points_row[i] = all_points[i].row;
-    points_col[i] = all_points[i].col;
-    points_id[i] = all_points[i].id;
-  }
-
-  cpp11::writable::list points_df(3);
-  points_df[0] = static_cast<SEXP>(points_row);
-  points_df[1] = static_cast<SEXP>(points_col);
-  points_df[2] = static_cast<SEXP>(points_id);
-  points_df.attr("names") = cpp11::writable::strings({"row", "col", "id"});
-  points_df.attr("class") = "data.frame";
-  points_df.attr("row.names") = cpp11::writable::integers({NA_INTEGER, -static_cast<int>(n_points)});
-
-  cpp11::writable::list result(4);
-  result[0] = static_cast<SEXP>(runs_df);
-  result[1] = static_cast<SEXP>(edges_df);
-  result[2] = static_cast<SEXP>(lines_df);
-  result[3] = static_cast<SEXP>(points_df);
-  result.attr("names") = cpp11::writable::strings({"runs", "edges", "lines", "points"});
-
-  return result;
+  return out;
 }
+
+} // namespace controlledburn

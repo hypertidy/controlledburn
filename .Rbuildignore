@@ -10,3 +10,6 @@
 ^Meta$
 ^\.positai$
 ^\.claude$
+^cpp$
+^tools$
+
