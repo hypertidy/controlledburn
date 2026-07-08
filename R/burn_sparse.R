@@ -234,7 +234,11 @@ materialize_chunk <- function(x, target = NULL, id = NULL,
       warning("Target extent does not intersect source grid")
       mat <- matrix(0, nrow = 0L, ncol = 0L)
       attr(mat, "extent") <- out_extent
-      if (type == "vector") return(numeric(0))
+      if (type == "vector") {
+        v <- numeric(0)
+        attr(v, "extent") <- out_extent
+        return(v)
+      }
       return(mat)
     }
   }

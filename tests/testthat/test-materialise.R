@@ -1,5 +1,3 @@
-skip()
-
 test_that("materialise_chunk produces correct dimensions", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
@@ -35,7 +33,10 @@ test_that("materialise_chunk vector output", {
   v <- materialise_chunk(r, type = "vector")
   mat <- materialise_chunk(r, type = "matrix")
   expect_equal(length(v), 9L)
-  expect_equal(v, as.vector(t(mat)))  # row-major
+  # Values are row-major; both matrix and vector output carry an `extent`
+  # attribute (t()/as.vector strip it from the comparison target).
+  expect_equal(v, as.vector(t(mat)), ignore_attr = TRUE)  # row-major
+  expect_equal(attr(v, "extent"), attr(mat, "extent"))
 })
 
 test_that("print.controlledburn works", {
@@ -55,13 +56,13 @@ test_that("materialise_chunk with target extent (subwindow)", {
   mat_full <- materialise_chunk(r)
 
   # Request a subwindow that snaps to cell boundaries
-  mat_sub <- materialise_chunk_align(r, target = c(3, 7, 3, 7))
+  mat_sub <- materialise_chunk(r, target = c(3, 7, 3, 7))
   expect_equal(dim(mat_sub), c(4, 4))
   expect_equal(attr(mat_sub, "extent"), c(3, 7, 3, 7))
 
   # Content should match the corresponding full-grid submatrix
   # rows 4:7 (y 3-7 in a 10x10 grid with ymax=10), cols 4:7
-  expect_equal(mat_sub, mat_full[4:7, 4:7])
+  expect_equal(mat_sub, mat_full[4:7, 4:7], ignore_attr = TRUE)
 })
 
 test_that("materialise_chunk target snaps outward", {
