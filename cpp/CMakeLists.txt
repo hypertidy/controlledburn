@@ -27,6 +27,10 @@ target_include_directories(controlledburn
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# Required when the static core is linked into shared objects
+# (Python extension modules, R shared libs).
+set_target_properties(controlledburn PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 target_compile_options(controlledburn PRIVATE
   $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra>
 )
