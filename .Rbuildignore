@@ -8,3 +8,5 @@
 ^src/exactextract/.*\.o$
 ^doc$
 ^Meta$
+^\.positai$
+^\.claude$
