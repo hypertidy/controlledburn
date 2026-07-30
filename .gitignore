@@ -7,4 +7,8 @@ inst/doc
 /doc/
 /Meta/
 .positai
+.claude
 build/
+.benchmarks
+.venv
+.pytest_cache
