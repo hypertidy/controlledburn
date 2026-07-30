@@ -245,6 +245,84 @@ static void test_materialize() {
     CHECK_NEAR(total2, 16.0, 1e-6); // area / cell_area
 }
 
+// ---- Approx mode tests ----
+
+// Aligned rectangle: approx mode should produce runs only, same total area.
+static void test_approx_aligned_rectangle() {
+    GridSpec gs{0, 0, 10, 10, 10, 10};
+    Geometry g = make_polygon({{{2, 4}, {6, 4}, {6, 8}, {2, 8}, {2, 4}}});
+
+    BurnResult r = burn({g}, gs, BurnMode::Approx);
+    CHECK(r.edges.empty());
+    CHECK(!r.runs.empty());
+    CHECK_NEAR(covered_area(r, gs), 16.0, 1e-9);
+}
+
+// Offset rectangle: approx mode gives runs only (no edges), area is
+// approximate -- cell centers inside get full cells, so total area
+// differs from exact but is deterministic.
+static void test_approx_offset_rectangle() {
+    GridSpec gs{0, 0, 10, 10, 10, 10};
+    // 2.5..6.5 x 4.5..8.5: cell centers at 0.5, 1.5, ..., 9.5
+    // x: centers 2.5, 3.5, 4.5, 5.5 are inside (cols 3-6); 6.5 is on boundary
+    // y: centers 4.5, 5.5, 6.5, 7.5 are inside (rows 3-6); 8.5 is on boundary
+    // Expect 4*4=16 cells if boundary cells with center ON edge are excluded,
+    // but the exact count depends on the center-rule decision for edge-on-center.
+    Geometry g = make_polygon({{{2.5, 4.5}, {6.5, 4.5}, {6.5, 8.5}, {2.5, 8.5}, {2.5, 4.5}}});
+
+    BurnResult r = burn({g}, gs, BurnMode::Approx);
+    CHECK(r.edges.empty());  // no edges in approx mode
+    CHECK(!r.runs.empty());
+    // Area should be a whole number of cells (each run cell = 1 cell area)
+    double area = covered_area(r, gs);
+    double cell_area = gs.dx() * gs.dy();
+    double n_cells = area / cell_area;
+    CHECK_NEAR(n_cells, std::round(n_cells), 1e-9);
+}
+
+// Beyond-extent polygon: approx mode should still fill the entire grid.
+static void test_approx_beyond_extent() {
+    GridSpec gs{0, 0, 10, 10, 5, 5};
+    Geometry g = make_polygon({{{-100, -100}, {100, -100}, {100, 100}, {-100, 100}, {-100, -100}}});
+
+    BurnResult r = burn({g}, gs, BurnMode::Approx);
+    CHECK(r.edges.empty());
+    CHECK_NEAR(covered_area(r, gs), 100.0, 1e-9);
+}
+
+// Hole: approx mode should still respect holes.
+static void test_approx_hole() {
+    GridSpec gs{0, 0, 10, 10, 20, 20};
+    CoordSeq outer = {{1, 1}, {9, 1}, {9, 9}, {1, 9}, {1, 1}};
+    CoordSeq hole = {{3, 3}, {7, 3}, {7, 7}, {3, 7}, {3, 3}};
+    Geometry g = make_polygon({outer, hole});
+
+    BurnResult r = burn({g}, gs, BurnMode::Approx);
+    CHECK(r.edges.empty());
+    // Approx area should be close to 48 (64 - 16), within a few cells
+    double area = covered_area(r, gs);
+    double cell_area = gs.dx() * gs.dy();
+    CHECK(area > 40.0);
+    CHECK(area < 56.0);
+    // Should be a whole number of cells
+    double n_cells = area / cell_area;
+    CHECK_NEAR(n_cells, std::round(n_cells), 1e-9);
+}
+
+// Approx mode does not affect lines or points.
+static void test_approx_line_unchanged() {
+    GridSpec gs{0, 0, 10, 10, 10, 10};
+    Geometry g;
+    g.kind = GeomKind::LineString;
+    g.lines.push_back({{0.5, 0.5}, {9.5, 7.5}});
+    double len = std::hypot(9.0, 7.0);
+
+    BurnResult r = burn({g}, gs, BurnMode::Approx);
+    double total = 0.0;
+    for (const auto& l : r.lines) total += l.length;
+    CHECK_NEAR(total, len, 1e-4);
+}
+
 // Degenerate and empty inputs must not crash.
 static void test_degenerate() {
     GridSpec gs{0, 0, 10, 10, 10, 10};
@@ -278,6 +356,12 @@ int main() {
     test_wkb();
     test_materialize();
     test_degenerate();
+
+    test_approx_aligned_rectangle();
+    test_approx_offset_rectangle();
+    test_approx_beyond_extent();
+    test_approx_hole();
+    test_approx_line_unchanged();
 
     if (failures == 0) {
         std::printf("all tests passed\n");

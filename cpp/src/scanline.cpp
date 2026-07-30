@@ -110,6 +110,11 @@ struct BoundaryCellRecord {
   int col;               // 0-based column in full grid
   float coverage;        // accumulated coverage fraction (signed)
   int winding_delta;     // accumulated winding contribution
+
+  // Approx mode only: winding delta from traversals whose y-midpoint
+  // crossing is to the LEFT of the cell center x. Used to compute the
+  // winding number at the cell center for center-rule classification.
+  int winding_delta_left;
 };
 
 // ---- Scanline algorithm ----
@@ -269,7 +274,8 @@ static void walk_ring(
     size_t sub_rows,
     size_t sub_cols,
     size_t row_off,
-    size_t col_off
+    size_t col_off,
+    BurnMode mode = BurnMode::Coverage
 ) {
   if (coords.size() < 4) return;
 
@@ -330,10 +336,10 @@ static void walk_ring(
 
     if (valid.empty()) continue;
 
-    // ---- Coverage fraction (only for in-grid cells) ----
+    // ---- Coverage fraction (only for in-grid cells, Coverage mode) ----
     float frac = 0.0f;
 
-    if (in_grid_cols) {
+    if (in_grid_cols && mode == BurnMode::Coverage) {
       if (valid.size() == 1 && valid[0]->entry_side == Side::NONE
             && valid[0]->is_closed_ring()) {
         frac = static_cast<float>(
@@ -370,7 +376,7 @@ static void walk_ring(
       for (auto& rec : row_vec) {
         if (rec.col == full_col) return rec;
       }
-      row_vec.push_back({full_col, 0.0f, 0});
+      row_vec.push_back({full_col, 0.0f, 0, 0});
       return row_vec.back();
     };
 
@@ -380,6 +386,8 @@ static void walk_ring(
     }
 
     // Winding deltas from traversals
+    double x_mid = (cr.box.xmin + cr.box.xmax) / 2.0;
+
     for (auto* t : valid) {
       if (!t->traversed()) continue; // closed rings don't contribute winding
       if (t->coords.size() < 2) continue;
@@ -397,6 +405,32 @@ static void walk_ring(
 
       BoundaryCellRecord& rec = find_or_create();
       rec.winding_delta += delta;
+
+      // Approx mode: classify whether this crossing is left of cell center.
+      // Interpolate x at y_mid along the traversal path.
+      if (mode == BurnMode::Approx) {
+        double x_at_mid = x_mid; // fallback
+        const auto& tc = t->coords;
+        for (size_t i = 1; i < tc.size(); i++) {
+          double y0 = tc[i-1].y, y1 = tc[i].y;
+          if ((y0 <= y_mid && y1 >= y_mid) || (y0 >= y_mid && y1 <= y_mid)) {
+            if (y1 != y0) {
+              double frac_along = (y_mid - y0) / (y1 - y0);
+              x_at_mid = tc[i-1].x + frac_along * (tc[i].x - tc[i-1].x);
+            } else {
+              x_at_mid = (tc[i-1].x + tc[i].x) / 2.0;
+            }
+            break;
+          }
+        }
+        // Use <= for left-inclusive convention: an edge crossing exactly
+        // at the cell center x is considered "left of center", matching
+        // the standard rasterization rule (left/bottom inclusive,
+        // right/top exclusive).
+        if (x_at_mid <= x_mid) {
+          rec.winding_delta_left += delta;
+        }
+      }
     }
   }
 }
@@ -443,7 +477,8 @@ static void process_polygon(
     double dx, double dy,
     int poly_id,
     std::vector<GridRun>& all_runs,
-    std::vector<GridEdge>& all_edges
+    std::vector<GridEdge>& all_edges,
+    BurnMode mode = BurnMode::Coverage
 ) {
   using namespace exactextract;
 
@@ -478,7 +513,7 @@ static void process_polygon(
     if (ring.size() < 4) continue;
     bool is_exterior = (r == 0);
     walk_ring(to_coordinates(ring), is_ccw(ring), is_exterior, subgrid, dy,
-              row_data, sub_rows, sub_cols, row_off, col_off);
+              row_data, sub_rows, sub_cols, row_off, col_off, mode);
   }
 
   // ---- Winding sweep: emit runs and edges per row ----
@@ -500,6 +535,7 @@ static void process_polygon(
       if (!merged.empty() && merged.back().col == rec.col) {
         merged.back().coverage += rec.coverage;
         merged.back().winding_delta += rec.winding_delta;
+        merged.back().winding_delta_left += rec.winding_delta_left;
       } else {
         merged.push_back(rec);
       }
@@ -521,11 +557,21 @@ static void process_polygon(
         });
       }
 
-      float w = mc.coverage;
-      if (w > tol && w < (1.0f - tol)) {
-        all_edges.push_back({full_row, mc.col + 1, w, poly_id});
-      } else if (w >= (1.0f - tol)) {
-        all_runs.push_back({full_row, mc.col + 1, mc.col + 1, poly_id});
+      if (mode == BurnMode::Coverage) {
+        float w = mc.coverage;
+        if (w > tol && w < (1.0f - tol)) {
+          all_edges.push_back({full_row, mc.col + 1, w, poly_id});
+        } else if (w >= (1.0f - tol)) {
+          all_runs.push_back({full_row, mc.col + 1, mc.col + 1, poly_id});
+        }
+      } else {
+        // Approx: cell center is inside iff winding at center != 0.
+        // Winding at center = winding (from left) + delta_left (crossings
+        // left of center x within this cell).
+        int winding_at_center = winding + mc.winding_delta_left;
+        if (winding_at_center != 0) {
+          all_runs.push_back({full_row, mc.col + 1, mc.col + 1, poly_id});
+        }
       }
 
       winding += mc.winding_delta;
@@ -634,13 +680,14 @@ static void process_geometry(
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
     double dx, double dy,
     int geom_id,
-    BurnResult& out
+    BurnResult& out,
+    BurnMode mode = BurnMode::Coverage
 ) {
   // Multi types iterate the same containers as their singular
   // counterparts; each component is processed independently (polygons
   // get their own winding sweep).
   for (const auto& poly : g.polygons) {
-    process_polygon(poly, full_grid, dx, dy, geom_id, out.runs, out.edges);
+    process_polygon(poly, full_grid, dx, dy, geom_id, out.runs, out.edges, mode);
   }
   for (const auto& line : g.lines) {
     process_line(line, full_grid, geom_id, out.lines);
@@ -654,7 +701,8 @@ static void process_geometry(
 
 // ---- Public entry points ----
 
-BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs) {
+BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs,
+                BurnMode mode) {
   gs.validate();
 
   double dx = gs.dx();
@@ -668,7 +716,7 @@ BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs) {
     const Geometry& g = geoms[k];
     if (g.empty()) continue;
     try {
-      process_geometry(g, full_grid, dx, dy, static_cast<int>(k) + 1, out);
+      process_geometry(g, full_grid, dx, dy, static_cast<int>(k) + 1, out, mode);
     } catch (const std::exception& e) {
       out.notes.push_back({static_cast<int32_t>(k) + 1,
                            std::string("error processing geometry: ") + e.what()});
@@ -677,7 +725,8 @@ BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs) {
   return out;
 }
 
-BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& gs) {
+BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& gs,
+                    BurnMode mode) {
   gs.validate();
 
   double dx = gs.dx();
@@ -701,7 +750,7 @@ BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& gs) {
     if (g.empty()) continue;
 
     try {
-      process_geometry(g, full_grid, dx, dy, static_cast<int>(k) + 1, out);
+      process_geometry(g, full_grid, dx, dy, static_cast<int>(k) + 1, out, mode);
     } catch (const std::exception& e) {
       out.notes.push_back({static_cast<int32_t>(k) + 1,
                            std::string("error processing geometry: ") + e.what()});
