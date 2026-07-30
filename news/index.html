@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3.9001</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.2.0</span>
       </span>
     </div>
 
@@ -61,15 +61,15 @@
     </div>
 
     <div class="section level2">
-<h2 class="page-header" data-toc-text="development version" id="controlledburn-development-version">controlledburn (development version)<a class="anchor" aria-label="anchor" href="#controlledburn-development-version"></a></h2>
+<h2 class="page-header" data-toc-text="0.2.0" id="controlledburn-020">controlledburn 0.2.0<a class="anchor" aria-label="anchor" href="#controlledburn-020"></a></h2>
 <div class="section level3">
-<h3 id="breaking-changes-development-version">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-development-version"></a></h3>
+<h3 id="breaking-changes-0-2-0">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-0-2-0"></a></h3>
 <ul><li><p><strong><code><a href="../reference/burn.html">burn()</a></code> replaces <code><a href="../reference/burn.html">burn_scanline()</a></code></strong> as the main entry point. <code><a href="../reference/burn.html">burn_scanline()</a></code> remains as a deprecated wrapper.</p></li>
 <li><p><strong><code><a href="../reference/burn_sparse.html">burn_sparse()</a></code> removed.</strong> The function is now a deprecated stub that errors with a message directing users to <code><a href="../reference/burn.html">burn()</a></code>. All GEOS-dependent code has been removed; the package no longer depends on <code>libgeos</code>.</p></li>
 <li><p>Polygon boundary cells: <code>$edges$weight</code> renamed to <code>$edges$fraction</code> (done in a previous dev cycle, retained here for completeness).</p></li>
 </ul></div>
 <div class="section level3">
-<h3 id="whats-new-development-version">What’s new<a class="anchor" aria-label="anchor" href="#whats-new-development-version"></a></h3>
+<h3 id="whats-new-0-2-0">What’s new<a class="anchor" aria-label="anchor" href="#whats-new-0-2-0"></a></h3>
 <ul><li><p><strong><code>mode = c("coverage", "approx")</code></strong> parameter on <code><a href="../reference/burn.html">burn()</a></code>. <code>"coverage"</code> (default) computes exact coverage fractions for polygon boundary cells via the analytical traversal engine. <code>"approx"</code> uses the cell-centre rule (fasterize semantics): boundary cells are included as full run cells iff the cell centre is inside the polygon. No <code>$edges</code> produced in approx mode. Lines and points are unaffected by mode.</p></li>
 <li><p><strong>Lightweight approx sweep.</strong> Approx mode uses a dedicated edge-row intersection sweep (~120 lines of C++) that bypasses the exactextract walker entirely. On CGAZ (218 countries, 10.1M vertices), this is 1.6–14.5× faster than the walker-based path and crosses over fasterize at ~134 million cells. At 537M cells, controlledburn is 6.8× faster than fasterize; at 8.6 billion cells (where fasterize runs out of memory), the sweep completes in 2.4 seconds.</p></li>
 <li><p><strong>Cell-for-cell fasterize parity.</strong> On NC counties at 2000×800, the lightweight sweep produces identical output to fasterize (zero discrepant cells). Boundary conventions match fasterize: left-inclusive, top-inclusive, half-open interval for horizontal edges at cell-centre y-coordinates.</p></li>
@@ -79,7 +79,7 @@
 <li><p><strong>CI</strong> for all three surfaces: C++ ctest, Python pytest, R CMD check.</p></li>
 </ul></div>
 <div class="section level3">
-<h3 id="dependencies-development-version">Dependencies<a class="anchor" aria-label="anchor" href="#dependencies-development-version"></a></h3>
+<h3 id="dependencies-0-2-0">Dependencies<a class="anchor" aria-label="anchor" href="#dependencies-0-2-0"></a></h3>
 <ul><li>
 <strong>Dropped</strong>: <code>libgeos</code> (LinkingTo and Imports). The vendored exactextract subset is trimmed to 9 GEOS-free analytical geometry files.</li>
 <li>
@@ -87,7 +87,7 @@
 <li>Test dependencies (<code>sf</code>, <code>fasterize</code>) are optional and gated behind <code>skip_if_not_installed()</code>. NC county test fixture is bundled as serialised WKB — no <code>sf</code> or <code>vapour</code> needed at test time.</li>
 </ul></div>
 <div class="section level3">
-<h3 id="internals-development-version">Internals<a class="anchor" aria-label="anchor" href="#internals-development-version"></a></h3>
+<h3 id="internals-0-2-0">Internals<a class="anchor" aria-label="anchor" href="#internals-0-2-0"></a></h3>
 <ul><li><p>Unified geometry rasterization: <code><a href="../reference/burn.html">burn()</a></code> handles polygon, line, and point input through a single entry point with type-pure output tables (<code>$runs</code>, <code>$edges</code>, <code>$lines</code>, <code>$points</code>).</p></li>
 <li><p><code>process_polygon_approx()</code>: the lightweight sweep. For each polygon edge, computes x-intercepts at each row’s y_mid, accumulates winding per row, sweeps left-to-right to emit runs. Top-inclusive half-open interval <code>(ya, yb]</code> matches the walker’s crossing convention.</p></li>
 <li><p><code>process_polygon()</code>: the full walker path for coverage mode. Uses the exactextract traversal engine for exact analytical coverage fractions.</p></li>
