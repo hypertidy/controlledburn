@@ -5,13 +5,6 @@
 #include "cpp11/declarations.hpp"
 #include <R_ext/Visibility.h>
 
-// controlledburn.cpp
-cpp11::writable::list cpp_burn_sparse(cpp11::list wkb_list, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow);
-extern "C" SEXP _controlledburn_cpp_burn_sparse(SEXP wkb_list, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow) {
-  BEGIN_CPP11
-    return cpp11::as_sexp(cpp_burn_sparse(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(wkb_list), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow)));
-  END_CPP11
-}
 // controlledburn_init.cpp
 void cpp_controlledburn_init();
 extern "C" SEXP _controlledburn_cpp_controlledburn_init() {
@@ -30,7 +23,6 @@ extern "C" SEXP _controlledburn_cpp_scanline_burn(SEXP wkb_list, SEXP xmin, SEXP
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_controlledburn_cpp_burn_sparse",         (DL_FUNC) &_controlledburn_cpp_burn_sparse,         7},
     {"_controlledburn_cpp_controlledburn_init", (DL_FUNC) &_controlledburn_cpp_controlledburn_init, 0},
     {"_controlledburn_cpp_scanline_burn",       (DL_FUNC) &_controlledburn_cpp_scanline_burn,       8},
     {NULL, NULL, 0}

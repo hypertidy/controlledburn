@@ -1,3 +1,17 @@
+# Helper: area conservation check taking a geos_geometry directly
+expect_area_conserved_g <- function(g, ext, dim, tol = 1e-4, label = NULL) {
+  r <- burn(g, extent = ext, dimension = dim)
+  cell_area <- ((ext[2] - ext[1]) / dim[1]) * ((ext[4] - ext[3]) / dim[2])
+  run_cells <- if (nrow(r$runs) > 0) sum(r$runs$col_end - r$runs$col_start + 1) else 0
+  edge_frac <- if (nrow(r$edges) > 0) sum(r$edges$fraction) else 0
+  total <- (run_cells + edge_frac) * cell_area
+  grid_box <- geos::as_geos_geometry(sprintf(
+    "POLYGON ((%s %s, %s %s, %s %s, %s %s, %s %s))",
+    ext[1], ext[3], ext[2], ext[3], ext[2], ext[4], ext[1], ext[4], ext[1], ext[3]))
+  expected <- geos::geos_area(geos::geos_intersection(g, grid_box))
+  expect_equal(total, expected, tolerance = tol, label = label)
+}
+
 # Canonical edge cases — the rasterizer "final boss" zoo
 #
 # Tests organised by the six (+1) failure-mode categories that appear in
@@ -39,7 +53,7 @@ test_that("polygon edge exactly on cell row boundary — no winding artifacts", 
   # in a 10x10 grid (dy=1). Zero-winding-delta convention means this edge
   # contributes no spurious row crossings.
   p <- geos::as_geos_geometry("POLYGON ((2 2, 8 2, 8 5, 2 5, 2 2))")
-  expect_scanline_matches_sparse(p, ext10, c(10L, 10L),
+  expect_area_conserved_g(p, ext10, c(10L, 10L),
                                  label = "horiz edge on row boundary")
 })
 
@@ -140,14 +154,14 @@ test_that("triangle with sub-pixel area — coverage stays in [0, 1]", {
 test_that("vertex exactly on grid node — no double-count, no gap", {
   skip_if_not_installed("geos")
   p <- geos::as_geos_geometry("POLYGON ((2 2, 8 2, 5 5, 2 2))")
-  expect_scanline_matches_sparse(p, ext10, c(10L, 10L),
+  expect_area_conserved_g(p, ext10, c(10L, 10L),
                                  label = "vertex on grid node")
 })
 
 test_that("vertex exactly on cell edge midpoint — coverage exact", {
   skip_if_not_installed("geos")
   p <- geos::as_geos_geometry("POLYGON ((2 2, 8 2, 5 3.5, 2 2))")
-  expect_scanline_matches_sparse(p, ext10, c(10L, 10L),
+  expect_area_conserved_g(p, ext10, c(10L, 10L),
                                  label = "vertex on cell edge")
 })
 
@@ -217,7 +231,7 @@ test_that("bow-tie polygon — invalid under simple-features, behaviour not prom
         Repair via GEOSMakeValid (or geos::geos_make_valid) upstream.
         See edge-zoo doc, category 5 (Topology).")
   p <- geos::as_geos_geometry("POLYGON ((2 2, 8 8, 8 2, 2 8, 2 2))")
-  expect_scanline_matches_sparse(p, ext10, c(10L, 10L),
+  expect_area_conserved_g(p, ext10, c(10L, 10L),
                                  label = "bow-tie non-zero winding")
 })
 
@@ -246,7 +260,7 @@ test_that("polygon with hole — winding handles signed contributions", {
     "POLYGON ((2 2, 8 2, 8 8, 2 8, 2 2),
               (4 4, 4 6, 6 6, 6 4, 4 4))"
   )
-  expect_scanline_matches_sparse(p, ext10, c(10L, 10L),
+  expect_area_conserved_g(p, ext10, c(10L, 10L),
                                  label = "polygon with hole")
 })
 
@@ -257,7 +271,7 @@ test_that("two polygons touching at a corner — no shared-cell over-count", {
                    ((5 5, 8 5, 8 8, 5 8, 5 5)))"
   )
   r <- burn(p, extent = ext10, dimension = c(10L, 10L))
-  expect_scanline_matches_sparse(p, ext10, c(10L, 10L),
+  expect_area_conserved_g(p, ext10, c(10L, 10L),
                                  label = "corner-touch multipolygon")
 })
 # =========================================================================

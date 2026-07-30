@@ -12,4 +12,9 @@
 ^\.claude$
 ^cpp$
 ^tools$
-
+^build$
+^python$
+^fixtures$
+^.benchmarks$
+^.venv$
+^.pytest_cache$

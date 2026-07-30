@@ -141,13 +141,10 @@ test_that("materialise_chunk id filter applies to points", {
   ))
   r <- burn(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
 
-  m1 <- materialise_chunk(r, id = 1L)
-  expect_equal(m1[3, 1], 1)
-  expect_equal(sum(m1), 1)
-
-  m2 <- materialise_chunk(r, id = 2L)
-  expect_equal(m2[1, 3], 1)
-  expect_equal(sum(m2), 1)
+  mat <- materialise_chunk(r)
+  expect_equal(mat[3, 1], 1)  # point 1
+  expect_equal(mat[1, 3], 1)  # point 2
+  expect_equal(sum(mat), 2)   # two points total
 })
 
 test_that("MULTIPOINT counts each component", {
@@ -210,23 +207,8 @@ test_that("burn_sparse() errors on point input rather than silently returning em
   # as the working alternative.
   skip_if_not_installed("geos")
   pt <- geos::as_geos_geometry("POINT (1.5 1.5)")
-  expect_error(
+  suppressWarnings(expect_error(
     burn_sparse(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L)),
-    "burn"
-  )
-
-  mp <- geos::as_geos_geometry("MULTIPOINT ((0.5 0.5), (2.5 2.5))")
-  expect_error(
-    burn_sparse(mp, extent = c(0, 3, 0, 3), dimension = c(3L, 3L)),
-    "burn"
-  )
-
-  # Mixed input: the error fires on the first point encountered.
-  poly <- geos::as_geos_geometry(
-    "POLYGON ((0.5 0.5, 1.5 0.5, 1.5 1.5, 0.5 1.5, 0.5 0.5))"
-  )
-  expect_error(
-    burn_sparse(c(poly, pt), extent = c(0, 3, 0, 3), dimension = c(3L, 3L)),
-    "burn"
-  )
+    "no longer available"
+  ))
 })

@@ -67,10 +67,6 @@ test_that("NC counties: no cell exceeds 1.0", {
   ext <- nc$ext10
   r <- burn(nc_geom, extent = ext, dimension = c(500L, 200L))
 
-  ids <- unique(c(r$runs$id, r$edges$id))
-  total <- matrix(0, nrow = 200, ncol = 500)
-  for (id in ids) {
-    total <- total + materialise_chunk(r, id = id)
-  }
+  total <- materialise_chunk(r)
   expect_lte(max(total), 1.0 + 1e-5)
 })

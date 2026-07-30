@@ -18,7 +18,7 @@
 #include "cell.h"
 #include "crossing.h"
 #include "traversal_areas.h"
-#include "geos_utils.h"
+
 
 namespace exactextract {
 

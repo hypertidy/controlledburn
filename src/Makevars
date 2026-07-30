@@ -1,14 +1,11 @@
 PKG_CPPFLAGS = -I../inst/include -Iexactextract
 CXX_STD = CXX17
 
-OBJECTS = libgeos_init.o controlledburn_init.o controlledburn.o \
+OBJECTS = controlledburn_init.o \
   core_scanline.o core_wkb.o scanline_shim.o cpp11.o \
-  exactextract/raster_cell_intersection.o \
   exactextract/cell.o \
   exactextract/traversal.o \
   exactextract/traversal_areas.o \
-  exactextract/floodfill.o \
-  exactextract/geos_utils.o \
   exactextract/measures.o \
   exactextract/coordinate.o \
   exactextract/side.o \

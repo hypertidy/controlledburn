@@ -26,10 +26,8 @@ License: Apache License (>= 2)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 LinkingTo:
-    cpp11,
-    libgeos
+    cpp11
 Imports:
-    libgeos,
     wk
 Suggests:
     geos,
@@ -37,7 +35,10 @@ Suggests:
     testthat (>= 3.0.0),
     knitr,
     rmarkdown,
-    align
+    align,
+    fasterize,
+    terra,
+    raster
 URL: https://github.com/hypertidy/controlledburn
 BugReports: https://github.com/hypertidy/controlledburn/issues
 Config/testthat/edition: 3

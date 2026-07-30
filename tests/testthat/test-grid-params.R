@@ -42,14 +42,9 @@ test_that("dimension and resolution are mutually exclusive", {
     "not both")
 })
 
-test_that("burn_sparse accepts same defaults", {
+test_that("burn_sparse is deprecated", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))")
-  r <- burn_sparse(poly)
-  expect_equal(r$extent, c(0.5, 2.5, 0.5, 2.5))
-  expect_equal(r$dimension, c(256L, 256L))
-
-  r2 <- burn_sparse(poly, resolution = 0.1)
-  expect_equal(r2$dimension, c(20L, 20L))
+  expect_error(burn_sparse(poly), "no longer available")
 })
