@@ -1,0 +1,31 @@
+on:
+  push:
+    branches: [main, master, cpp-core]
+  pull_request:
+    branches: [main, master]
+
+name: C++ core tests
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ctest:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S cpp -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure

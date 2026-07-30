@@ -1,0 +1,11 @@
+case,covered_area,edges_empty,line_length,n_points,tol_rel
+aligned_rect,16.0,1,NA,NA,1e-9
+offset_rect,16.0,0,NA,NA,1e-6
+triangle,2232.89,0,NA,NA,1e-4
+hole_ccw,48.0,0,NA,NA,1e-6
+hole_cw,48.0,0,NA,NA,1e-6
+multipolygon,13.0,0,NA,NA,1e-6
+beyond_extent,100.0,1,NA,NA,1e-9
+straddle,18.0,0,NA,NA,1e-6
+line_diagonal,NA,NA,11.401754250991,NA,1e-4
+points_mixed,NA,NA,NA,2,NA

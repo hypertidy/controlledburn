@@ -37,9 +37,15 @@ target_compile_options(controlledburn PRIVATE
 
 if(CONTROLLEDBURN_BUILD_TESTS)
   enable_testing()
+
   add_executable(test_burn tests/test_burn.cpp)
   target_link_libraries(test_burn PRIVATE controlledburn)
   add_test(NAME burn COMMAND test_burn)
+
+  add_executable(test_parity_fixtures tests/test_parity_fixtures.cpp)
+  target_link_libraries(test_parity_fixtures PRIVATE controlledburn)
+  add_test(NAME parity_fixtures COMMAND test_parity_fixtures
+           "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures")
 endif()
 
 include(GNUInstallDirs)
