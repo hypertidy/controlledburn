@@ -93,6 +93,49 @@ Fixture-reading tests exist for all three surfaces:
 - R (`tests/testthat/test-parity-fixtures.R`)
 - Python (`python/tests/test_parity_fixtures.py`)
 
+## Performance
+
+### Scaling: controlledburn vs fasterize
+
+Benchmarked on CGAZ (218 country polygons, 10.1M vertices) at
+increasing grid resolutions. controlledburn produces sparse output
+(runs only in approx mode); fasterize allocates a dense raster.
+
+| Grid | Cells | cb approx | fasterize | Winner |
+|------|-------|-----------|-----------|--------|
+| 256×128 | 33K | 1.7s | 0.4s | fasterize |
+| 1024×512 | 524K | 1.9s | 0.3s | fasterize |
+| 4096×2048 | 8.4M | 2.5s | 0.4s | fasterize |
+| 16384×8192 | 134M | 5.3s | 2.3s | fasterize |
+| 32768×16384 | 537M | 9.0s | 6.4s | fasterize |
+| **65536×32768** | **2.1B** | **16.6s** | **31.4s** | **cb** |
+| 131072×65536 | 8.6B | 34.7s | OOM | cb only |
+
+**Crossover at ~2 billion cells.** Below that, fasterize's simpler
+per-cell cost wins (3–6×). Above it, controlledburn's O(perimeter)
+memory wins — fasterize's dense allocation dominates its runtime, and
+eventually it cannot allocate at all.
+
+The ~1.7s floor at small grids is the cost of walking 10M vertices
+through the exactextract traversal engine, regardless of grid
+resolution. Approx mode skips the coverage fraction computation
+(~30% faster than coverage mode) but retains the walker bookkeeping.
+A dedicated lightweight sweep (edge–row intersections, no walker)
+is scoped at ~120 lines of new C++ and would reduce this constant,
+but is deferred — the scaling advantage already dominates at the
+resolutions where fasterize cannot compete.
+
+### Fasterize parity (NC counties, approx mode)
+
+At 2000×800 on North Carolina's 100 counties: 14 discrepant cells
+out of 841,558 (0.002%), all at polygon boundaries where an edge
+grazes a cell center at floating-point precision. Consistent with
+the boundary handling uncertainties documented in
+[hypertidy/fasterize#6](https://github.com/hypertidy/fasterize/issues/6)
+and [OSGeo/gdal#14615](https://github.com/OSGeo/gdal/issues/14615).
+On constructed geometries (aligned rectangles, offset rectangles,
+triangles, holes), approx mode is cell-for-cell identical to fasterize.
+
 ## Validation
 
 - **Core**: 17 tests — 12 original invariant tests (area conservation
@@ -101,8 +144,10 @@ Fixture-reading tests exist for all three surfaces:
   5 Approx mode tests (aligned rect, offset rect, beyond-extent, hole,
   lines unchanged).
 - **Parity fixtures**: 10 cross-language cases driven by shared CSV.
-- **R**: 196 tests pass. Shim parity with the pre-shim engine
-  confirmed. Malformed WKB warns-and-skips rather than hard GEOS error.
+- **R**: 218 tests pass, including 22 approx-mode tests (output
+  contract, geometry cases, and 5 fasterize parity comparisons).
+  Shim parity with the pre-shim engine confirmed. Malformed WKB
+  warns-and-skips rather than hard GEOS error.
 - **Python**: 17 pytest cases; cross-language parity with R confirmed.
 
 ## Next steps
