@@ -178,17 +178,36 @@ of the cell that falls inside the polygon. Interior cells get fraction
 value between 0 and 1.
 
 ```{r exact-coverage, fig.cap = "Exact coverage: interior cells (blue, fraction = 1.0) are fully inside. Boundary cells (coral) have an exact coverage fraction — the proportion of the cell area that falls inside the polygon edge. Total coverage equals the polygon's true area."}
-# Classify cells
+# Proper segment-cell intersection via parametric clipping
+seg_crosses_cell <- function(x0, y0, x1, y1, cxmin, cymin, cxmax, cymax) {
+  if (min(x0, x1) > cxmax || max(x0, x1) < cxmin ||
+      min(y0, y1) > cymax || max(y0, y1) < cymin) return(FALSE)
+  sdx <- x1 - x0; sdy <- y1 - y0
+  if (sdx != 0) {
+    tx1 <- (cxmin - x0) / sdx; tx2 <- (cxmax - x0) / sdx
+    if (tx1 > tx2) { tmp <- tx1; tx1 <- tx2; tx2 <- tmp }
+  } else {
+    tx1 <- if (x0 >= cxmin && x0 <= cxmax) -Inf else Inf
+    tx2 <- if (x0 >= cxmin && x0 <= cxmax) Inf else -Inf
+  }
+  if (sdy != 0) {
+    ty1 <- (cymin - y0) / sdy; ty2 <- (cymax - y0) / sdy
+    if (ty1 > ty2) { tmp <- ty1; ty1 <- ty2; ty2 <- tmp }
+  } else {
+    ty1 <- if (y0 >= cymin && y0 <= cymax) -Inf else Inf
+    ty2 <- if (y0 >= cymin && y0 <= cymax) Inf else -Inf
+  }
+  max(tx1, ty1, 0) < min(tx2, ty2, 1) - 1e-10
+}
+
 cell_class <- function(cx, cy) {
   xmin <- cx - 0.5; xmax <- cx + 0.5
   ymin <- cy - 0.5; ymax <- cy + 0.5
   n <- length(poly_x) - 1
   edge_crosses <- FALSE
   for (i in seq_len(n)) {
-    x0 <- poly_x[i]; y0 <- poly_y[i]
-    x1 <- poly_x[i+1]; y1 <- poly_y[i+1]
-    if (max(x0, x1) >= xmin & min(x0, x1) <= xmax &
-        max(y0, y1) >= ymin & min(y0, y1) <= ymax) {
+    if (seg_crosses_cell(poly_x[i], poly_y[i], poly_x[i+1], poly_y[i+1],
+                         xmin, ymin, xmax, ymax)) {
       edge_crosses <- TRUE; break
     }
   }
