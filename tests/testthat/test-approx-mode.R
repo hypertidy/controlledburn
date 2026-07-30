@@ -125,12 +125,13 @@ test_that("approx: multipolygon components handled independently", {
 
 # Helper: fasterize a WKT polygon and return the result as a matrix
 fasterize_to_matrix <- function(poly_wkt, ext, dim) {
-  sf_obj <- sf::st_sf(id = 1, geometry = sf::st_as_sfc(poly_wkt, crs = NA))
+  obj <- data.frame(id = 1, geometry = wk::as_wkb(poly_wkt))
+
   r_old <- raster::raster(terra::rast(
     xmin = ext[1], xmax = ext[2], ymin = ext[3], ymax = ext[4],
     ncols = dim[1], nrows = dim[2], crs = ""
   ))
-  raster::as.matrix(fasterize::fasterize(sf_obj, r_old, field = "id"))
+  raster::as.matrix(fasterize::fasterize(obj, r_old, field = "id"))
 }
 
 test_that("approx matches fasterize: non-aligned rectangle", {

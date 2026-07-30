@@ -31,7 +31,6 @@ Imports:
     wk
 Suggests:
     geos,
-    sf,
     testthat (>= 3.0.0),
     knitr,
     rmarkdown,
