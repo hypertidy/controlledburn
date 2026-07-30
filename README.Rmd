@@ -42,7 +42,7 @@ remotes::install_github("hypertidy/controlledburn")
 library(controlledburn)
 library(geos)
 
-poly <- as_geos_geometry("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
+poly <- as_geos_geometry("POLYGON ((1 1, 8.9 1, 8.9 9.12, 1 9.12, 1 1))")
 
 # Coverage mode (default): exact boundary fractions
 r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
@@ -55,6 +55,11 @@ r_approx
 
 # Materialize only when you need it
 mat <- materialize_chunk(r)
+ximage::ximage(mat, extent = c(0, 10, 0, 10), asp = 1)
+plot(poly, add = TRUE)
+unique(c(mat))
+## no variation in the approx mode
+unique(c(materialise_chunk(r_approx)))
 ```
 
 ### Default grid parameters

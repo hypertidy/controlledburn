@@ -31,15 +31,15 @@ remotes::install_github("hypertidy/controlledburn")
 library(controlledburn)
 library(geos)
 
-poly <- as_geos_geometry("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
+poly <- as_geos_geometry("POLYGON ((1 1, 8.9 1, 8.9 9.12, 1 9.12, 1 1))")
 
 # Coverage mode (default): exact boundary fractions
 r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
 r
 #> <controlledburn> 20 x 20 grid, 1 geometry
-#>   runs:   74 (256 interior cells)
-#>   edges:  0 polygon boundary cells
-#>   sparsity: 36.0% empty
+#>   runs:   45 (240 interior cells)
+#>   edges:  32 polygon boundary cells
+#>   sparsity: 32.0% empty
 
 # Approx mode: cell-centre rule, runs only, no edges
 r_approx <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L),
@@ -52,6 +52,18 @@ r_approx
 
 # Materialize only when you need it
 mat <- materialize_chunk(r)
+ximage::ximage(mat, extent = c(0, 10, 0, 10), asp = 1)
+plot(poly, add = TRUE)
+```
+
+<img src="man/figures/README-usage-1.png" alt="" width="100%" />
+
+``` r
+unique(c(mat))
+#> [1] 0.000 0.240 1.000 0.192 0.800
+## no variation in the approx mode
+unique(c(materialise_chunk(r_approx)))
+#> [1] 0 1
 ```
 
 ### Default grid parameters
@@ -199,7 +211,7 @@ g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
 
 system.time(r <- burn(g, dimension = c(2560L, 1280L), mode = "approx"))
 #>    user  system elapsed 
-#>   0.472   0.023   0.481
+#>   0.631   0.016   0.648
 r
 #> <controlledburn> 2560 x 1280 grid, 206 geometries
 #>   runs:   29536 (1123628 interior cells)
