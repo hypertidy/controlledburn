@@ -26,7 +26,19 @@
 #' no `tile_size` parameter is required (in contrast to [burn_sparse()],
 #' which is polygon-only and tile-bounded).
 #'
-#' @inheritParams burn_sparse
+#' @param x geometry input, one of:
+#'   - a `geos_geometry` vector (from geos)
+#'   - an `sfc` geometry column (from sf)
+#'   - a `wk_wkb` vector (from wk)
+#'   - a list of raw vectors containing WKB
+#' @param extent numeric vector `c(xmin, xmax, ymin, ymax)` defining the raster
+#'   extent. If `NULL` (default), derived from the bounding box of `x`.
+#' @param dimension integer vector `c(ncol, nrow)` defining the grid dimensions.
+#'   If `NULL` (default), fitted to the extent with at most 256 cells along the
+#'   longer axis, preserving aspect ratio. Mutually exclusive with `resolution`.
+#' @param resolution numeric, cell size (scalar for square cells, or
+#'   `c(dx, dy)`). If supplied, `dimension` is computed from `extent / resolution`.
+#'   Mutually exclusive with `dimension`.
 #' @param mode character, one of `"coverage"` (default) or `"approx"`.
 #'   `"coverage"` computes exact coverage fractions for polygon boundary
 #'   cells (the `$edges` table).

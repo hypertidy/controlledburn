@@ -16,6 +16,32 @@ burn_sparse <- function(...) {
   stop("burn_sparse() is no longer available. Use burn().")
 }
 
+#' @export
+print.controlledburn <- function(x, ...) {
+  ncol <- x$dimension[1]
+  nrow <- x$dimension[2]
+  n_runs <- nrow(x$runs)
+  n_edges <- nrow(x$edges)
+  n_lines  <- if (!is.null(x$lines))  nrow(x$lines)  else 0L
+  n_points <- if (!is.null(x$points)) nrow(x$points) else 0L
+  n_ids <- length(unique(c(x$runs$id, x$edges$id, x$lines$id, x$points$id)))
+
+  total_interior <- if (n_runs > 0)
+    sum(as.numeric(x$runs$col_end - x$runs$col_start + 1L)) else 0
+  total_cells <- total_interior + n_edges + n_lines + n_points
+  grid_cells <- as.numeric(ncol) * as.numeric(nrow)
+  sparsity <- 1 - total_cells / grid_cells
+
+  cat(sprintf("<controlledburn> %d x %d grid, %d geometr%s\n",
+              ncol, nrow, n_ids, if (n_ids == 1) "y" else "ies"))
+  cat(sprintf("  runs:   %d (%.0f interior cells)\n", n_runs, total_interior))
+  cat(sprintf("  edges:  %d polygon boundary cells\n", n_edges))
+  if (n_lines > 0) cat(sprintf("  lines:  %d cells\n", n_lines))
+  if (n_points > 0) cat(sprintf("  points: %d cells\n", n_points))
+  cat(sprintf("  sparsity: %.1f%% empty\n", sparsity * 100))
+  invisible(x)
+}
+
 #' Materialise a controlledburn sparse result into a dense matrix
 #'
 #' Converts the sparse run/edge/line tables from [burn()] into a dense

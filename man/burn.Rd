@@ -18,8 +18,9 @@ burn_scanline(x, extent = NULL, dimension = NULL, resolution = NULL)
 \arguments{
 \item{x}{geometry input, one of:
 \itemize{
-\item an \code{sfc} geometry column (from sf)
 \item a \code{geos_geometry} vector (from geos)
+\item an \code{sfc} geometry column (from sf)
+\item a \code{wk_wkb} vector (from wk)
 \item a list of raw vectors containing WKB
 }}
 
