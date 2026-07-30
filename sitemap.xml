@@ -1,6 +1,7 @@
 <urlset xmlns = 'http://www.sitemaps.org/schemas/sitemap/0.9'>
 <url><loc>/404.html</loc></url>
 <url><loc>/CODE_OF_CONDUCT.html</loc></url>
+<url><loc>/articles/algorithms.html</loc></url>
 <url><loc>/articles/architecture.html</loc></url>
 <url><loc>/articles/controlledburn-journey.html</loc></url>
 <url><loc>/articles/index.html</loc></url>
@@ -10,6 +11,7 @@
 <url><loc>/reference/burn.html</loc></url>
 <url><loc>/reference/burn_sparse.html</loc></url>
 <url><loc>/reference/controlledburn-package.html</loc></url>
+<url><loc>/reference/crop_burn.html</loc></url>
 <url><loc>/reference/index.html</loc></url>
 <url><loc>/reference/materialise_chunk.html</loc></url>
 </urlset>
