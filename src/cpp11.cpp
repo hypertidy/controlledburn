@@ -5,14 +5,6 @@
 #include "cpp11/declarations.hpp"
 #include <R_ext/Visibility.h>
 
-// controlledburn_init.cpp
-void cpp_controlledburn_init();
-extern "C" SEXP _controlledburn_cpp_controlledburn_init() {
-  BEGIN_CPP11
-    cpp_controlledburn_init();
-    return R_NilValue;
-  END_CPP11
-}
 // scanline_shim.cpp
 cpp11::writable::list cpp_scanline_burn(cpp11::list wkb_list, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow, std::string mode);
 extern "C" SEXP _controlledburn_cpp_scanline_burn(SEXP wkb_list, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow, SEXP mode) {
@@ -23,8 +15,7 @@ extern "C" SEXP _controlledburn_cpp_scanline_burn(SEXP wkb_list, SEXP xmin, SEXP
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_controlledburn_cpp_controlledburn_init", (DL_FUNC) &_controlledburn_cpp_controlledburn_init, 0},
-    {"_controlledburn_cpp_scanline_burn",       (DL_FUNC) &_controlledburn_cpp_scanline_burn,       8},
+    {"_controlledburn_cpp_scanline_burn", (DL_FUNC) &_controlledburn_cpp_scanline_burn, 8},
     {NULL, NULL, 0}
 };
 }
