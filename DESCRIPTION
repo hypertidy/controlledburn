@@ -1,6 +1,6 @@
 Package: controlledburn
 Title: Sparse Polygon Rasterization with Exact Coverage Fractions
-Version: 0.1.3
+Version: 0.1.3.9001
 Authors@R: c(
     person("Michael", "Sumner", email = "mdsumner@gmail.com",
            role = c("aut", "cre"),
@@ -25,22 +25,22 @@ Description: Rasterize polygons without materializing any pixel values.
 License: Apache License (>= 2)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
-RoxygenNote: 7.3.3
 LinkingTo:
-    cpp11,
-    libgeos
+    cpp11
 Imports:
-    libgeos,
     wk
 Suggests:
     geos,
-    sf,
     testthat (>= 3.0.0),
     knitr,
     rmarkdown,
-    align
+    align,
+    fasterize,
+    terra,
+    raster
 URL: https://github.com/hypertidy/controlledburn
 BugReports: https://github.com/hypertidy/controlledburn/issues
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Remotes: mdsumner/align
+Config/roxygen2/version: 8.0.0

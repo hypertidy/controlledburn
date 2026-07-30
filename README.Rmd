@@ -16,20 +16,19 @@ knitr::opts_chunk$set(
 # controlledburn
 
 <!-- badges: start -->
-[![R-CMD-check](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml)
+[![R-CMD-check](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check-check.yaml/badge.svg)](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check-check.yaml)
 <!-- badges: end -->
 
 Rasterize geometry without materializing any pixel values. controlledburn
 produces sparse tables for polygon, line, and point input — one type-pure
 table per geometry kind.
 
-For polygons: run-length-encoded interior cells and boundary cells with
-exact partial coverage (`fraction` in [0, 1]). For lines: per-cell
-absolute length in CRS units. For points: per-cell records with no
-measure column.
+Two modes: **coverage** (exact analytical coverage fractions via vendored
+exactextract math) and **approx** (cell-centre rule, fasterize
+semantics, runs only). Both are O(perimeter) in time and memory; no
+dense matrix is allocated.
 
-The scanline algorithm is O(perimeter) in time and memory; no dense matrix
-is allocated.
+Dependencies: `cpp11`, `wk`. No GEOS, no sf, no Armadillo.
 
 ## Installation
 
@@ -45,12 +44,17 @@ library(geos)
 
 poly <- as_geos_geometry("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
 
-# Sparse output — no dense matrix allocated
-r <- burn_scanline(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
+# Coverage mode (default): exact boundary fractions
+r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
 r
 
+# Approx mode: cell-centre rule, runs only, no edges
+r_approx <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L),
+                 mode = "approx")
+r_approx
+
 # Materialize only when you need it
-mat <- materialize_chunk(r, c(0, 10, 0, 10))
+mat <- materialize_chunk(r)
 ```
 
 ### Default grid parameters
@@ -58,14 +62,14 @@ mat <- materialize_chunk(r, c(0, 10, 0, 10))
 With no extent or dimension, controlledburn derives both from the geometry:
 
 ```{r helpers}
-r <- burn_scanline(poly)
+r <- burn(poly)
 # extent from wk::wk_bbox(), 256 cells on the long axis
 ```
 
 Or specify resolution:
 
 ```{r resolution}
-r <- burn_scanline(poly, resolution = 0.5)
+r <- burn(poly, resolution = 0.5)
 ```
 
 ### Lines and points
@@ -75,8 +79,8 @@ Lines produce a `$lines` table with absolute length within each cell
 
 ```{r line-usage}
 line <- as_geos_geometry("LINESTRING (0 5, 10 5)")
-r <- burn_scanline(line, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
-r$lines
+r <- burn(line, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
+head(r$lines)
 ```
 
 Points produce a `$points` table with one record per cell hit (no
@@ -84,21 +88,26 @@ measure column — a point is either in a cell or it isn't):
 
 ```{r point-usage}
 pts <- as_geos_geometry(c("POINT (2 3)", "POINT (7 8)"))
-r <- burn_scanline(pts, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
+r <- burn(pts, extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
 r$points
 ```
 
 ### Geometry input
 
-`burn_scanline()` accepts `geos_geometry`, `sfc` (sf), `wk::wkb()`,
+`burn()` accepts `geos_geometry`, `sfc` (sf), `wk::wkb()`,
 `blob`, or a list of raw WKB vectors. The raw-WKB path is compatible
 with `vapour::vapour_read_geometry()` and `gdalraster::GDALVector`
-output. For `terra::vect()` input, round-trip via
-`geos::as_geos_geometry()`.
+output.
 
-A note on input: 
-
-controlledburn rasterizes whatever geometry it's given. Self-intersecting rings, unclosed polygons, repeated vertices, near-degenerate inputs — all go through the same fast path. If your input has topological issues that matter for your science, you'll see it in the output and can decide what to do. If they don't matter, you've saved the cost of validating them. Either way the package trusts your judgement on what valid means in context. For when you do want to check or repair, `geos::geos_is_valid()` and `geos::geos_make_valid()` are perfectly suitable. 
+controlledburn rasterizes whatever geometry it's given. Self-intersecting
+rings, unclosed polygons, repeated vertices, near-degenerate inputs — all
+go through the same fast path. If your input has topological issues that
+matter for your science, you'll see it in the output and can decide what
+to do. If they don't matter, you've saved the cost of validating them.
+Either way the package trusts your judgement on what valid means in
+context. For when you do want to check or repair,
+`geos::geos_is_valid()` and `geos::geos_make_valid()` are perfectly
+suitable.
 
 ### Shared boundary complementarity
 
@@ -109,23 +118,23 @@ that sum to exactly 1.0 in every boundary cell — no gaps, no overlaps:
 left  <- as_geos_geometry("POLYGON ((0 0, 5 0, 5 10, 0 10, 0 0))")
 right <- as_geos_geometry("POLYGON ((5 0, 10 0, 10 10, 5 10, 5 0))")
 
-r <- burn_scanline(c(left, right), extent = c(0,10,0,10), dimension = c(20L,20L))
+r <- burn(c(left, right), extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
 
 # Coverage sums to 1.0 in every touched cell
-mat1 <- materialize_chunk(r, id = 1)
-mat2 <- materialize_chunk(r, id = 2)
-max(mat1 + mat2)
-#> [1] 1
+mat <- materialize_chunk(r)
+max(mat)
 ```
 
 ## Output format
 
-`burn_scanline()` returns a list with class `"controlledburn"`:
+`burn()` returns a list with class `"controlledburn"`:
 
 - **`runs`**: `data.frame(row, col_start, col_end, id)` — polygon interior
-  cells (full coverage), run-length encoded by row.
+  cells (full coverage), run-length encoded by row. In approx mode,
+  boundary cells classified as "inside" also appear here.
 - **`edges`**: `data.frame(row, col, fraction, id)` — polygon boundary
-  cells with partial coverage; `fraction` is in (0, 1).
+  cells with partial coverage; `fraction` is in (0, 1). Empty in approx
+  mode.
 - **`lines`**: `data.frame(row, col, length, id)` — line cells; `length`
   is the absolute length of the line within the cell, in CRS units.
 - **`points`**: `data.frame(row, col, id)` — point cells; no measure
@@ -140,68 +149,65 @@ This separation is deliberate: the three measures are different
 mathematical objects and combining them in one column would silently
 mix units.
 
-`burn_sparse()` is polygon-only and returns just `$runs` and `$edges`.
-Line and point input there is rejected with an error pointing at
-`burn_scanline()`.
-
 This is the natural output of scanline rasterization — no dense matrix is
 allocated until `materialize_chunk()` is called.
 
 ## Performance
 
-Scanline algorithm scales with perimeter, not area. The comparison
-table is polygon-only — `burn_sparse()` is the older bbox-bounded
-exactextract path and does not accept line or point input:
+### controlledburn vs fasterize
 
-| Shape | Resolution | Scanline | Dense (burn_sparse) | Speedup |
-|-------|-----------|----------|-------------------|---------|
-| Star | 3200×3200 | 13 ms | 225 ms | 17× |
-| Jagged | 3200×3200 | 15 ms | 136 ms | 9× |
-| NC counties | 2000×800 | 29 ms | 61 ms | 2× |
+Benchmarked on CGAZ (218 country polygons, 10.1M vertices). Approx mode
+uses a lightweight edge-row intersection sweep that bypasses the
+exactextract walker entirely.
 
-Memory for real-world grids (CGAZ at 32K×16K, ~500M cells): ~50 MB sparse
-vs ~2 GB dense.
+| Grid | Cells | cb approx | fasterize | Winner |
+|------|-------|-----------|-----------|--------|
+| 256 × 128 | 33K | 1.0s | 0.5s | fasterize |
+| 4096 × 2048 | 8.4M | 1.1s | 0.4s | fasterize |
+| **16384 × 8192** | **134M** | **1.2s** | **2.8s** | **cb** |
+| 32768 × 16384 | 537M | 1.4s | 9.7s | cb |
+| 65536 × 32768 | 2.1B | 1.7s | OOM | cb only |
+| 131072 × 65536 | 8.6B | 2.4s | OOM | cb only |
 
-## Real-world example: global administrative boundaries
+Crossover at ~134 million cells. Above that, fasterize's dense raster
+allocation dominates. At 8.6 billion cells, controlledburn completes
+in 2.4 seconds where fasterize cannot allocate.
 
-The CGAZ (Geo Boundaries) ADM0 dataset is roughly <!-- TODO: a few hundred MB
-of WKB across ~250 polygons of varying complexity --> a useful stress test
-for both shape complexity and scale.
+On NC counties at 2000×800, approx mode produces cell-for-cell identical
+output to fasterize (zero discrepant cells).
 
-```{r real-world-fetch}
-v <- new(gdalraster::GDALVector, "/vsicurl/https://github.com/mdsumner/geoboundaries/releases/download/latest/geoBoundariesCGAZ_ADM0.parquet")
-v$returnGeomAs ## WKB
-gcol <- v$getGeometryColumn()
-v$setIgnoredFields( setdiff(v$getFieldNames(), gcol))
-wkbgeom <- wk::wkb(v$fetch(-1)[[gcol]])
-v$close()
+### Extreme scale
 
-system.time(burn_scanline(wkbgeom))
+Antarctic rock outcrop polygons (25,954 geometries) against a REMA 2m DEM
+grid (2.7 million × 2.9 million pixels, ~8 trillion cells): 8 seconds,
+438 MB of sparse output, 99.8% sparsity. A dense raster at this
+resolution would require ~30 TB.
 
-system.time(r1 <- burn_scanline(wkbgeom, dimension = c(8192, 4096)))
-str(r1)
+## CGAZ example
+
+```{r cgaz-example}
+g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
+
+system.time(r <- burn(g, dimension = c(2560L, 1280L), mode = "approx"))
+r
 ```
-
-<!-- TODO: short observation about what the timing demonstrates —
-e.g. "X seconds for the full world at 8K×4K, scaling linearly with
-perimeter as the resolution increases." -->
-
-```{r real-world-scaled}
-system.time(r1 <- burn_scanline(wkbgeom, dimension = c(8192, 4096) * 20))
-pryr::object_size(r1)
-tibble::as_tibble(r1$runs)
-tibble::as_tibble(r1$edges)
-r1[c("extent", "dimension")]
-```
-
 
 ## History
 
 controlledburn was derived from
 [fasterize](https://github.com/ecohealthalliance/fasterize) by Noam
-Ross (EcoHealth Alliance), removing Armadillo and raster package
-dependencies. See [NEWS](NEWS.md) for the version history; the design
-record lives in `inst/docs-design/`.
+Ross (EcoHealth Alliance). The exact coverage fraction algorithm is from
+Daniel Baston's [exactextract](https://github.com/isciences/exactextract)
+C++ library, vendored as 9 GEOS-free analytical geometry files.
+
+The development history: fasterize's scanline algorithm → sparse
+run-length output → exactextract integration for exact coverage
+fractions → native WKB parser and ring walker replacing GEOS → unified
+polygon/line/point rasterization → dual-mode engine (coverage + approx)
+→ lightweight approx sweep → GEOS dependency removed entirely.
+
+See `vignette("architecture")` for the full story, [NEWS](NEWS.md) for
+the version history, and `inst/docs-design/` for design records.
 
 ## See also
 
@@ -217,8 +223,6 @@ record lives in `inst/docs-design/`.
 - [exactextractr](https://github.com/isciences/exactextractr) —
   raster extraction with polygon weights; the source of the
   exactextract C++ algorithm vendored here.
-- <!-- TODO: any other neighbours worth flagging for line/point
-  consumers — `lazysf`, `wk`, `geos`, `gdalraster`? -->
 
 ## Code of Conduct
 

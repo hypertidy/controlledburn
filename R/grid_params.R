@@ -1,4 +1,4 @@
-# grid_params.R — shared grid parameter resolution for burn_sparse / burn_scanline
+# grid_params.R — shared grid parameter resolution for burn_sparse / burn
 
 # uses wk::wk_bbox (imported in controlledburn-package.R)
 .resolve_grid_params <- function(x, extent, dimension, resolution) {

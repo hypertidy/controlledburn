@@ -2,85 +2,15 @@
 % Please edit documentation in R/burn_sparse.R
 \name{burn_sparse}
 \alias{burn_sparse}
-\title{Sparse polygon rasterization with exact coverage fractions}
+\title{Deprecated: use burn() instead}
 \usage{
-burn_sparse(
-  x,
-  extent = NULL,
-  dimension = NULL,
-  resolution = NULL,
-  tile_size = 4096L
-)
+burn_sparse(...)
 }
 \arguments{
-\item{x}{geometry input, one of:
-\itemize{
-\item an \code{sfc} geometry column (from sf)
-\item a \code{geos_geometry} vector (from geos)
-\item a list of raw vectors containing WKB
-}}
-
-\item{extent}{numeric vector \code{c(xmin, xmax, ymin, ymax)} defining the raster
-extent. If \code{NULL} (default), derived from the bounding box of \code{x}.}
-
-\item{dimension}{integer vector \code{c(ncol, nrow)} defining the grid dimensions.
-If \code{NULL} (default), fitted to the extent with at most 256 cells along the
-longer axis, preserving aspect ratio. Mutually exclusive with \code{resolution}.}
-
-\item{resolution}{numeric, cell size (scalar for square cells, or
-\code{c(dx, dy)}). If supplied, \code{dimension} is computed from \code{extent / resolution}.
-Mutually exclusive with \code{dimension}.}
-
-\item{tile_size}{integer, maximum tile dimension (default 4096). The grid is
-processed in tiles of at most \verb{tile_size x tile_size} cells to bound memory
-usage. Set to \code{Inf} to disable tiling. (Not relevant on \code{\link[=burn_scanline]{burn_scanline()}},
-whose memory cost is O(perimeter).)}
-}
-\value{
-A list with class \code{"controlledburn"} containing:
-\describe{
-\item{\code{runs}}{data.frame with columns \code{row}, \code{col_start}, \code{col_end}, \code{id} —
-run-length encoded interior cells (full coverage)}
-\item{\code{edges}}{data.frame with columns \code{row}, \code{col}, \code{fraction}, \code{id} —
-boundary cells with partial coverage, \code{fraction} in (0, 1)}
-\item{\code{extent}}{the raster extent}
-\item{\code{dimension}}{the grid dimensions}
-}
-
-Row and column indices are 1-based. Row 1 is the top (ymax) row.
-The \code{id} column is a 1-based index into the input geometry vector.
+\item{...}{ignored}
 }
 \description{
-Computes exact coverage fractions for polygon-grid intersections via
-an exactextract-style flood-fill, returning sparse two-table output:
-run-length-encoded interior cells and individually weighted boundary
-cells.
-}
-\details{
-Polygon-only. Line and point input are rejected with an error directing
-the caller to \code{\link[=burn_scanline]{burn_scanline()}}, which produces the unified
-(polygon / line / point) output schema.
-
-Compared to \code{\link[=burn_scanline]{burn_scanline()}}, this function is older and uses a
-bounding-box-bounded dense intermediate (hence the \code{tile_size}
-parameter). For polygon input the two functions produce numerically
-identical results; \code{\link[=burn_scanline]{burn_scanline()}} is preferred for new code.
-
-controlledburn does not validate input geometry. It rasterizes what you pass it,
-valid or not, and trusts you to judge the result.
-}
-\examples{
-if (requireNamespace("geos", quietly = TRUE)) {
-  library(geos)
-  poly <- as_geos_geometry("POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))")
-
-  # Explicit extent and dimension
-  result <- burn_sparse(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
-
-  # Defaults: extent from bbox, 256-cell fitted grid
-  result <- burn_sparse(poly)
-
-  # Specify resolution (cell size)
-  result <- burn_sparse(poly, resolution = 0.1)
-}
+\code{burn_sparse()} has been removed. Use \code{\link[=burn]{burn()}} instead, which
+produces identical output for polygon input and also supports
+lines and points.
 }
