@@ -16,10 +16,9 @@ for (i in seq_len(nrow(fixtures))) {
 
   test_that(paste0("parity fixture: ", f$case), {
     wkb_raw <- wk::wk_handle(wk::wkt(f$wkt), wk::wkb_writer())
-    gs <- controlledburn:::grid_params_from_ext(
-      c(f$xmin, f$xmax, f$ymin, f$ymax), c(f$ncol, f$nrow)
-    )
-    result <- controlledburn::burn_scanline(wkb_raw, gs$extent, gs$dimension)
+    extent <- c(f$xmin, f$xmax, f$ymin, f$ymax)
+    dimension <- c(f$ncol, f$nrow)
+    result <- controlledburn::burn(wkb_raw, extent, dimension)
 
     if (!is.na(f$covered_area)) {
       cell_area <- ((f$xmax - f$xmin) / f$ncol) * ((f$ymax - f$ymin) / f$nrow)

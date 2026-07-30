@@ -27,6 +27,14 @@
 #' which is polygon-only and tile-bounded).
 #'
 #' @inheritParams burn_sparse
+#' @param mode character, one of `"coverage"` (default) or `"approx"`.
+#'   `"coverage"` computes exact coverage fractions for polygon boundary
+#'   cells (the `$edges` table).
+#'   `"approx"` uses the cell-center rule (fasterize semantics): a
+#'   boundary cell is included as a full run cell iff the polygon edge
+#'   crosses to the left of the cell center. No `$edges` are produced
+#'   for polygons. Faster (skips traversal math), but approximate.
+#'   Lines and points are unaffected by mode.
 #'
 #' @return A list with class `"controlledburn"` containing:
 #'   \describe{
@@ -35,7 +43,8 @@
 #'       coverage). Empty for line/point input.}
 #'     \item{`edges`}{data.frame with columns `row`, `col`, `fraction`,
 #'       `id` — polygon boundary cells with partial coverage; `fraction`
-#'       is in (0, 1). Empty for line/point input.}
+#'       is in (0, 1). Empty for line/point input, or when
+#'       `mode = "approx"`.}
 #'     \item{`lines`}{data.frame with columns `row`, `col`, `length`,
 #'       `id` — line cells; `length` is the absolute length of the line
 #'       within the cell, in CRS units. Empty for polygon/point input.}
@@ -61,23 +70,28 @@
 #'
 #'   # Polygon: produces $runs (interior) and $edges (fraction in [0, 1])
 #'   poly <- as_geos_geometry("POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))")
-#'   r <- burn_scanline(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+#'   r <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+#'
+#'   # Approx mode: fasterize-style cell-center rule, runs only
+#'   r <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3), mode = "approx")
 #'
 #'   # Line: produces $lines with absolute length in CRS units
 #'   line <- as_geos_geometry("LINESTRING (0.5 0.5, 2.5 2.5)")
-#'   r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+#'   r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
 #'
 #'   # Point: produces $points with row/col only (no measure column)
 #'   pt <- as_geos_geometry("POINT (1.5 1.5)")
-#'   r <- burn_scanline(pt, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+#'   r <- burn(pt, extent = c(0, 3, 0, 3), dimension = c(3, 3))
 #'
 #'   # Defaults: extent from bbox, 256-cell fitted grid
-#'   r <- burn_scanline(poly)
+#'   r <- burn(poly)
 #'
 #'   # By resolution
-#'   r <- burn_scanline(poly, resolution = 0.01)
+#'   r <- burn(poly, resolution = 0.01)
 #' }
-burn_scanline <- function(x, extent = NULL, dimension = NULL, resolution = NULL) {
+burn <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
+                 mode = c("coverage", "approx")) {
+  mode <- match.arg(mode)
   gp <- .resolve_grid_params(x, extent, dimension, resolution)
   extent <- gp$extent
   dimension <- gp$dimension
@@ -90,11 +104,20 @@ burn_scanline <- function(x, extent = NULL, dimension = NULL, resolution = NULL)
   result <- cpp_scanline_burn(
     wkb,
     extent[1], extent[3], extent[2], extent[4],
-    ncol_full, nrow_full
+    ncol_full, nrow_full,
+    mode
   )
 
   result$extent <- extent
   result$dimension <- dimension
   class(result) <- "controlledburn"
   result
+}
+
+#' @rdname burn
+#' @export
+burn_scanline <- function(x, extent = NULL, dimension = NULL, resolution = NULL) {
+  .Deprecated("burn")
+  burn(x, extent = extent, dimension = dimension, resolution = resolution,
+       mode = "coverage")
 }

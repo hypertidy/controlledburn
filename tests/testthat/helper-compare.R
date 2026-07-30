@@ -1,7 +1,7 @@
-# Helper: compare burn_scanline vs burn_sparse on materialised matrices
+# Helper: compare burn vs burn_sparse on materialised matrices
 expect_scanline_matches_sparse <- function(geoms, ext, dim, tol = 1e-5,
                                            label = NULL) {
-  r_sl <- burn_scanline(geoms, extent = ext, dimension = dim)
+  r_sl <- burn(geoms, extent = ext, dimension = dim)
   r_sp <- burn_sparse(geoms, extent = ext, dimension = dim)
   mat_sl <- materialise_chunk(r_sl)
   mat_sp <- materialise_chunk(r_sp)

@@ -8,6 +8,6 @@ cpp_controlledburn_init <- function() {
   invisible(.Call(`_controlledburn_cpp_controlledburn_init`))
 }
 
-cpp_scanline_burn <- function(wkb_list, xmin, ymin, xmax, ymax, ncol, nrow) {
-  .Call(`_controlledburn_cpp_scanline_burn`, wkb_list, xmin, ymin, xmax, ymax, ncol, nrow)
+cpp_scanline_burn <- function(wkb_list, xmin, ymin, xmax, ymax, ncol, nrow, mode) {
+  .Call(`_controlledburn_cpp_scanline_burn`, wkb_list, xmin, ymin, xmax, ymax, ncol, nrow, mode)
 }

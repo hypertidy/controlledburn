@@ -131,7 +131,7 @@ cpp11::writable::list cpp_burn_sparse(
 
     // Reject non-polygon input early with a clear error. burn_sparse() is
     // the polygon-only entry point — line and point support belongs on
-    // burn_scanline(), which produces the type-pure unified output schema
+    // burn(), which produces the type-pure unified output schema
     // (\$runs, \$edges, \$lines, \$points). Without this check, lines fall
     // through to raster_cell_intersection's LINESTRING path which produces
     // edge-only output with length-in-cell values that share a column name
@@ -153,7 +153,7 @@ cpp11::writable::list cpp_burn_sparse(
       }
       cpp11::stop(
         "burn_sparse() supports polygon input only "
-        "(geometry %d is %s). Use burn_scanline() for line and point "
+        "(geometry %d is %s). Use burn() for line and point "
         "geometries; it produces a type-pure table for each geometry kind.",
         k + 1, type_name
       );

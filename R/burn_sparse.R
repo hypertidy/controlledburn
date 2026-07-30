@@ -6,13 +6,13 @@
 #' cells.
 #'
 #' Polygon-only. Line and point input are rejected with an error directing
-#' the caller to [burn_scanline()], which produces the unified
+#' the caller to [burn()], which produces the unified
 #' (polygon / line / point) output schema.
 #'
-#' Compared to [burn_scanline()], this function is older and uses a
+#' Compared to [burn()], this function is older and uses a
 #' bounding-box-bounded dense intermediate (hence the `tile_size`
 #' parameter). For polygon input the two functions produce numerically
-#' identical results; [burn_scanline()] is preferred for new code.
+#' identical results; [burn()] is preferred for new code.
 #'
 #' @param x geometry input, one of:
 #'   - an `sfc` geometry column (from sf)
@@ -28,7 +28,7 @@
 #'   Mutually exclusive with `dimension`.
 #' @param tile_size integer, maximum tile dimension (default 4096). The grid is
 #'   processed in tiles of at most `tile_size x tile_size` cells to bound memory
-#'   usage. Set to `Inf` to disable tiling. (Not relevant on [burn_scanline()],
+#'   usage. Set to `Inf` to disable tiling. (Not relevant on [burn()],
 #'   whose memory cost is O(perimeter).)
 #'
 #' @return A list with class `"controlledburn"` containing:
@@ -166,7 +166,7 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
 
 #' Materialize a controlledburn result to a dense matrix or vector
 #'
-#' Expands a sparse [burn_sparse()] / [burn_scanline()] result into a dense
+#' Expands a sparse [burn_sparse()] / [burn()] result into a dense
 #' matrix, optionally over a subwindow of the parent grid. The matrix's
 #' values depend on which kind of geometry produced the result:
 #'
@@ -183,7 +183,7 @@ burn_sparse <- function(x, extent = NULL, dimension = NULL, resolution = NULL,
 #' units in one matrix. Filter with `id =` to one kind first, or run
 #' separate burns for each kind.
 #'
-#' @param x a `"controlledburn"` object from [burn_sparse()] or [burn_scanline()]
+#' @param x a `"controlledburn"` object from [burn_sparse()] or [burn()]
 #' @param target numeric extent `c(xmin, xmax, ymin, ymax)` to materialize, or
 #'   `NULL` (default) for the full grid. The target extent is snapped outward to
 #'   cell boundaries of the source grid and clamped to the source extent.
@@ -254,7 +254,7 @@ materialize_chunk <- function(x, target = NULL, id = NULL,
 
   runs   <- x$runs
   edges  <- x$edges
-  # $lines and $points are added by burn_scanline; older burn_sparse results
+  # $lines and $points are added by burn; older burn_sparse results
   # don't have them. Guard with NULL checks throughout.
   lines  <- if (!is.null(x$lines))  x$lines  else NULL
   points <- if (!is.null(x$points)) x$points else NULL
@@ -434,7 +434,7 @@ print.controlledburn <- function(x, ...) {
   nrow <- x$dimension[2]
   n_runs <- nrow(x$runs)
   n_edges <- nrow(x$edges)
-  # $lines and $points are present when burn_scanline produced them; older
+  # $lines and $points are present when burn produced them; older
   # burn_sparse results don't have them.
   n_lines  <- if (!is.null(x$lines))  nrow(x$lines)  else 0L
   n_points <- if (!is.null(x$points)) nrow(x$points) else 0L

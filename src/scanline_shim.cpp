@@ -29,7 +29,8 @@
 cpp11::writable::list cpp_scanline_burn(
     cpp11::list wkb_list,
     double xmin, double ymin, double xmax, double ymax,
-    int ncol, int nrow
+    int ncol, int nrow,
+    std::string mode = "coverage"
 ) {
   // Validate here with the historical messages (the core validates too,
   // with its own wording).
@@ -41,6 +42,13 @@ cpp11::writable::list cpp_scanline_burn(
   }
 
   controlledburn::GridSpec grid{xmin, ymin, xmax, ymax, ncol, nrow};
+
+  controlledburn::BurnMode burn_mode = controlledburn::BurnMode::Coverage;
+  if (mode == "approx") {
+    burn_mode = controlledburn::BurnMode::Approx;
+  } else if (mode != "coverage") {
+    cpp11::stop("mode must be 'coverage' or 'approx'");
+  }
 
   int n_geoms = wkb_list.size();
   std::vector<controlledburn::WKBSpan> spans;
@@ -63,7 +71,7 @@ cpp11::writable::list cpp_scanline_burn(
     }
   }
 
-  controlledburn::BurnResult res = controlledburn::burn_wkb(spans, grid);
+  controlledburn::BurnResult res = controlledburn::burn_wkb(spans, grid, burn_mode);
 
   // Surface non-fatal notes (parse failures, GeometryCollection
   // rejection, per-geometry processing errors) as R warnings, matching

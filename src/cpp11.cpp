@@ -21,10 +21,10 @@ extern "C" SEXP _controlledburn_cpp_controlledburn_init() {
   END_CPP11
 }
 // scanline_shim.cpp
-cpp11::writable::list cpp_scanline_burn(cpp11::list wkb_list, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow);
-extern "C" SEXP _controlledburn_cpp_scanline_burn(SEXP wkb_list, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow) {
+cpp11::writable::list cpp_scanline_burn(cpp11::list wkb_list, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow, std::string mode);
+extern "C" SEXP _controlledburn_cpp_scanline_burn(SEXP wkb_list, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow, SEXP mode) {
   BEGIN_CPP11
-    return cpp11::as_sexp(cpp_scanline_burn(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(wkb_list), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow)));
+    return cpp11::as_sexp(cpp_scanline_burn(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(wkb_list), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow), cpp11::as_cpp<cpp11::decay_t<std::string>>(mode)));
   END_CPP11
 }
 
@@ -32,7 +32,7 @@ extern "C" {
 static const R_CallMethodDef CallEntries[] = {
     {"_controlledburn_cpp_burn_sparse",         (DL_FUNC) &_controlledburn_cpp_burn_sparse,         7},
     {"_controlledburn_cpp_controlledburn_init", (DL_FUNC) &_controlledburn_cpp_controlledburn_init, 0},
-    {"_controlledburn_cpp_scanline_burn",       (DL_FUNC) &_controlledburn_cpp_scanline_burn,       7},
+    {"_controlledburn_cpp_scanline_burn",       (DL_FUNC) &_controlledburn_cpp_scanline_burn,       8},
     {NULL, NULL, 0}
 };
 }

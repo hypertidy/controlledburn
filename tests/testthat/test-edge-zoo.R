@@ -49,7 +49,7 @@ test_that("polygon shared horizontal edge — coverage is complementary", {
   # what each contributes — no double-count, no missed sliver.
   p1 <- geos::as_geos_geometry("POLYGON ((2 2, 8 2, 8 5, 2 5, 2 2))")
   p2 <- geos::as_geos_geometry("POLYGON ((2 5, 8 5, 8 8, 2 8, 2 5))")
-  r <- burn_scanline(c(p1, p2), extent = ext10, dimension = c(10L, 10L))
+  r <- burn(c(p1, p2), extent = ext10, dimension = c(10L, 10L))
   expect_complementary(r, label = "shared horizontal edge")
 })
 
@@ -60,7 +60,7 @@ test_that("horizontal line exactly on a cell-row boundary — pinned ownership",
   # Whatever the answer, total length must equal line length and the
   # line must appear in exactly one row's worth of cells.
   line <- geos::as_geos_geometry("LINESTRING (1 5, 9 5)")
-  r <- burn_scanline(line, extent = ext10, dimension = c(10L, 10L))
+  r <- burn(line, extent = ext10, dimension = c(10L, 10L))
   expect_equal(nrow(r$runs), 0)
   expect_equal(sum(r$lines$length), 8.0, tolerance = 1e-6,
                label = "total length preserved")
@@ -74,7 +74,7 @@ test_that("horizontal line exactly on a cell-row boundary — pinned ownership",
 test_that("vertical line exactly on a cell-column boundary — pinned ownership", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (5 1, 5 9)")
-  r <- burn_scanline(line, extent = ext10, dimension = c(10L, 10L))
+  r <- burn(line, extent = ext10, dimension = c(10L, 10L))
   expect_equal(nrow(r$runs), 0)
   expect_equal(sum(r$lines$length), 8.0, tolerance = 1e-6,
                label = "total length preserved")
@@ -93,7 +93,7 @@ test_that("vertical line exactly on a cell-column boundary — pinned ownership"
 test_that("line entirely inside one cell — single edge, exact length", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (0.2 0.2, 0.8 0.8)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$lines), 1)
   expect_equal(r$lines$length, sqrt(0.72), tolerance = 1e-6)
 })
@@ -102,7 +102,7 @@ test_that("microscopic line — well below one cell, still exact", {
   skip_if_not_installed("geos")
   # Tiny segment inside a cell; cell dx=dy=1, segment length ~1.4e-3.
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 0.501 0.501)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$lines), 1)
   expect_equal(r$lines$length, sqrt(2 * 0.001^2), tolerance = 1e-9)
 })
@@ -110,7 +110,7 @@ test_that("microscopic line — well below one cell, still exact", {
 test_that("zero-length segment between identical coords — no edge", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 0.5 0.5)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$lines), 0)
 })
 
@@ -121,7 +121,7 @@ test_that("triangle with sub-pixel area — coverage stays in [0, 1]", {
   p <- geos::as_geos_geometry(
     "POLYGON ((1.1 1.1, 1.2 1.1, 1.15 1.2, 1.1 1.1))"
   )
-  r <- burn_scanline(p, extent = ext10, dimension = c(10L, 10L))
+  r <- burn(p, extent = ext10, dimension = c(10L, 10L))
   expect_true(all(r$lines$length >= 0 & r$lines$length <= 1))
 })
 
@@ -157,7 +157,7 @@ test_that("line passing exactly through a cell corner", {
   # interior point of the line is a cell corner. The walker must produce
   # one consistent assignment (no duplication, no dropped cells).
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 2.5 2.5)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$runs), 0)
   expect_equal(sum(r$lines$length), sqrt(8), tolerance = 1e-6)
   # Total length is preserved; per-cell distribution may have ties at
@@ -180,7 +180,7 @@ test_that("very long line — sum of per-cell lengths matches analytical", {
   skip_if_not_installed("geos")
   # 1000-unit horizontal line on a 1000x1000 grid — touches 1000 cells.
   line <- geos::as_geos_geometry("LINESTRING (0.5 500.5, 999.5 500.5)")
-  r <- burn_scanline(line,
+  r <- burn(line,
                      extent = c(0, 1000, 0, 1000),
                      dimension = c(1000L, 1000L))
   expect_equal(nrow(r$runs), 0)
@@ -190,7 +190,7 @@ test_that("very long line — sum of per-cell lengths matches analytical", {
 test_that("very long diagonal — sum matches sqrt(2)*length", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 999.5 999.5)")
-  r <- burn_scanline(line,
+  r <- burn(line,
                      extent = c(0, 1000, 0, 1000),
                      dimension = c(1000L, 1000L))
   expect_equal(sum(r$lines$length), sqrt(2) * 999.0, tolerance = 1e-2)
@@ -229,7 +229,7 @@ test_that("self-intersecting line — lengths sum, not unioned", {
   line <- geos::as_geos_geometry(
     "LINESTRING (0.2 0.5, 0.8 0.5, 0.8 0.2, 0.2 0.2, 0.2 0.8)"
   )
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   # Total length analytical: 0.6 + 0.3 + 0.6 + 0.6 = 2.1
   expect_equal(sum(r$lines$length), 2.1, tolerance = 1e-6)
   # Single cell, so single edge, weight equals total length.
@@ -256,7 +256,7 @@ test_that("two polygons touching at a corner — no shared-cell over-count", {
     "MULTIPOLYGON (((2 2, 5 2, 5 5, 2 5, 2 2)),
                    ((5 5, 8 5, 8 8, 5 8, 5 5)))"
   )
-  r <- burn_scanline(p, extent = ext10, dimension = c(10L, 10L))
+  r <- burn(p, extent = ext10, dimension = c(10L, 10L))
   expect_scanline_matches_sparse(p, ext10, c(10L, 10L),
                                  label = "corner-touch multipolygon")
 })
@@ -279,8 +279,8 @@ test_that("polygon with collinear vertices — coverage unchanged", {
   p_clean <- geos::as_geos_geometry(
     "POLYGON ((2 2, 8 2, 8 8, 2 8, 2 2))"
   )
-  r1 <- burn_scanline(p, extent = ext10, dimension = c(10L, 10L))
-  r2 <- burn_scanline(p_clean, extent = ext10, dimension = c(10L, 10L))
+  r1 <- burn(p, extent = ext10, dimension = c(10L, 10L))
+  r2 <- burn(p_clean, extent = ext10, dimension = c(10L, 10L))
   m1 <- materialise_chunk(r1)
   m2 <- materialise_chunk(r2)
   expect_equal(max(abs(m1 - m2)), 0, tolerance = 1e-6)
@@ -294,8 +294,8 @@ test_that("line with collinear vertex — length unchanged", {
   line_without <- geos::as_geos_geometry(
     "LINESTRING (0.5 0.5, 2.5 0.5)"
   )
-  r1 <- burn_scanline(line_with, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
-  r2 <- burn_scanline(line_without, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r1 <- burn(line_with, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r2 <- burn(line_without, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(sum(r1$edges$weight), sum(r2$edges$weight), tolerance = 1e-9)
   # Same cells touched, same per-cell lengths.
   expect_equal(nrow(r1$edges), nrow(r2$edges))
@@ -319,7 +319,7 @@ test_that("antimeridian-crossing line is treated as planar (no unwrapping)", {
   # line wrapping around the antimeridian. controlledburn does not
   # know or care about CRS topology.
   line <- geos::as_geos_geometry("LINESTRING (170 0, -170 0)")
-  r <- burn_scanline(line, extent = c(-180, 180, -10, 10),
+  r <- burn(line, extent = c(-180, 180, -10, 10),
                      dimension = c(360L, 20L))
   expect_equal(nrow(r$runs), 0)
   # 340 units of length, not 20.
@@ -332,7 +332,7 @@ test_that("geometry far outside extent is silently dropped, no error", {
   # produces no records and does not throw.
   line <- geos::as_geos_geometry("LINESTRING (-1000 -1000, -999 -999)")
   expect_silent(
-    r <- burn_scanline(line, extent = ext10, dimension = c(10L, 10L))
+    r <- burn(line, extent = ext10, dimension = c(10L, 10L))
   )
   expect_equal(nrow(r$lines), 0)
   expect_equal(nrow(r$runs), 0)

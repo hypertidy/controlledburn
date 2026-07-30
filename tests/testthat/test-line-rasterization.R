@@ -1,4 +1,4 @@
-# Tests for line-geometry input to burn_scanline.
+# Tests for line-geometry input to burn.
 #
 # Lines produce only an `edges` table (no interior `runs`), with `weight`
 # carrying the absolute length of the line within each cell, in CRS units
@@ -12,7 +12,7 @@ test_that("simple horizontal line crossing three cells emits length per cell", {
   # Cell (3, 2): x in [1, 2], length = 1.0 (full cell width)
   # Cell (3, 3): x in [2, 3], length = 0.5 (from 2.0 to 2.5)
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 2.5 0.5)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_s3_class(r, "controlledburn")
 
   # Lines have no interior runs
@@ -29,7 +29,7 @@ test_that("simple horizontal line crossing three cells emits length per cell", {
 test_that("vertical line crossing three cells emits length per cell", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 0.5 2.5)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
   expect_equal(nrow(r$lines), 3)
   expect_equal(sum(r$lines$length), 2.0)
@@ -39,7 +39,7 @@ test_that("diagonal line: per-cell lengths sum to total length", {
   skip_if_not_installed("geos")
   # Diagonal from (0.5, 0.5) to (2.5, 2.5). Total length = sqrt(8) ≈ 2.828.
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 2.5 2.5)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
   expect_true(nrow(r$lines) > 0)
   expect_equal(sum(r$lines$length), sqrt(8), tolerance = 1e-6)
@@ -51,7 +51,7 @@ test_that("line with vertex inside a cell sums sub-segment lengths", {
   # then up to (1.5, 1.0). The cell's traversal records [entry, vertex, exit]
   # and the length sum is 0.5 + 0.5 = 1.0.
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 1.5 0.5, 1.5 2.5)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
   expect_true(nrow(r$lines) > 0)
   # Total length: 1.0 (horizontal) + 2.0 (vertical) = 3.0
@@ -62,7 +62,7 @@ test_that("line entirely within a single cell", {
   skip_if_not_installed("geos")
   # Both endpoints inside cell (3, 1) of a 3x3 grid on extent (0,3)x(0,3).
   line <- geos::as_geos_geometry("LINESTRING (0.2 0.2, 0.8 0.8)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
   expect_equal(nrow(r$lines), 1)
   expect_equal(r$lines$length, sqrt(0.72), tolerance = 1e-6) # sqrt(0.6^2 + 0.6^2)
@@ -74,7 +74,7 @@ test_that("MULTILINESTRING accumulates lengths across components", {
   ml <- geos::as_geos_geometry(
     "MULTILINESTRING ((0.5 0.5, 2.5 0.5), (0.5 2.5, 2.5 2.5))"
   )
-  r <- burn_scanline(ml, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(ml, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
   expect_equal(sum(r$lines$length), 4.0, tolerance = 1e-6)
 })
@@ -82,7 +82,7 @@ test_that("MULTILINESTRING accumulates lengths across components", {
 test_that("degenerate line (single point repeated) emits no edges", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (0.5 0.5, 0.5 0.5)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
   expect_equal(nrow(r$lines), 0)
 })
@@ -90,7 +90,7 @@ test_that("degenerate line (single point repeated) emits no edges", {
 test_that("line outside grid extent emits no edges", {
   skip_if_not_installed("geos")
   line <- geos::as_geos_geometry("LINESTRING (-2 -2, -1 -1)")
-  r <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_equal(nrow(r$runs), 0)
   expect_equal(nrow(r$lines), 0)
 })
@@ -101,7 +101,7 @@ test_that("GeometryCollection input is rejected with a warning", {
     "GEOMETRYCOLLECTION (POINT (0.5 0.5), LINESTRING (0.5 0.5, 1.5 1.5))"
   )
   expect_warning(
-    r <- burn_scanline(gc, extent = c(0, 3, 0, 3), dimension = c(3, 3)),
+    r <- burn(gc, extent = c(0, 3, 0, 3), dimension = c(3, 3)),
     "GeometryCollection"
   )
   expect_equal(nrow(r$runs), 0)
@@ -119,8 +119,8 @@ test_that("mixed POLYGON + LINESTRING input via separate burns", {
   )
   line <- geos::as_geos_geometry("LINESTRING (1.5 1.5, 2.5 2.5)")
 
-  rp <- burn_scanline(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
-  rl <- burn_scanline(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  rp <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  rl <- burn(line, extent = c(0, 3, 0, 3), dimension = c(3, 3))
 
   expect_true(nrow(rp$edges) > 0 || nrow(rp$runs) > 0)
   expect_true(nrow(rl$lines) > 0)

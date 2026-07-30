@@ -2,7 +2,7 @@ test_that("materialise_chunk produces correct dimensions", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))")
-  r <- burn_scanline(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   mat <- materialise_chunk(r)
   expect_equal(dim(mat), c(3, 3))  # nrow x ncol
 })
@@ -12,7 +12,7 @@ test_that("materialise_chunk by id", {
   polys <- geos::as_geos_geometry(c(
     "POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))",
     "POLYGON ((6 6, 9 6, 9 9, 6 9, 6 6))"))
-  r <- burn_scanline(polys, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  r <- burn(polys, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
 
   mat1 <- materialise_chunk(r, id = 1)
   mat2 <- materialise_chunk(r, id = 2)
@@ -29,7 +29,7 @@ test_that("materialise_chunk vector output", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))")
-  r <- burn_scanline(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   v <- materialise_chunk(r, type = "vector")
   mat <- materialise_chunk(r, type = "matrix")
   expect_equal(length(v), 9L)
@@ -43,7 +43,7 @@ test_that("print.controlledburn works", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))")
-  r <- burn_scanline(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+  r <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_output(print(r), "controlledburn")
   expect_output(print(r), "3 x 3")
 })
@@ -52,7 +52,7 @@ test_that("materialise_chunk with target extent (subwindow)", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
-  r <- burn_scanline(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
   mat_full <- materialise_chunk(r)
 
   # Request a subwindow that snaps to cell boundaries
@@ -69,7 +69,7 @@ test_that("materialise_chunk target snaps outward", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
-  r <- burn_scanline(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
 
   # Request extent that doesn't align — should snap out
   mat_sub <- materialise_chunk(r, target = c(3.3, 6.7, 3.3, 6.7))
@@ -82,7 +82,7 @@ test_that("materialise_chunk target clamps to source", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
-  r <- burn_scanline(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
 
   # Request extends beyond source
   mat_sub <- materialise_chunk(r, target = c(-5, 15, 2, 8))
@@ -95,7 +95,7 @@ test_that("materialise_chunk max_cells safety", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
-  r <- burn_scanline(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
 
   expect_error(materialise_chunk(r, max_cells = 10), "max_cells")
 })
@@ -104,7 +104,7 @@ test_that("materialise_chunk target outside source warns", {
   skip_if_not_installed("geos")
   poly <- geos::as_geos_geometry(
     "POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
-  r <- burn_scanline(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
 
   expect_warning(materialise_chunk(r, target = c(20, 30, 20, 30)), "does not intersect")
 })
@@ -114,7 +114,7 @@ test_that("materialise_chunk target with id filter", {
   polys <- geos::as_geos_geometry(c(
     "POLYGON ((1 1, 4 1, 4 4, 1 4, 1 1))",
     "POLYGON ((6 6, 9 6, 9 9, 6 9, 6 6))"))
-  r <- burn_scanline(polys, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  r <- burn(polys, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
 
   # Window covering only polygon 2, filtered to id 2
   mat <- materialise_chunk(r, target = c(5, 10, 5, 10), id = 2)

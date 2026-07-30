@@ -1,4 +1,4 @@
-# Tests for point-geometry input to burn_scanline.
+# Tests for point-geometry input to burn.
 #
 # Points are the 0-D member of the unified geometry rasterization family.
 # A point is either in a cell or it isn't — there is no fractional
@@ -9,7 +9,7 @@
 test_that("single point lands in expected cell", {
   skip_if_not_installed("geos")
   pt <- geos::as_geos_geometry("POINT (1.5 1.5)")
-  r <- burn_scanline(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
 
   expect_s3_class(r, "controlledburn")
   expect_equal(nrow(r$runs), 0)
@@ -31,7 +31,7 @@ test_that("multiple points produce one record each", {
     "POINT (1.5 1.5)",   # middle cell      (row 2, col 2)
     "POINT (2.5 2.5)"    # top-right cell   (row 1, col 3)
   ))
-  r <- burn_scanline(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
 
   expect_equal(nrow(r$points), 3)
   # Three distinct geometry ids
@@ -44,7 +44,7 @@ test_that("multiple points produce one record each", {
 test_that("MULTIPOINT shares one id across components", {
   skip_if_not_installed("geos")
   mp <- geos::as_geos_geometry("MULTIPOINT ((0.5 0.5), (2.5 2.5))")
-  r <- burn_scanline(mp, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(mp, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
 
   expect_equal(nrow(r$points), 2)
   # Both records share the same MULTIPOINT's id (= 1)
@@ -60,7 +60,7 @@ test_that("points outside the grid extent are dropped silently", {
     "POINT (0.5 5)"          # out (above)
   ))
   expect_silent(
-    r <- burn_scanline(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+    r <- burn(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   )
   expect_equal(nrow(r$points), 1L)
   expect_equal(r$points$row, 2L)
@@ -83,7 +83,7 @@ test_that("point exactly on cell-corner / boundary lands deterministically", {
   # BELOW it (closer to ymin); a point on a vertical cell boundary
   # belongs to the cell to the RIGHT (closer to xmax).
   pt <- geos::as_geos_geometry("POINT (1 1)")
-  r <- burn_scanline(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$points), 1)
   # If this assertion ever needs to change, the change is an API contract
   # change, not a routine fix.
@@ -102,7 +102,7 @@ test_that("point at exactly xmin / xmax / ymin / ymax — extent-edge inclusion"
     "POINT (0 3)",   # xmin, ymax — top-left corner
     "POINT (3 0)"    # xmax, ymin — bottom-right corner
   ))
-  r <- burn_scanline(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$points), 4)
 })
 
@@ -113,7 +113,7 @@ test_that("multiple points in same cell accumulate in materialise (count)", {
     "POINT (1.5 1.5)",
     "POINT (1.8 1.8)"
   ))
-  r <- burn_scanline(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$points), 3)
 
   m <- materialise_chunk(r)
@@ -126,7 +126,7 @@ test_that("multiple points in same cell accumulate in materialise (count)", {
 test_that("materialise_chunk fills point cell with weight 1", {
   skip_if_not_installed("geos")
   pt <- geos::as_geos_geometry("POINT (1.5 1.5)")
-  r <- burn_scanline(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   m <- materialise_chunk(r)
   expect_equal(dim(m), c(3, 3))
   expect_equal(m[2, 2], 1)
@@ -139,7 +139,7 @@ test_that("materialise_chunk id filter applies to points", {
     "POINT (0.5 0.5)",   # id 1, cell (3, 1)
     "POINT (2.5 2.5)"    # id 2, cell (1, 3)
   ))
-  r <- burn_scanline(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pts, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
 
   m1 <- materialise_chunk(r, id = 1L)
   expect_equal(m1[3, 1], 1)
@@ -155,7 +155,7 @@ test_that("MULTIPOINT counts each component", {
   mp <- geos::as_geos_geometry(
     "MULTIPOINT ((1.5 1.5), (1.5 1.5), (2.5 2.5))"
   )
-  r <- burn_scanline(mp, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(mp, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   m <- materialise_chunk(r)
   # Two points at (1.5, 1.5) → cell (2, 2) gets 2; one at (2.5, 2.5) → (1, 3) gets 1.
   expect_equal(m[2, 2], 2)
@@ -166,7 +166,7 @@ test_that("MULTIPOINT counts each component", {
 test_that("point output has the expected schema (no weight column)", {
   skip_if_not_installed("geos")
   pt <- geos::as_geos_geometry("POINT (1.5 1.5)")
-  r <- burn_scanline(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_named(r$points, c("row", "col", "id"))
   expect_false("weight" %in% names(r$points))
 })
@@ -174,7 +174,7 @@ test_that("point output has the expected schema (no weight column)", {
 test_that("empty input — no points table issues", {
   skip_if_not_installed("geos")
   pt <- geos::as_geos_geometry("POINT EMPTY")
-  r <- burn_scanline(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
+  r <- burn(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L))
   expect_equal(nrow(r$points), 0)
   expect_equal(nrow(r$edges), 0)
   expect_equal(nrow(r$runs), 0)
@@ -192,9 +192,9 @@ test_that("mixed polygon + line + point requires separate burns", {
   pt   <- geos::as_geos_geometry("POINT (2.5 0.5)")
 
   ext <- c(0, 3, 0, 3); dim <- c(3L, 3L)
-  rp <- burn_scanline(poly, extent = ext, dimension = dim)
-  rl <- burn_scanline(line, extent = ext, dimension = dim)
-  rt <- burn_scanline(pt,   extent = ext, dimension = dim)
+  rp <- burn(poly, extent = ext, dimension = dim)
+  rl <- burn(line, extent = ext, dimension = dim)
+  rt <- burn(pt,   extent = ext, dimension = dim)
 
   expect_true(nrow(rp$edges) + nrow(rp$runs) > 0)
   expect_true(nrow(rl$lines) > 0)
@@ -206,19 +206,19 @@ test_that("burn_sparse() errors on point input rather than silently returning em
   # type.' which cpp_burn_sparse's try/catch demoted to a per-geometry
   # warning, leaving the user with a controlledburn object holding zero
   # records and no clear signal that their input was wrong. The new
-  # behaviour errors up front with a message that names burn_scanline()
+  # behaviour errors up front with a message that names burn()
   # as the working alternative.
   skip_if_not_installed("geos")
   pt <- geos::as_geos_geometry("POINT (1.5 1.5)")
   expect_error(
     burn_sparse(pt, extent = c(0, 3, 0, 3), dimension = c(3L, 3L)),
-    "burn_scanline"
+    "burn"
   )
 
   mp <- geos::as_geos_geometry("MULTIPOINT ((0.5 0.5), (2.5 2.5))")
   expect_error(
     burn_sparse(mp, extent = c(0, 3, 0, 3), dimension = c(3L, 3L)),
-    "burn_scanline"
+    "burn"
   )
 
   # Mixed input: the error fires on the first point encountered.
@@ -227,6 +227,6 @@ test_that("burn_sparse() errors on point input rather than silently returning em
   )
   expect_error(
     burn_sparse(c(poly, pt), extent = c(0, 3, 0, 3), dimension = c(3L, 3L)),
-    "burn_scanline"
+    "burn"
   )
 })
