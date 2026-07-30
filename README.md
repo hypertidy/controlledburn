@@ -1,5 +1,4 @@
 
-
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
 # controlledburn
@@ -43,7 +42,13 @@ r
 #>   sparsity: 36.0% empty
 
 # Approx mode: cell-centre rule, runs only, no edges
-r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L), mode = "approx")
+r_approx <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(20L, 20L),
+                 mode = "approx")
+r_approx
+#> <controlledburn> 20 x 20 grid, 1 geometry
+#>   runs:   16 (256 interior cells)
+#>   edges:  0 polygon boundary cells
+#>   sparsity: 36.0% empty
 
 # Materialize only when you need it
 mat <- materialize_chunk(r)
@@ -84,7 +89,7 @@ head(r$lines)
 ```
 
 Points produce a `$points` table with one record per cell hit (no
-measure column — a point is either in a cell or it isn't):
+measure column — a point is either in a cell or it isn’t):
 
 ``` r
 pts <- as_geos_geometry(c("POINT (2 3)", "POINT (7 8)"))
@@ -97,20 +102,37 @@ r$points
 
 ### Geometry input
 
-`burn()` accepts `geos_geometry`, `sfc` (sf), `wk::wkb()`,
-`blob`, or a list of raw WKB vectors. The raw-WKB path is compatible
-with `vapour::vapour_read_geometry()` and `gdalraster::GDALVector`
-output.
+`burn()` accepts `geos_geometry`, `sfc` (sf), `wk::wkb()`, `blob`, or a
+list of raw WKB vectors. The raw-WKB path is compatible with
+`vapour::vapour_read_geometry()` and `gdalraster::GDALVector` output.
 
-controlledburn rasterizes whatever geometry it's given.
+controlledburn rasterizes whatever geometry it’s given.
 Self-intersecting rings, unclosed polygons, repeated vertices,
 near-degenerate inputs — all go through the same fast path. If your
-input has topological issues that matter for your science, you'll see it
-in the output and can decide what to do. If they don't matter, you've
+input has topological issues that matter for your science, you’ll see it
+in the output and can decide what to do. If they don’t matter, you’ve
 saved the cost of validating them. Either way the package trusts your
 judgement on what valid means in context. For when you do want to check
 or repair, `geos::geos_is_valid()` and `geos::geos_make_valid()` are
 perfectly suitable.
+
+### Shared boundary complementarity
+
+Adjacent polygons with shared edges produce complementary coverage
+fractions that sum to exactly 1.0 in every boundary cell — no gaps, no
+overlaps:
+
+``` r
+left  <- as_geos_geometry("POLYGON ((0 0, 5 0, 5 10, 0 10, 0 0))")
+right <- as_geos_geometry("POLYGON ((5 0, 10 0, 10 10, 5 10, 5 0))")
+
+r <- burn(c(left, right), extent = c(0, 10, 0, 10), dimension = c(20L, 20L))
+
+# Coverage sums to 1.0 in every touched cell
+mat <- materialize_chunk(r)
+max(mat)
+#> [1] 1
+```
 
 ## Output format
 
@@ -118,19 +140,19 @@ perfectly suitable.
 
 - **`runs`**: `data.frame(row, col_start, col_end, id)` — polygon
   interior cells (full coverage), run-length encoded by row. In approx
-  mode, boundary cells classified as "inside" also appear here.
+  mode, boundary cells classified as “inside” also appear here.
 - **`edges`**: `data.frame(row, col, fraction, id)` — polygon boundary
-  cells with partial coverage; `fraction` is in (0, 1). Empty in
-  approx mode.
+  cells with partial coverage; `fraction` is in (0, 1). Empty in approx
+  mode.
 - **`lines`**: `data.frame(row, col, length, id)` — line cells; `length`
   is the absolute length of the line within the cell, in CRS units.
 - **`points`**: `data.frame(row, col, id)` — point cells; no measure
-  column (a point is either in a cell or it isn't).
+  column (a point is either in a cell or it isn’t).
 - **`extent`**: `c(xmin, xmax, ymin, ymax)`
 - **`dimension`**: `c(ncol, nrow)`
 
 Tables are populated for whichever geometry kinds are in the input. Each
-table's measure column means exactly one thing — `$edges$fraction` is
+table’s measure column means exactly one thing — `$edges$fraction` is
 dimensionless, `$lines$length` is in CRS units, points have no measure.
 This separation is deliberate: the three measures are different
 mathematical objects and combining them in one column would silently mix
@@ -147,58 +169,54 @@ Benchmarked on CGAZ (218 country polygons, 10.1M vertices). Approx mode
 uses a lightweight edge-row intersection sweep that bypasses the
 exactextract walker entirely.
 
-| Grid | Cells | cb approx | fasterize | Winner |
-|------|-------|-----------|-----------|--------|
-| 256 × 128 | 33K | 1.0s | 0.5s | fasterize |
-| 4096 × 2048 | 8.4M | 1.1s | 0.4s | fasterize |
-| **16384 × 8192** | **134M** | **1.2s** | **2.8s** | **cb** |
-| 32768 × 16384 | 537M | 1.4s | 9.7s | cb |
-| 65536 × 32768 | 2.1B | 1.7s | OOM | cb only |
-| 131072 × 65536 | 8.6B | 2.4s | OOM | cb only |
+| Grid             | Cells    | cb approx | fasterize | Winner    |
+|------------------|----------|-----------|-----------|-----------|
+| 256 × 128        | 33K      | 1.0s      | 0.5s      | fasterize |
+| 4096 × 2048      | 8.4M     | 1.1s      | 0.4s      | fasterize |
+| **16384 × 8192** | **134M** | **1.2s**  | **2.8s**  | **cb**    |
+| 32768 × 16384    | 537M     | 1.4s      | 9.7s      | cb        |
+| 65536 × 32768    | 2.1B     | 1.7s      | OOM       | cb only   |
+| 131072 × 65536   | 8.6B     | 2.4s      | OOM       | cb only   |
 
-Crossover at ~134 million cells. Above that, fasterize's dense raster
-allocation dominates. At 8.6 billion cells, controlledburn completes
-in 2.4 seconds where fasterize cannot allocate.
+Crossover at ~134 million cells. Above that, fasterize’s dense raster
+allocation dominates. At 8.6 billion cells, controlledburn completes in
+2.4 seconds where fasterize cannot allocate.
 
-On NC counties at 2000×800, approx mode produces cell-for-cell
-identical output to fasterize (zero discrepant cells).
+On NC counties at 2000×800, approx mode produces cell-for-cell identical
+output to fasterize (zero discrepant cells).
 
 ### Extreme scale
 
 Antarctic rock outcrop polygons (25,954 geometries) against a REMA 2m
-DEM grid (2.7 million × 2.9 million pixels, ~8 trillion cells):
+DEM grid (2.7 million × 2.9 million pixels, ~8 trillion cells): 8
+seconds, 438 MB of sparse output, 99.8% sparsity. A dense raster at this
+resolution would require ~30 TB.
+
+## CGAZ example
 
 ``` r
-g <- vapour::vapour_read_geometry(rock_outcrop_dsn)
-info <- vapour::vapour_raster_info(rema_2m_vrt)
+g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
 
-system.time(cb <- burn(g, extent = info$extent,
-                       dimension = info$dimension, mode = "approx"))
-#>    user  system elapsed
-#>   6.732   1.289   8.009
-
-cb
-#> <controlledburn> 2725100 x 2921100 grid, 25954 geometries
-#>   runs:   27401266 (17883787314 interior cells)
+system.time(r <- burn(g, dimension = c(2560L, 1280L), mode = "approx"))
+#>    user  system elapsed 
+#>   0.472   0.023   0.481
+r
+#> <controlledburn> 2560 x 1280 grid, 206 geometries
+#>   runs:   29536 (1123628 interior cells)
 #>   edges:  0 polygon boundary cells
-#>   sparsity: 99.8% empty
-
-lobstr::obj_size(cb)
-#> 438.42 MB
+#>   sparsity: 65.7% empty
 ```
-
-8 seconds, 438 MB of sparse output, 99.8% sparsity. A dense raster
-at this resolution would require ~30 TB.
 
 ## History
 
 controlledburn was derived from
 [fasterize](https://github.com/ecohealthalliance/fasterize) by Noam Ross
 (EcoHealth Alliance). The exact coverage fraction algorithm is from
-Daniel Baston's [exactextract](https://github.com/isciences/exactextract)
-C++ library, vendored as 9 GEOS-free analytical geometry files.
+Daniel Baston’s
+[exactextract](https://github.com/isciences/exactextract) C++ library,
+vendored as 9 GEOS-free analytical geometry files.
 
-The development history: fasterize's scanline algorithm → sparse
+The development history: fasterize’s scanline algorithm → sparse
 run-length output → exactextract integration for exact coverage
 fractions → native WKB parser and ring walker replacing GEOS → unified
 polygon/line/point rasterization → dual-mode engine (coverage + approx)
@@ -211,15 +229,12 @@ the version history, and `inst/docs-design/` for design records.
 
 - [vaster](https://github.com/hypertidy/vaster) — primitive grid cell ↔
   xy operations; consumes the `(row, col, …)` schema this package emits.
-
 - [silicate](https://github.com/hypertidy/silicate) — the
   primitives-first geometry stance this package follows (segments and
   vertices as first-class objects).
-
 - [polymer2](https://github.com/hypertidy/polymer2) — sparse geometry
   overlay; consumes the `(row, col, fraction, id)` schema this package
   emits for polygons.
-
 - [exactextractr](https://github.com/isciences/exactextractr) — raster
   extraction with polygon weights; the source of the exactextract C++
   algorithm vendored here.
