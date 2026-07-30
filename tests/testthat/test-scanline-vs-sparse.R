@@ -43,10 +43,13 @@ test_that("scanline matches sparse: diamond (all diagonal)", {
 })
 
 test_that("scanline matches sparse: NC counties", {
-  skip_if_not_installed("sf")
-  nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-  nc_geom <- sf::st_geometry(nc[1:5, ])
-  ext <- as.numeric(sf::st_bbox(nc_geom))[c(1, 3, 2, 4)]
-  expect_scanline_matches_sparse(nc_geom, ext, c(500L, 200L),
+  skip_if_not_installed("vapour")
+  nc_path <- system.file("shape/nc.shp", package = "sf")
+  skip_if_not(file.exists(nc_path), "NC shapefile not available")
+  nc_g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(nc_path)))
+  nc5 <- nc_g[1:5]
+  bb <- geos::geos_extent(geos::geos_make_collection(nc5))
+  ext <- c(bb$xmin, bb$xmax, bb$ymin, bb$ymax)
+  expect_scanline_matches_sparse(nc5, ext, c(500L, 200L),
                                  tol = 1e-4, label = "nc5")
 })

@@ -62,10 +62,13 @@ test_that("donut filled with inner polygon", {
 })
 
 test_that("NC counties: no cell exceeds 1.0", {
-  skip_if_not_installed("sf")
-  nc <- sf::st_read(system.file("shape/nc.shp", package = "sf"), quiet = TRUE)
-  nc_geom <- sf::st_geometry(nc[1:10, ])
-  ext <- as.numeric(sf::st_bbox(nc_geom))[c(1, 3, 2, 4)]
+  skip_if_not_installed("vapour")
+  nc_path <- system.file("shape/nc.shp", package = "sf")
+  skip_if_not(file.exists(nc_path), "NC shapefile not available")
+  nc_g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(nc_path)))
+  nc_geom <- nc_g[1:10]
+  bb <- geos::geos_extent(geos::geos_make_collection(nc_geom))
+  ext <- c(bb$xmin, bb$xmax, bb$ymin, bb$ymax)
   r <- burn(nc_geom, extent = ext, dimension = c(500L, 200L))
 
   ids <- unique(c(r$runs$id, r$edges$id))

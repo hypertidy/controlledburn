@@ -34,22 +34,22 @@ test_that("raw WKB list input works", {
   expect_s3_class(r, "controlledburn")
 })
 
-test_that("scanline and sparse agree across input types", {
+test_that("burn agrees across input types (geos, wk_wkt, wk_wkb)", {
   skip_if_not_installed("geos")
-  skip_if_not_installed("sf")
 
   wkt <- "POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))"
   ext <- c(0, 3, 0, 3)
   dim <- c(10L, 10L)
 
   g <- geos::as_geos_geometry(wkt)
-  s <- sf::st_as_sfc(wkt)
   w <- geos::geos_write_wkb(g)
+  # wk_wkt -> wk_wkb via wk_handle round-trip
+  w2 <- wk::wk_handle(wk::wkt(wkt), wk::wkb_writer())
 
   r_geos <- materialise_chunk(burn(g, ext, dim))
-  r_sf   <- materialise_chunk(burn(s, ext, dim))
   r_wkb  <- materialise_chunk(burn(w, ext, dim))
+  r_wk   <- materialise_chunk(burn(w2, ext, dim))
 
-  expect_equal(r_geos, r_sf)
   expect_equal(r_geos, r_wkb)
+  expect_equal(r_geos, r_wk)
 })
