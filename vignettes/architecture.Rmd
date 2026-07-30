@@ -1,0 +1,236 @@
+---
+title: "Architecture: how controlledburn developed"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Architecture: how controlledburn developed}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Origins: fasterize
+
+controlledburn began as a fork of
+[fasterize](https://github.com/ecohealthalliance/fasterize) by Noam
+Ross and EcoHealth Alliance. fasterize was a fast polygon rasterizer
+for R: given a set of polygons and a raster template, it produced a
+materialised raster using a scanline algorithm based on Wylie et al.
+(1967). Its key properties:
+
+- **Cell-centre rule**: a cell is "inside" the polygon if the cell
+  centre falls inside the polygon boundary. Binary in/out, no coverage
+  fractions.
+- **Pixel functions**: Sum, First, Last, Min, Max, Count, Any —
+  applied per-cell across overlapping polygons.
+- **Dense output**: always materialised a full raster object in memory.
+- **Dependencies**: Rcpp, sf (for geometry input), Armadillo (for the
+  raster matrix).
+
+fasterize was fast — much faster than `raster::rasterize()` — but it
+required a dense raster template and could not express partial
+coverage at polygon boundaries.
+
+## The sparse insight
+
+controlledburn's founding insight was that the scanline sweep could
+emit **sparse run-length encoded output** instead of filling a dense
+matrix. For a polygon on a grid, most cells are either fully inside
+(runs of consecutive columns) or fully outside. Only the boundary
+cells need individual attention. The output:
+
+- **`$runs`**: `(row, col_start, col_end, id)` — interior cells, full
+  coverage. One record per horizontal span.
+- **`$edges`**: `(row, col, fraction, id)` — boundary cells with a
+  coverage fraction in (0, 1).
+
+This is O(perimeter) in both time and memory, rather than O(area).
+A small polygon on a 100,000 × 100,000 grid produces a handful of
+run records, not 10 billion pixels.
+
+## Integrating exactextract
+
+The exact coverage fractions came from Daniel Baston's
+[exactextract](https://github.com/isciences/exactextract) C++
+library. The algorithm traces polygon rings through grid cells,
+computing analytically exact sub-pixel coverage fractions — not
+sampling, not approximation. It was the gold standard for zonal
+statistics.
+
+The first integration vendored exactextract's C++ code into
+controlledburn. This brought exact fractions but also brought the
+**GEOS C API** as a hard dependency. exactextract's
+`raster_cell_intersection()` function took `GEOSGeometry*` pointers
+and called GEOS functions throughout: `GEOSGetExteriorRing_r`,
+`GEOSCoordSeq_getXY_r`, `GEOSisEmpty_r`, etc.
+
+The pipeline at this stage:
+
+```
+WKB bytes (from R)
+  → GEOS WKBReader → GEOSGeometry*
+    → exactextract::raster_cell_intersection(grid, ctx, geom)
+      → dense Raster<float> (bounding-box-sized matrix)
+    → dense_to_sparse() → runs + edges tables
+```
+
+This was `burn_sparse()`. It worked, but it allocated a dense
+intermediate for each geometry's bounding box, required GEOS at
+runtime, and only handled polygons.
+
+## Replacing GEOS: the native core
+
+The next major step was replacing every GEOS dependency with native
+C++17 code. This happened in stages:
+
+1. **WKB parser** (~230 lines): reads ISO WKB and EWKB, both byte
+   orders, silently skips Z/M ordinates. No external dependencies.
+   Replaces `GEOSWKBReader_read_r`.
+
+2. **Ring walker**: walks polygon rings through the grid cell-by-cell,
+   tracking entry/exit sides and building traversal coordinate lists.
+   Replaces exactextract's GEOS-dependent ring iteration
+   (`GEOSGetExteriorRing_r`, `GEOSGetInteriorRingN_r`,
+   `GEOSCoordSeq_getXY_r`).
+
+3. **Shoelace orientation**: determines ring winding (CCW vs CW) via
+   the signed-area formula. Replaces `geos_is_ccw`.
+
+4. **Coordinate min/max envelopes**: simple loop over coordinates.
+   Replaces `GEOSEnvelope_r` and the component-box queries.
+
+The analytical coverage math — the actual geometric computation of
+how much of a cell is covered by a polygon edge — was kept from
+exactextract. These files are pure computational geometry with no
+GEOS dependency: `cell.cpp`, `traversal.cpp`, `traversal_areas.cpp`,
+`box.cpp`, `grid.cpp`, `coordinate.cpp`, `side.cpp`, `measures.cpp`,
+`perimeter_distance.cpp`. Nine files, vendored in
+`src/exactextract/`.
+
+The result was `burn()` (originally `burn_scanline()`), a
+GEOS-free scanline engine producing the same sparse output.
+
+## Unified geometry rasterization
+
+With the native core in place, the engine was extended beyond polygons
+to handle all geometry types through a single `burn()` entry point:
+
+- **Polygons** produce `$runs` (interior cells, full coverage) and
+  `$edges` (boundary cells, exact coverage fractions).
+- **Lines** produce `$lines` with `(row, col, length, id)` — the
+  absolute length of line within each cell, in CRS units.
+- **Points** produce `$points` with `(row, col, id)` — no measure
+  column (a point either falls in a cell or it doesn't).
+
+Each table's measure means exactly one thing. No semantic confusion
+from mixing polygon fractions with line lengths in a shared column.
+
+## Two burn modes
+
+The `mode` parameter on `burn()` selects between two code paths:
+
+### Coverage mode (default)
+
+Uses the full exactextract walker to compute exact coverage fractions
+for every boundary cell. The walker traces each ring through the grid,
+building coordinate-level traversal records, then computes analytical
+cell-intersection areas. O(perimeter) time and memory.
+
+This is the mode to use when exact area conservation matters — the
+total burned coverage equals the polygon's true area to floating-point
+precision.
+
+### Approx mode
+
+Reimplements the fasterize cell-centre rule with a dedicated
+lightweight sweep that **bypasses the walker entirely**. For each
+polygon edge, it computes x-intercepts at each row's scanline
+y-midpoint, accumulates winding numbers per row, and sweeps
+left-to-right to emit runs. ~120 lines of C++.
+
+No traversal coordinates, no `CellRecord` objects, no
+`BoundaryCellRecord` bookkeeping — just edge-row intersections and
+winding arithmetic. The output is runs only, no `$edges` for
+polygons.
+
+The boundary convention is left-inclusive (a cell whose centre falls
+exactly on a polygon edge is classified as "inside"), matching
+fasterize's behaviour. On constructed geometries (aligned rectangles,
+offset rectangles, triangles, holes), approx mode produces
+cell-for-cell identical results to fasterize.
+
+## Performance
+
+Benchmarked on CGAZ (218 country polygons, 10.1M vertices):
+
+| Grid | Cells | cb approx | fasterize | Winner |
+|------|-------|-----------|-----------|--------|
+| 256 × 128 | 33K | 1.0s | 0.5s | fasterize |
+| 4096 × 2048 | 8.4M | 1.1s | 0.4s | fasterize |
+| **16384 × 8192** | **134M** | **1.2s** | **2.8s** | **cb** |
+| 32768 × 16384 | 537M | 1.4s | 9.7s | cb |
+| 65536 × 32768 | 2.1B | 1.7s | OOM | cb only |
+| 131072 × 65536 | 8.6B | 2.4s | OOM | cb only |
+
+The crossover is around 134 million cells. Below that, fasterize's
+simpler per-cell cost wins. Above it, controlledburn's sparse output
+and O(perimeter) memory win decisively — fasterize runs out of memory
+above ~2 billion cells, while controlledburn reaches 8.6 billion in
+2.4 seconds.
+
+## Current dependency tree
+
+After removing `burn_sparse()` and the GEOS dependency:
+
+- **C++ core** (`cpp/`): zero external dependencies. Pure C++17.
+- **R package**: `cpp11` (LinkingTo), `wk` (Imports). No GEOS, no sf,
+  no Armadillo.
+- **Python package**: pybind11 + scikit-build-core. No GEOS.
+- **Vendored exactextract**: 9 GEOS-free analytical geometry files
+  (coverage fractions, box intersections, traversal areas).
+
+## The three surfaces
+
+The C++ core is canonical. R and Python are thin bindings:
+
+```
+                     ┌──────────────────────┐
+                     │    C++ core (cpp/)    │
+                     │  scanline engine      │
+                     │  WKB parser           │
+                     │  exactextract subset  │
+                     │  materialize.hpp      │
+                     └─────────┬────────────┘
+                               │
+               ┌───────────────┼───────────────┐
+               │               │               │
+        ┌──────▼──────┐ ┌─────▼──────┐ ┌──────▼──────┐
+        │  R package  │ │   Python   │ │   C++ lib   │
+        │  cpp11 shim │ │  pybind11  │ │  CMake      │
+        │  burn()     │ │  burn()    │ │  burn()     │
+        └─────────────┘ └────────────┘ └─────────────┘
+```
+
+`tools/sync-core.sh` copies the canonical C++ source from `cpp/` into
+the R package's `src/` and `inst/include/` directories. The Python
+package's `CMakeLists.txt` references `cpp/` directly.
+
+Shared parity fixtures in `fixtures/` (CSV with WKT, WKB hex, and
+expected results) are read by test suites in all three languages,
+ensuring cross-language consistency.
+
+## Acknowledgements
+
+- **Noam Ross** and **EcoHealth Alliance**: the original fasterize
+  scanline algorithm.
+- **Daniel Baston** and **ISciences, LLC**: the exactextract C++
+  analytical coverage algorithm, vendored under Apache-2.0.
+- The boundary handling work was informed by discussion in
+  [hypertidy/fasterize#6](https://github.com/hypertidy/fasterize/issues/6)
+  and [OSGeo/gdal#14615](https://github.com/OSGeo/gdal/issues/14615).
+  Dan Baston has since folded the exactextract logic into GEOS itself.
