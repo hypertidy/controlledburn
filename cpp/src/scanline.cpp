@@ -592,6 +592,150 @@ static void process_polygon(
   }
 }
 
+// ---- Lightweight approx sweep ----
+//
+// Direct edge-row intersection sweep for Approx mode. Bypasses the
+// walker entirely: for each polygon edge, compute x-intercepts at
+// each row's y_mid, accumulate winding per row, sweep left-to-right
+// to emit runs. O(edges * rows_touched) with minimal per-cell
+// overhead -- no CellRecords, no traversal coordinates, no
+// BoundaryCellRecords.
+
+static void process_polygon_approx(
+    const Polygon& poly,
+    const GridSpec& gs,
+    int poly_id,
+    std::vector<GridRun>& all_runs
+) {
+  if (poly.rings.empty() || poly.rings[0].size() < 4) return;
+
+  double dx = gs.dx();
+  double dy = gs.dy();
+
+  // Clip to grid extent
+  Box env = ring_envelope(poly.rings[0]);
+  Box grid_box(gs.xmin, gs.ymin, gs.xmax, gs.ymax);
+  if (!env.intersects(grid_box)) return;
+
+  // Row range that the polygon can touch (0-based).
+  // Row 0 is the TOP row: y_mid = ymax - 0.5*dy
+  int row_lo = std::max(0, static_cast<int>(
+      std::floor((gs.ymax - env.ymax) / dy)));
+  int row_hi = std::min(gs.nrow - 1, static_cast<int>(
+      std::floor((gs.ymax - env.ymin) / dy)));
+  if (row_lo > row_hi) return;
+
+  int n_sweep_rows = row_hi - row_lo + 1;
+
+  struct Intercept {
+    double x;
+    int delta;
+  };
+  std::vector<std::vector<Intercept>> row_intercepts(
+      static_cast<size_t>(n_sweep_rows));
+
+  for (size_t ri = 0; ri < poly.rings.size(); ri++) {
+    const CoordSeq& ring = poly.rings[ri];
+    if (ring.size() < 4) continue;
+
+    bool exterior = (ri == 0);
+    int wf = is_ccw(ring) ? 1 : -1;
+    if (!exterior) wf = -wf;
+
+    for (size_t i = 0; i < ring.size() - 1; i++) {
+      double x0 = ring[i].x, y0 = ring[i].y;
+      double x1 = ring[i + 1].x, y1 = ring[i + 1].y;
+
+      if (y0 == y1) continue; // horizontal edge
+
+      // Ensure ya < yb for row range computation
+      double ya = y0, yb = y1, xa = x0, xb = x1;
+      if (ya > yb) { std::swap(ya, yb); std::swap(xa, xb); }
+
+      // Which rows have y_mid in (ya, yb]? Top-inclusive, bottom-
+      // exclusive — matching the walker's half-open crossing convention
+      // (entry_y >= y_mid && exit_y < y_mid, which gives ya < y_mid <= yb).
+      // y_mid(r) = ymax - (r + 0.5) * dy
+      // ya < y_mid  →  r < (ymax - ya)/dy - 0.5
+      // y_mid <= yb →  r >= (ymax - yb)/dy - 0.5
+      int e_row_lo = std::max(row_lo, static_cast<int>(
+          std::ceil((gs.ymax - yb) / dy - 0.5 - 1e-10)));
+      int e_row_hi = std::min(row_hi, static_cast<int>(
+          std::ceil((gs.ymax - ya) / dy - 0.5 - 1e-10) - 1));
+      if (e_row_lo > e_row_hi) continue;
+
+      double inv_dy_edge = 1.0 / (y1 - y0);
+
+      for (int r = e_row_lo; r <= e_row_hi; r++) {
+        double y_mid = gs.ymax - (r + 0.5) * dy;
+        double t = (y_mid - y0) * inv_dy_edge;
+        double x_int = x0 + t * (x1 - x0);
+
+        int delta = (y0 >= y_mid) ? -1 : +1;
+        delta *= wf;
+
+        row_intercepts[static_cast<size_t>(r - row_lo)].push_back(
+            {x_int, delta});
+      }
+    }
+  }
+
+  // Sweep: sort intercepts per row, accumulate winding, emit runs
+  for (int r = row_lo; r <= row_hi; r++) {
+    auto& intercepts = row_intercepts[static_cast<size_t>(r - row_lo)];
+    if (intercepts.empty()) continue;
+
+    std::sort(intercepts.begin(), intercepts.end(),
+              [](const Intercept& a, const Intercept& b) {
+                return a.x < b.x;
+              });
+
+    int winding = 0;
+    int run_start = -1;
+
+    for (const auto& ix : intercepts) {
+      int col = static_cast<int>(std::floor((ix.x - gs.xmin) / dx));
+      if (col < 0) col = 0;
+      if (col >= gs.ncol) col = gs.ncol - 1;
+
+      double x_mid = gs.xmin + (col + 0.5) * dx;
+      bool left_of_center = (ix.x <= x_mid);
+
+      if (left_of_center) {
+        int new_winding = winding + ix.delta;
+        if (winding != 0 && new_winding == 0) {
+          // Leaving polygon before cell center: close run before this cell
+          if (run_start >= 0 && run_start <= col - 1)
+            all_runs.push_back({r + 1, run_start + 1, col, poly_id});
+          run_start = -1;
+        } else if (winding == 0 && new_winding != 0) {
+          // Entering polygon: this cell is inside
+          run_start = col;
+        }
+        winding = new_winding;
+      } else {
+        int new_winding = winding + ix.delta;
+        if (winding != 0 && new_winding == 0) {
+          // Leaving polygon after cell center: include this cell
+          if (run_start < 0) run_start = col;
+          all_runs.push_back({r + 1, run_start + 1, col + 1, poly_id});
+          run_start = -1;
+        } else if (winding == 0 && new_winding != 0) {
+          // Entering polygon after cell center: start after this cell
+          run_start = col + 1;
+        }
+        winding = new_winding;
+      }
+    }
+
+    // Polygon extends beyond grid right edge
+    if (winding != 0 && run_start >= 0 && run_start < gs.ncol) {
+      all_runs.push_back({r + 1, run_start + 1, gs.ncol, poly_id});
+    }
+  }
+}
+
+
 // ---- Process line: per-LINESTRING length-in-cell rasterization ----
 //
 // Walks the line through the grid using walk_polyline (closed=false) and
@@ -690,6 +834,7 @@ static void process_point(
 static void process_geometry(
     const Geometry& g,
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
+    const GridSpec& gs,
     double dx, double dy,
     int geom_id,
     BurnResult& out,
@@ -699,7 +844,11 @@ static void process_geometry(
   // counterparts; each component is processed independently (polygons
   // get their own winding sweep).
   for (const auto& poly : g.polygons) {
-    process_polygon(poly, full_grid, dx, dy, geom_id, out.runs, out.edges, mode);
+    if (mode == BurnMode::Approx) {
+      process_polygon_approx(poly, gs, geom_id, out.runs);
+    } else {
+      process_polygon(poly, full_grid, dx, dy, geom_id, out.runs, out.edges, mode);
+    }
   }
   for (const auto& line : g.lines) {
     process_line(line, full_grid, geom_id, out.lines);
@@ -728,7 +877,7 @@ BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs,
     const Geometry& g = geoms[k];
     if (g.empty()) continue;
     try {
-      process_geometry(g, full_grid, dx, dy, static_cast<int>(k) + 1, out, mode);
+      process_geometry(g, full_grid, gs, dx, dy, static_cast<int>(k) + 1, out, mode);
     } catch (const std::exception& e) {
       out.notes.push_back({static_cast<int32_t>(k) + 1,
                            std::string("error processing geometry: ") + e.what()});
@@ -762,7 +911,7 @@ BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& gs,
     if (g.empty()) continue;
 
     try {
-      process_geometry(g, full_grid, dx, dy, static_cast<int>(k) + 1, out, mode);
+      process_geometry(g, full_grid, gs, dx, dy, static_cast<int>(k) + 1, out, mode);
     } catch (const std::exception& e) {
       out.notes.push_back({static_cast<int32_t>(k) + 1,
                            std::string("error processing geometry: ") + e.what()});
