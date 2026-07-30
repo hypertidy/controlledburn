@@ -62,11 +62,11 @@ pybind11 + scikit-build-core. `burn()` takes WKB bytes (shapely
 `to_wkb` works directly), returns numpy structured arrays;
 `materialize()` returns dense 2D arrays. Python-native argument
 conventions (`bounds` rasterio-style, `shape` numpy-style); identical
-1-based table values to R. 17 pytest cases pass.
+1-based table values to R. `mode` parameter supports both
+`"coverage"` and `"approx"`. 33 pytest cases pass (including 6
+approx mode tests).
 
 Install: `pip install git+https://github.com/hypertidy/controlledburn#subdirectory=python`
-
-**Note:** `mode` parameter not yet wired through Python bindings.
 
 ## CI
 
@@ -95,6 +95,17 @@ Fixture-reading tests exist for all three surfaces:
 
 ## Performance
 
+### Approx mode: two code paths
+
+Approx mode has a dedicated lightweight sweep
+(`process_polygon_approx`) that bypasses the exactextract walker
+entirely. For each polygon edge, it computes x-intercepts at each
+row's y_mid, accumulates winding per row, and sweeps left-to-right
+to emit runs. No CellRecords, no traversal coordinates, no
+BoundaryCellRecords — just edge math and winding. ~120 lines of C++.
+
+Coverage mode still uses the full walker for exact coverage fractions.
+
 ### Scaling: controlledburn vs fasterize
 
 Benchmarked on CGAZ (218 country polygons, 10.1M vertices) at
@@ -103,27 +114,24 @@ increasing grid resolutions. controlledburn produces sparse output
 
 | Grid | Cells | cb approx | fasterize | Winner |
 |------|-------|-----------|-----------|--------|
-| 256×128 | 33K | 1.7s | 0.4s | fasterize |
-| 1024×512 | 524K | 1.9s | 0.3s | fasterize |
-| 4096×2048 | 8.4M | 2.5s | 0.4s | fasterize |
-| 16384×8192 | 134M | 5.3s | 2.3s | fasterize |
-| 32768×16384 | 537M | 9.0s | 6.4s | fasterize |
-| **65536×32768** | **2.1B** | **16.6s** | **31.4s** | **cb** |
-| 131072×65536 | 8.6B | 34.7s | OOM | cb only |
+| 256×128 | 33K | 1.0s | 0.5s | fasterize |
+| 1024×512 | 524K | 1.0s | 0.3s | fasterize |
+| 4096×2048 | 8.4M | 1.1s | 0.4s | fasterize |
+| **16384×8192** | **134M** | **1.2s** | **2.8s** | **cb** |
+| 32768×16384 | 537M | 1.4s | 9.7s | cb |
+| 65536×32768 | 2.1B | 1.7s | OOM | cb only |
+| 131072×65536 | 8.6B | 2.4s | OOM | cb only |
 
-**Crossover at ~2 billion cells.** Below that, fasterize's simpler
-per-cell cost wins (3–6×). Above it, controlledburn's O(perimeter)
-memory wins — fasterize's dense allocation dominates its runtime, and
-eventually it cannot allocate at all.
+**Crossover at ~134 million cells.** Below that, fasterize's simpler
+per-cell cost wins (2–3×). Above it, controlledburn's O(perimeter)
+memory and the lightweight sweep win — at 537M cells, cb is 6.8×
+faster; fasterize OOMs above ~2B cells while cb reaches 8.6B in
+2.4 seconds.
 
-The ~1.7s floor at small grids is the cost of walking 10M vertices
-through the exactextract traversal engine, regardless of grid
-resolution. Approx mode skips the coverage fraction computation
-(~30% faster than coverage mode) but retains the walker bookkeeping.
-A dedicated lightweight sweep (edge–row intersections, no walker)
-is scoped at ~120 lines of new C++ and would reduce this constant,
-but is deferred — the scaling advantage already dominates at the
-resolutions where fasterize cannot compete.
+The ~1.0s floor at small grids is the cost of 10M edge–row
+intersections. The sweep scales primarily with polygon perimeter
+(total edge count × rows touched), barely increasing with grid
+resolution (1.0s → 2.4s across a 260× increase in cell count).
 
 ### Fasterize parity (NC counties, approx mode)
 
@@ -145,16 +153,15 @@ triangles, holes), approx mode is cell-for-cell identical to fasterize.
   lines unchanged).
 - **Parity fixtures**: 10 cross-language cases driven by shared CSV.
 - **R**: 218 tests pass, including 22 approx-mode tests (output
-  contract, geometry cases, and 5 fasterize parity comparisons).
-  Shim parity with the pre-shim engine confirmed. Malformed WKB
-  warns-and-skips rather than hard GEOS error.
-- **Python**: 17 pytest cases; cross-language parity with R confirmed.
+  contract, geometry cases, 5 fasterize parity comparisons).
+  NC county fixture bundled as WKB (no sf/vapour needed at test time).
+  Malformed WKB warns-and-skips rather than hard GEOS error.
+- **Python**: 33 pytest cases including 6 approx-mode tests;
+  cross-language parity with R confirmed.
 
 ## Next steps
 
-1. **Wire approx mode through Python bindings**: add `mode` kwarg to
-   the Python `burn()`.
-3. **Port target/snap/clamp into `materialize.hpp`** using the
+1. **Port target/snap/clamp into `materialize.hpp`** using the
    resurrected `test-materialise.R` as the spec (chunked windowed reads
    for Python too).
 4. **Decide `burn_sparse` deprecation**: the only remaining GEOS user.
