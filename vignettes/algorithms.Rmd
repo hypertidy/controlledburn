@@ -424,82 +424,49 @@ recording the exact coordinates where the ring enters and exits each
 cell. From these traversal records, it computes the analytically exact
 fraction of each boundary cell that falls inside the polygon.
 
-```{r coverage-detail, fig.cap = "Coverage mode boundary cell detail. The polygon edge enters a cell on one side and exits on another. The traversal coordinates define a sub-polygon within the cell whose area is the coverage fraction. This is computed analytically — no sampling, no approximation."}
-# Zoom into a single boundary cell to show the traversal
-# Pick cell (3, 3) — center (2.5, 2.5)
-cell_cx <- 2.5; cell_cy <- 2.5
-cell_xmin <- 2; cell_xmax <- 3; cell_ymin <- 2; cell_ymax <- 3
+```{r coverage-detail, fig.cap = "Coverage mode boundary cell detail. The polygon edge enters at the top side and exits at the left. The shaded region is the portion of the cell inside the polygon — its area divided by the cell area gives the coverage fraction (0.667). This is computed analytically from the entry/exit coordinates, not by sampling."}
+# Cell (3.5, 4.5) where edge (5.2,5.8) → (2.8,4.2) cuts diagonally
+cell_xmin <- 3; cell_xmax <- 4; cell_ymin <- 4; cell_ymax <- 5
 
-# Find where polygon edges cross this cell
-# Edge from (1.3, 1.5) to (6.7, 2.3) crosses this cell
-# Entry: left side at x=2, y = 1.5 + (2-1.3)/(6.7-1.3) * (2.3-1.5) = 1.5 + 0.1296*0.8 = 1.604
-# But that's below the cell... let me find the right edge
-# Edge from (2.8, 4.2) to (1.3, 1.5): crosses this cell
-# At y=3: x = 2.8 + (3-4.2)/(1.5-4.2) * (1.3-2.8) = 2.8 + 0.4444*(-1.5) = 2.133
-# At y=2: x = 2.8 + (2-4.2)/(1.5-4.2) * (1.3-2.8) = 2.8 + 0.8148*(-1.5) = 1.578
+# Edge enters top side at (4.0, 5.0), exits left side at (3.0, 4.333)
+entry <- c(4.0, 5.0)
+exit  <- c(3.0, 4 + 1/3)
 
-# Let me use a cell that's easier to illustrate
-# Cell (5, 3) — center (4.5, 2.5), edge from (1.3,1.5) to (6.7,2.3) crosses bottom
-cell_cx <- 4.5; cell_cy <- 2.5
-cell_xmin <- 4; cell_xmax <- 5; cell_ymin <- 2; cell_ymax <- 3
-
-# Edge 1: (1.3, 1.5) -> (6.7, 2.3)
-# At x=4: y = 1.5 + (4-1.3)/(6.7-1.3) * (2.3-1.5) = 1.5 + 0.5 * 0.8 = 1.9
-# At x=5: y = 1.5 + (5-1.3)/(6.7-1.3) * (2.3-1.5) = 1.5 + 0.685 * 0.8 = 2.048
-# So this edge enters at (4, 1.9) — below the cell. Enters cell bottom at y=2:
-# x at y=2: x = 1.3 + (2-1.5)/(2.3-1.5) * (6.7-1.3) = 1.3 + 0.625 * 5.4 = 4.675
-# Exits at x=5: y = 2.048
-# So the traversal within this cell is (4.675, 2) -> (5, 2.048)
-
-# The polygon coverage in this cell: everything above the line from 
-# (4.675, 2) to (5, 2.048), clipped to the cell
-# Let's build a simple illustration
-
-entry <- c(4.675, 2.0)
-exit  <- c(5.0, 2.048)
-
-# The covered region (below the top of cell, above the edge, within cell walls)
-# It's the cell minus the triangle below the edge
+# Covered region: polygon interior is below-right of the edge
 covered_poly <- data.frame(
-  x = c(cell_xmin, entry[1], exit[1], cell_xmax, cell_xmax, cell_xmin),
-  y = c(cell_ymin, entry[2], exit[2], exit[2], cell_ymax, cell_ymax)
+  x = c(cell_xmin, cell_xmax, cell_xmax, entry[1], exit[1]),
+  y = c(cell_ymin, cell_ymin, cell_ymax, entry[2], exit[2])
 )
 
-# Actually let me simplify — show the edge cutting through the cell
-# and shade the "inside" portion
-# For this edge going up-right, "inside" (polygon interior) is above/left
+frac <- abs(sum(covered_poly$x * c(covered_poly$y[-1], covered_poly$y[1]) -
+                c(covered_poly$x[-1], covered_poly$x[1]) * covered_poly$y) / 2)
 
 ggplot() +
-  # Cell boundary
   geom_rect(aes(xmin = cell_xmin, xmax = cell_xmax,
                 ymin = cell_ymin, ymax = cell_ymax),
             fill = "grey95", colour = "black", linewidth = 0.8) +
-  # Covered area
   geom_polygon(data = covered_poly, aes(x, y),
                fill = "steelblue", alpha = 0.3) +
-  # Edge traversal through cell
-  geom_segment(aes(x = entry[1] - 0.3, xend = exit[1] + 0.3,
-                   y = entry[2] - 0.3 * (exit[2]-entry[2])/(exit[1]-entry[1]),
-                   yend = exit[2] + 0.3 * (exit[2]-entry[2])/(exit[1]-entry[1])),
+  geom_segment(aes(x = entry[1] + 0.3,
+                   y = entry[2] + 0.3 * (exit[2] - entry[2]) / (exit[1] - entry[1]),
+                   xend = exit[1] - 0.3,
+                   yend = exit[2] - 0.3 * (exit[2] - entry[2]) / (exit[1] - entry[1])),
                colour = "black", linewidth = 0.8) +
-  # Entry and exit points
   geom_point(aes(x = c(entry[1], exit[1]), y = c(entry[2], exit[2])),
              colour = "firebrick", size = 3) +
-  # Labels
-  annotate("text", x = 4.3, y = 2.7, label = "inside\n(covered)",
+  annotate("text", x = 3.55, y = 4.3, label = "inside\n(covered)",
            colour = "steelblue", fontface = "bold", size = 4) +
-  annotate("text", x = 4.85, y = 2.15, label = "outside",
+  annotate("text", x = 3.25, y = 4.85, label = "outside",
            colour = "grey50", size = 3.5) +
-  annotate("text", x = entry[1], y = entry[2] - 0.08, label = "entry",
-           colour = "firebrick", size = 3, vjust = 1) +
-  annotate("text", x = exit[1] + 0.02, y = exit[2] + 0.05, label = "exit",
+  annotate("text", x = entry[1] + 0.06, y = entry[2] - 0.06, label = "entry",
            colour = "firebrick", size = 3, hjust = 0) +
-  coord_equal(xlim = c(cell_xmin - 0.2, cell_xmax + 0.2),
-              ylim = c(cell_ymin - 0.2, cell_ymax + 0.2)) +
+  annotate("text", x = exit[1] - 0.06, y = exit[2], label = "exit",
+           colour = "firebrick", size = 3, hjust = 1) +
+  coord_equal(xlim = c(cell_xmin - 0.3, cell_xmax + 0.3),
+              ylim = c(cell_ymin - 0.3, cell_ymax + 0.3)) +
   theme_grid() +
   labs(title = "Boundary cell: coverage fraction from edge traversal",
-       subtitle = sprintf("fraction = %.3f (shaded area / cell area)",
-                          1 - (0.5 * (exit[1] - entry[1]) * (exit[2] - entry[2])) / 1.0))
+       subtitle = sprintf("fraction = %.3f (shaded area / cell area)", frac))
 ```
 
 The interior cells between boundary cells are classified by **winding
