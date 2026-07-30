@@ -45,16 +45,18 @@ Lines and points are unaffected by mode.
   `mode = c("coverage", "approx")`.
 - **`burn_scanline()`** remains as a deprecated wrapper calling
   `burn(..., mode = "coverage")`.
-- **`burn_sparse()`**: older polygon-only path using GEOS + full
-  exactextract dense intermediate. The only remaining GEOS user.
-  Deprecation candidate.
+- **`burn_sparse()`**: removed. Deprecated stub that errors with a
+  message directing users to `burn()`.
 - `cpp_scanline_burn` is a thin cpp11 shim over the core
   (`src/scanline_shim.cpp`). `tools/sync-core.sh` derives the build
   copies from canonical `cpp/`: public headers to
   `inst/include/controlledburn/` (downstream `LinkingTo: controlledburn`
   works), core sources to `src/core_*.cpp` compiled against the
   existing `src/exactextract/` objects.
-- 196 tests pass (0 failures, 0 warnings, 1 expected skip).
+- Dependencies: `cpp11` (LinkingTo), `wk` (Imports). No GEOS, no
+  libgeos, no sf.
+- 191 tests pass (0 failures, 0 warnings, 1 expected skip).
+- `R CMD check` passes clean (0 errors, 0 warnings, 0 notes).
 
 ### Python bindings (`python/`)
 
@@ -159,17 +161,29 @@ triangles, holes), approx mode is cell-for-cell identical to fasterize.
 - **Python**: 33 pytest cases including 6 approx-mode tests;
   cross-language parity with R confirmed.
 
+## GEOS removal
+
+`burn_sparse()` — the only GEOS user — has been removed. The GEOS
+dependency is gone:
+
+- Deleted: `controlledburn.cpp` (burn_sparse C++ shim),
+  `libgeos_init.c`, `dense_to_sparse.h`, and 4 GEOS-dependent
+  exactextract files (`geos_utils`, `floodfill`,
+  `raster_cell_intersection`).
+- Vendored exactextract trimmed to 9 GEOS-free analytical geometry
+  files: `box`, `cell`, `coordinate`, `crossing`, `grid`, `measures`,
+  `perimeter_distance`, `side`, `traversal`, `traversal_areas`.
+- DESCRIPTION: `libgeos` removed from both LinkingTo and Imports.
+- Net change: -2,189 lines.
+
 ## Next steps
 
 1. **Port target/snap/clamp into `materialize.hpp`** using the
    resurrected `test-materialise.R` as the spec (chunked windowed reads
    for Python too).
-4. **Decide `burn_sparse` deprecation**: the only remaining GEOS user.
-   Removing it drops libgeos entirely and shrinks vendored exactextract
-   to the nine GEOS-free files.
-5. **Python sdist/PyPI**: vendor the core into `python/` (sync step
+2. **Python sdist/PyPI**: vendor the core into `python/` (sync step
    like the R side) when a first release is wanted.
-6. **fasterize convergence**: point fasterize at the core (engine +
+3. **fasterize convergence**: point fasterize at the core (engine +
    pixel-function consumer both exist now); approx mode provides the
    center-rule sweep.
-7. Later: Rust binding candidate (same WKB-in, tables-out contract).
+4. Later: Rust binding candidate (same WKB-in, tables-out contract).
