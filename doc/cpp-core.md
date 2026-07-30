@@ -105,20 +105,10 @@ Fixture-reading tests exist for all three surfaces:
   confirmed. Malformed WKB warns-and-skips rather than hard GEOS error.
 - **Python**: 17 pytest cases; cross-language parity with R confirmed.
 
-## Known limitations
-
-- **Approx mode horizontal-edge boundary rows**: when a polygon
-  boundary is exactly at a cell center's y-coordinate (horizontal edge
-  at y_mid), those rows don't generate winding deltas. This means
-  polygons whose extent aligns with cell centers may miss boundary
-  rows. The coverage mode is unaffected. Refinement candidate.
-
 ## Next steps
 
 1. **Wire approx mode through Python bindings**: add `mode` kwarg to
    the Python `burn()`.
-2. **Refine approx mode boundary handling**: investigate the horizontal-
-   edge-at-y_mid case and compare against fasterize output for parity.
 3. **Port target/snap/clamp into `materialize.hpp`** using the
    resurrected `test-materialise.R` as the spec (chunked windowed reads
    for Python too).
