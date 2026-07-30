@@ -33,7 +33,7 @@ Mutually exclusive with \code{dimension}.}
 
 \item{tile_size}{integer, maximum tile dimension (default 4096). The grid is
 processed in tiles of at most \verb{tile_size x tile_size} cells to bound memory
-usage. Set to \code{Inf} to disable tiling. (Not relevant on \code{\link[=burn_scanline]{burn_scanline()}},
+usage. Set to \code{Inf} to disable tiling. (Not relevant on \code{\link[=burn]{burn()}},
 whose memory cost is O(perimeter).)}
 }
 \value{
@@ -58,13 +58,13 @@ cells.
 }
 \details{
 Polygon-only. Line and point input are rejected with an error directing
-the caller to \code{\link[=burn_scanline]{burn_scanline()}}, which produces the unified
+the caller to \code{\link[=burn]{burn()}}, which produces the unified
 (polygon / line / point) output schema.
 
-Compared to \code{\link[=burn_scanline]{burn_scanline()}}, this function is older and uses a
+Compared to \code{\link[=burn]{burn()}}, this function is older and uses a
 bounding-box-bounded dense intermediate (hence the \code{tile_size}
 parameter). For polygon input the two functions produce numerically
-identical results; \code{\link[=burn_scanline]{burn_scanline()}} is preferred for new code.
+identical results; \code{\link[=burn]{burn()}} is preferred for new code.
 
 controlledburn does not validate input geometry. It rasterizes what you pass it,
 valid or not, and trusts you to judge the result.

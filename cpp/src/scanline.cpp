@@ -396,30 +396,42 @@ static void walk_ring(
       double exit_y  = t->coords.back().y;
       double y_mid = (cr.box.ymin + cr.box.ymax) / 2.0;
 
-      bool crosses = (entry_y > y_mid && exit_y < y_mid) ||
-        (entry_y < y_mid && exit_y > y_mid);
+      // Approx mode uses a half-open interval: an edge starting exactly
+      // at y_mid counts as crossing. This picks up horizontal boundary
+      // rows that the strict check misses (polygon edges at cell center
+      // y-coordinates). Coverage mode retains the strict check — its
+      // exact fractions handle boundary cells without winding, and
+      // adding winding would double-count.
+      bool crosses;
+      if (mode == BurnMode::Approx) {
+        crosses = (entry_y >= y_mid && exit_y < y_mid) ||
+                  (entry_y < y_mid && exit_y >= y_mid);
+      } else {
+        crosses = (entry_y > y_mid && exit_y < y_mid) ||
+                  (entry_y < y_mid && exit_y > y_mid);
+      }
       if (!crosses) continue;
 
-      int delta = (entry_y > y_mid) ? -1 : +1; // downward = -1, upward = +1
+      int delta = (entry_y >= y_mid) ? -1 : +1; // downward = -1, upward = +1
       delta *= winding_factor;
 
       BoundaryCellRecord& rec = find_or_create();
       rec.winding_delta += delta;
 
       // Approx mode: classify whether this crossing is left of cell center.
-      // Interpolate x at y_mid along the traversal path.
+      // Interpolate x at y_mid along the traversal path. Skip horizontal
+      // segments (y0 == y1) — they lie ON y_mid but don't contribute a
+      // directional crossing; the real crossing is on an adjacent
+      // non-horizontal segment.
       if (mode == BurnMode::Approx) {
         double x_at_mid = x_mid; // fallback
         const auto& tc = t->coords;
         for (size_t i = 1; i < tc.size(); i++) {
           double y0 = tc[i-1].y, y1 = tc[i].y;
+          if (y0 == y1) continue; // skip horizontal segments
           if ((y0 <= y_mid && y1 >= y_mid) || (y0 >= y_mid && y1 <= y_mid)) {
-            if (y1 != y0) {
-              double frac_along = (y_mid - y0) / (y1 - y0);
-              x_at_mid = tc[i-1].x + frac_along * (tc[i].x - tc[i-1].x);
-            } else {
-              x_at_mid = (tc[i-1].x + tc[i].x) / 2.0;
-            }
+            double frac_along = (y_mid - y0) / (y1 - y0);
+            x_at_mid = tc[i-1].x + frac_along * (tc[i].x - tc[i-1].x);
             break;
           }
         }

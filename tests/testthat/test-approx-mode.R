@@ -182,47 +182,27 @@ test_that("approx matches fasterize: polygon with hole", {
   expect_equal(a_mat > 0, !is.na(f_mat) & f_mat == 1)
 })
 
-# ---- Known discrepancy: horizontal edge at y_mid ----
+# ---- Horizontal edge at y_mid: now resolved ----
 #
-# When a polygon's horizontal edge falls exactly on a cell center's
-# y-coordinate, controlledburn does not generate a winding delta for
-# that row — the edge doesn't cross y_mid, it lies on it. fasterize
-# includes some of these boundary rows (top-inclusive convention).
-#
-# This is documented as a known limitation. The discrepancy only arises
-# when polygon edges align exactly with cell centers, which is a
-# degenerate configuration. Exact coverage mode is unaffected and
-# reports the correct fractional coverage regardless.
+# Polygon edges exactly at cell center y used to miss boundary rows.
+# Fixed via half-open crossing check (>= instead of >) in Approx mode,
+# and skipping horizontal segments in x_at_mid interpolation. Coverage
+# mode uses the original strict check and is unaffected.
 
-test_that("approx: horizontal edge at y_mid is a known fasterize discrepancy", {
+test_that("approx matches fasterize: offset rectangle (edges at cell centers)", {
   skip_if_not_installed("fasterize")
   skip_if_not_installed("sf")
 
-  # Polygon 2.5..6.5 x 4.5..8.5: horizontal edges at y=4.5 and y=8.5,
-  # which are cell centers for rows 6 and 2 respectively.
   poly_wkt <- "POLYGON ((2.5 4.5, 6.5 4.5, 6.5 8.5, 2.5 8.5, 2.5 4.5))"
-
-  g <- as_geos_geometry(poly_wkt)
   a_mat <- materialize_chunk(
-    burn(g, extent = ext10, dimension = dim10, mode = "approx")
+    burn(as_geos_geometry(poly_wkt), extent = ext10, dimension = dim10, mode = "approx")
   )
   f_mat <- fasterize_to_matrix(poly_wkt, ext10, dim10)
+  expect_equal(a_mat > 0, !is.na(f_mat) & f_mat == 1)
 
-  cb_cells <- sum(a_mat > 0)
-  fz_cells <- sum(!is.na(f_mat) & f_mat == 1)
-
-  # controlledburn produces fewer cells than fasterize here because
-  # the horizontal boundary row is not included. This is a known and
-  # documented discrepancy.
-  expect_true(cb_cells < fz_cells)
-
-  # The discrepancy is exactly one row (4 cells on the top boundary).
-  expect_equal(fz_cells - cb_cells, 4L)
-
-  # Meanwhile, exact coverage mode correctly handles this — the
-  # boundary cells get their fractional coverage regardless of the
-  # horizontal edge.
-  r_cov <- burn(g, extent = ext10, dimension = dim10, mode = "coverage")
+  # Coverage mode is unaffected — total area is still exact.
+  r_cov <- burn(as_geos_geometry(poly_wkt), extent = ext10, dimension = dim10,
+                mode = "coverage")
   cell_area <- 1.0
   total_cov <- sum(r_cov$runs$col_end - r_cov$runs$col_start + 1) * cell_area +
     sum(r_cov$edges$fraction) * cell_area

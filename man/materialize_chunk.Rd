@@ -22,7 +22,7 @@ materialise_chunk(
 )
 }
 \arguments{
-\item{x}{a \code{"controlledburn"} object from \code{\link[=burn_sparse]{burn_sparse()}} or \code{\link[=burn_scanline]{burn_scanline()}}}
+\item{x}{a \code{"controlledburn"} object from \code{\link[=burn_sparse]{burn_sparse()}} or \code{\link[=burn]{burn()}}}
 
 \item{target}{numeric extent \code{c(xmin, xmax, ymin, ymax)} to materialize, or
 \code{NULL} (default) for the full grid. The target extent is snapped outward to
@@ -44,7 +44,7 @@ is specified, the matrix dimensions correspond to the snapped subwindow.
 The snapped extent is available as \code{attr(result, "extent")}.
 }
 \description{
-Expands a sparse \code{\link[=burn_sparse]{burn_sparse()}} / \code{\link[=burn_scanline]{burn_scanline()}} result into a dense
+Expands a sparse \code{\link[=burn_sparse]{burn_sparse()}} / \code{\link[=burn]{burn()}} result into a dense
 matrix, optionally over a subwindow of the parent grid. The matrix's
 values depend on which kind of geometry produced the result:
 }
