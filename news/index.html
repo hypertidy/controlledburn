@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3.9001</span>
       </span>
     </div>
 
@@ -32,6 +32,9 @@
     <span class="caret"></span>
   </a>
   <ul class="dropdown-menu" role="menu"><li>
+      <a href="../articles/architecture.html">Architecture: how controlledburn developed</a>
+    </li>
+    <li>
       <a href="../articles/controlledburn-journey.html">controlledburn-journey</a>
     </li>
   </ul></li>
@@ -59,25 +62,37 @@
 
     <div class="section level2">
 <h2 class="page-header" data-toc-text="development version" id="controlledburn-development-version">controlledburn (development version)<a class="anchor" aria-label="anchor" href="#controlledburn-development-version"></a></h2>
-<p>Iteration extending controlledburn from polygon-only to a unified geometry rasterizer over polygon, line, and point input. Output schema gains type-pure tables; the unification follows the geometric structure of measure-on-a-grid as one operation parameterised by Hausdorff dimension. Design philosophy and decisions are recorded in <code>inst/docs-design/unified-geometry-rasterization.md</code>.</p>
 <div class="section level3">
 <h3 id="breaking-changes-development-version">Breaking changes<a class="anchor" aria-label="anchor" href="#breaking-changes-development-version"></a></h3>
-<ul><li><p>Polygon boundary cells: <code>$edges$weight</code> renamed to <code>$edges$fraction</code> to reflect what the column carries (a dimensionless fraction in [0, 1]). [<code><a href="../reference/materialize_chunk.html">materialise_chunk()</a></code>] reads either name for forward compatibility with cached results, but new code should use <code>$edges$fraction</code>.</p></li>
-<li><p><code><a href="../reference/burn_sparse.html">burn_sparse()</a></code> now errors on line and point input. Previously it fell through to a path that produced silent-empty (points) or silently-mistyped (lines) output. The error message redirects to <code><a href="../reference/burn_scanline.html">burn_scanline()</a></code>.</p></li>
+<ul><li><p><strong><code><a href="../reference/burn.html">burn()</a></code> replaces <code><a href="../reference/burn.html">burn_scanline()</a></code></strong> as the main entry point. <code><a href="../reference/burn.html">burn_scanline()</a></code> remains as a deprecated wrapper.</p></li>
+<li><p><strong><code><a href="../reference/burn_sparse.html">burn_sparse()</a></code> removed.</strong> The function is now a deprecated stub that errors with a message directing users to <code><a href="../reference/burn.html">burn()</a></code>. All GEOS-dependent code has been removed; the package no longer depends on <code>libgeos</code>.</p></li>
+<li><p>Polygon boundary cells: <code>$edges$weight</code> renamed to <code>$edges$fraction</code> (done in a previous dev cycle, retained here for completeness).</p></li>
 </ul></div>
 <div class="section level3">
 <h3 id="whats-new-development-version">What’s new<a class="anchor" aria-label="anchor" href="#whats-new-development-version"></a></h3>
-<ul><li><p><code><a href="../reference/burn_scanline.html">burn_scanline()</a></code> accepts LINESTRING, MULTILINESTRING, POINT, and MULTIPOINT alongside the existing POLYGON / MULTIPOLYGON support. Output schema gains <code>$lines</code> (<code>row, col, length, id</code>; absolute length in CRS units) and <code>$points</code> (<code>row, col, id</code>; no measure column — implicit weight = 1).</p></li>
-<li><p><code><a href="../reference/materialize_chunk.html">materialise_chunk()</a></code> handles all four tables. Line cells contribute length, point cells contribute count, polygon cells contribute fraction. Mixed-kind input errors rather than silently combining units; filter to one kind via <code>id =</code> first.</p></li>
-<li><p><code>print.controlledburn</code> reports <code>$lines</code> and <code>$points</code> counts when present.</p></li>
-<li><p>GeometryCollection input is rejected with a warning. Mixed-dimension input would produce a sparse table where rows from different kinds carry different units — caller must split into homogeneous groups and run separate burns. Curved types (CircularString, CompoundCurve, etc.) must be linearised by the caller before passing in.</p></li>
+<ul><li><p><strong><code>mode = c("coverage", "approx")</code></strong> parameter on <code><a href="../reference/burn.html">burn()</a></code>. <code>"coverage"</code> (default) computes exact coverage fractions for polygon boundary cells via the analytical traversal engine. <code>"approx"</code> uses the cell-centre rule (fasterize semantics): boundary cells are included as full run cells iff the cell centre is inside the polygon. No <code>$edges</code> produced in approx mode. Lines and points are unaffected by mode.</p></li>
+<li><p><strong>Lightweight approx sweep.</strong> Approx mode uses a dedicated edge-row intersection sweep (~120 lines of C++) that bypasses the exactextract walker entirely. On CGAZ (218 countries, 10.1M vertices), this is 1.6–14.5× faster than the walker-based path and crosses over fasterize at ~134 million cells. At 537M cells, controlledburn is 6.8× faster than fasterize; at 8.6 billion cells (where fasterize runs out of memory), the sweep completes in 2.4 seconds.</p></li>
+<li><p><strong>Cell-for-cell fasterize parity.</strong> On NC counties at 2000×800, the lightweight sweep produces identical output to fasterize (zero discrepant cells). Boundary conventions match fasterize: left-inclusive, top-inclusive, half-open interval for horizontal edges at cell-centre y-coordinates.</p></li>
+<li><p><strong>C++ core</strong> (<code>cpp/</code>): pure C++17 library with zero external dependencies, built and tested independently via CMake/CTest. <code>tools/sync-core.sh</code> derives R package sources from the canonical core.</p></li>
+<li><p><strong>Python bindings</strong> (<code>python/</code>): pybind11 + scikit-build-core. <code><a href="../reference/burn.html">burn()</a></code> accepts WKB bytes and supports <code>mode="coverage"</code> and <code>mode="approx"</code>. 33 pytest cases pass.</p></li>
+<li><p><strong>Shared parity fixtures</strong> (<code>fixtures/</code>): CSV files with WKT, WKB hex, grid specs, and expected results. Read by C++, R, and Python test suites for cross-language consistency.</p></li>
+<li><p><strong>CI</strong> for all three surfaces: C++ ctest, Python pytest, R CMD check.</p></li>
+</ul></div>
+<div class="section level3">
+<h3 id="dependencies-development-version">Dependencies<a class="anchor" aria-label="anchor" href="#dependencies-development-version"></a></h3>
+<ul><li>
+<strong>Dropped</strong>: <code>libgeos</code> (LinkingTo and Imports). The vendored exactextract subset is trimmed to 9 GEOS-free analytical geometry files.</li>
+<li>
+<strong>Retained</strong>: <code>cpp11</code> (LinkingTo), <code>wk</code> (Imports).</li>
+<li>Test dependencies (<code>sf</code>, <code>fasterize</code>) are optional and gated behind <code>skip_if_not_installed()</code>. NC county test fixture is bundled as serialised WKB — no <code>sf</code> or <code>vapour</code> needed at test time.</li>
 </ul></div>
 <div class="section level3">
 <h3 id="internals-development-version">Internals<a class="anchor" aria-label="anchor" href="#internals-development-version"></a></h3>
-<ul><li><p><code>walk_polyline()</code>: cell-stepping walker extracted from <code>walk_ring()</code>. Geometry-agnostic; takes a <code>closed</code> parameter that selects whether to push back coords for the start-cell-reentry case (true for rings, false for open lines). The polygon path runs the existing winding-sweep post-processing on the walker’s output; the line path sums per-cell segment lengths from the same <code>CellMap</code>.</p></li>
-<li><p><code>process_line()</code>: walks lines on the full grid (no <code>shrink_to_fit</code>), because horizontal/vertical lines have a degenerate bbox that <code>Box::empty()</code> reports as true. Walker cost is O(cells touched), so the bbox-shrinking optimisation is dead weight for lines anyway.</p></li>
-<li><p><code>process_point()</code>: trivial. Computes cell index via <code>Grid::get_row</code> / <code>get_column</code>, drops out-of-extent silently.</p></li>
-<li><p>Edge zoo (<code>tests/testthat/test-edge-zoo.R</code>) pins canonical rasterizer edge cases by category (Horizontal, Sub-pixel, Alignment, Precision, Topology, Collinear, CRS-boundary). Each test pins a <em>convention</em>, not just a numerical expectation, so the test surface doubles as API contract documentation.</p></li>
+<ul><li><p>Unified geometry rasterization: <code><a href="../reference/burn.html">burn()</a></code> handles polygon, line, and point input through a single entry point with type-pure output tables (<code>$runs</code>, <code>$edges</code>, <code>$lines</code>, <code>$points</code>).</p></li>
+<li><p><code>process_polygon_approx()</code>: the lightweight sweep. For each polygon edge, computes x-intercepts at each row’s y_mid, accumulates winding per row, sweeps left-to-right to emit runs. Top-inclusive half-open interval <code>(ya, yb]</code> matches the walker’s crossing convention.</p></li>
+<li><p><code>process_polygon()</code>: the full walker path for coverage mode. Uses the exactextract traversal engine for exact analytical coverage fractions.</p></li>
+<li><p>Edge zoo (<code>tests/testthat/test-edge-zoo.R</code>) pins canonical rasterizer edge cases by category. Each test pins a <em>convention</em>, not just a numerical expectation.</p></li>
+<li><p><code><a href="../articles/architecture.html">vignette("architecture")</a></code> documents the full development story: fasterize origins, exactextract integration, GEOS replacement, dual-mode engine, and scaling characteristics.</p></li>
 </ul></div>
 </div>
     <div class="section level2">
@@ -85,9 +100,9 @@
 <p>Complete rewrite of controlledburn using the exactextract algorithm (Daniel Baston, vendored from exactextractr) for exact polygon-grid coverage fractions.</p>
 <div class="section level3">
 <h3 id="whats-new-0-1-0">What’s new<a class="anchor" aria-label="anchor" href="#whats-new-0-1-0"></a></h3>
-<ul><li><p><code><a href="../reference/burn_scanline.html">burn_scanline()</a></code>: O(perimeter) scanline sweep with winding-number interior classification and exact boundary coverage fractions. No dense matrix allocation — output is sparse runs + edges tables.</p></li>
+<ul><li><p><code><a href="../reference/burn.html">burn_scanline()</a></code>: O(perimeter) scanline sweep with winding-number interior classification and exact boundary coverage fractions. No dense matrix allocation — output is sparse runs + edges tables.</p></li>
 <li><p><code><a href="../reference/burn_sparse.html">burn_sparse()</a></code>: Reference implementation using the exactextract dense algorithm, compressed to the same sparse output format.</p></li>
-<li><p><code><a href="../reference/materialize_chunk.html">materialise_chunk()</a></code>: Opt-in expansion to dense matrix or vector, with per-polygon-id filtering.</p></li>
+<li><p><code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code>: Opt-in expansion to dense matrix or vector, with per-polygon-id filtering.</p></li>
 <li><p>Default grid parameters: extent derived from geometry bbox via <code><a href="https://paleolimbot.github.io/wk/reference/wk_bbox.html" class="external-link">wk::wk_bbox()</a></code>, dimension auto-fitted to 256 cells on the long axis preserving aspect ratio, or specified as <code>resolution</code>.</p></li>
 <li><p>Geometry input via <code><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wk::wkb()</a></code>, <code>geos_geometry</code>, <code>sfc</code>, <code>blob</code>, or raw WKB list (compatible with vapour/gdalraster output).</p></li>
 <li><p>Moved from Rcpp to cpp11, using libgeos for GEOS access.</p></li>
@@ -124,7 +139,7 @@
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer></div>

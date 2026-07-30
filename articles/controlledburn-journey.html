@@ -32,7 +32,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3.9001</span>
       </span>
     </div>
 
@@ -49,6 +49,9 @@
   </a>
   <ul class="dropdown-menu" role="menu">
 <li>
+      <a href="../articles/architecture.html">Architecture: how controlledburn developed</a>
+    </li>
+    <li>
       <a href="../articles/controlledburn-journey.html">controlledburn-journey</a>
     </li>
   </ul>
@@ -305,10 +308,10 @@ scanline code was removed entirely, replaced with the new cpp11
 implementation. The package name was always right; it just needed better
 internals.</p>
 <p>controlledburn 0.1.0 exports three functions.
-<code><a href="../reference/burn_scanline.html">burn_scanline()</a></code> is the new O(perimeter) algorithm.
+<code><a href="../reference/burn.html">burn_scanline()</a></code> is the new O(perimeter) algorithm.
 <code><a href="../reference/burn_sparse.html">burn_sparse()</a></code> is the exactextract-backed reference
 implementation, useful for validation and as a fallback.
-<code><a href="../reference/materialize_chunk.html">materialise_chunk()</a></code> expands the sparse output to a dense
+<code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code> expands the sparse output to a dense
 matrix — opt-in, when you actually need pixels.</p>
 <p>The input interface accepts anything wk can handle:
 <code>geos_geometry</code>, <code>sfc</code>, <code><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wk::wkb()</a></code>,
@@ -374,7 +377,7 @@ exact fraction.</p>
 <p>The sparse two-table output is the foundation, not the final product.
 The immediate next steps:</p>
 <p><strong>Materialisation to tiles.</strong>
-<code><a href="../reference/materialize_chunk.html">materialise_chunk()</a></code> currently expands to a full-grid
+<code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code> currently expands to a full-grid
 matrix. For large grids, you want to materialise to arbitrary tile
 extents — a 256×256 window into a million-cell grid, producing a dense
 tile suitable for writing to a GeoTIFF block or feeding into a raster
@@ -420,7 +423,7 @@ and lets you choose what to do with it.</p>
 
 <div class="pkgdown">
   <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer>
