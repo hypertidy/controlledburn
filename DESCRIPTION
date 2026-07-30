@@ -37,7 +37,8 @@ Suggests:
     align,
     fasterize,
     terra,
-    raster
+    raster,
+    ggplot2
 URL: https://github.com/hypertidy/controlledburn
 BugReports: https://github.com/hypertidy/controlledburn/issues
 Config/testthat/edition: 3
