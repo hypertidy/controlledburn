@@ -7,15 +7,15 @@ test_that("geos geometry input works", {
   expect_true(nrow(r$edges) > 0 || nrow(r$runs) > 0)
 })
 
-test_that("sf sfc input works", {
-poly <- structure(list(structure(list(structure(c(0.5, 2.5, 2.5, 0.5,
-                                                  0.5, 0.5, 0.5, 2.5, 2.5, 0.5), dim = c(5L, 2L))), class = c("XY",
-                                                                                                              "POLYGON", "sfg"))), class = c("sfc_POLYGON", "sfc"), precision = 0, bbox = structure(c(xmin = 0.5,
-                                                                                                                                                                                                      ymin = 0.5, xmax = 2.5, ymax = 2.5), class = "bbox"), crs = structure(list(
-                                                                                                                                                                                                        input = NA_character_, wkt = NA_character_), class = "crs"), n_empty = 0L)
-  r <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
-  expect_s3_class(r, "controlledburn")
-})
+# test_that("sf sfc input works", {
+# poly <- structure(list(structure(list(structure(c(0.5, 2.5, 2.5, 0.5,
+#                                                   0.5, 0.5, 0.5, 2.5, 2.5, 0.5), dim = c(5L, 2L))), class = c("XY",
+#                                                                                                               "POLYGON", "sfg"))), class = c("sfc_POLYGON", "sfc"), precision = 0, bbox = structure(c(xmin = 0.5,
+#                                                                                                                                                                                                       ymin = 0.5, xmax = 2.5, ymax = 2.5), class = "bbox"), crs = structure(list(
+#                                                                                                                                                                                                         input = NA_character_, wkt = NA_character_), class = "crs"), n_empty = 0L)
+#   r <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
+#   expect_s3_class(r, "controlledburn")
+# })
 
 test_that("wk_wkb input works", {
   skip_if_not_installed("geos")

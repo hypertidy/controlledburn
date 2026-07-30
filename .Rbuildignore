@@ -3,6 +3,7 @@
 ^LICENSE\.md$
 ^data-raw$
 ^README\.Rmd$
+^README\.html$
 ^\.github$
 ^CODE_OF_CONDUCT\.md$
 ^src/exactextract/.*\.o$
