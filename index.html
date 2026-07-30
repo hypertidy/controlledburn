@@ -101,15 +101,15 @@
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/hypertidy/controlledburn" class="external-link">controlledburn</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://paleolimbot.github.io/geos/" class="external-link">geos</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">poly</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))"</span><span class="op">)</span></span>
+<span><span class="va">poly</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((1 1, 8.9 1, 8.9 9.12, 1 9.12, 1 1))"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Coverage mode (default): exact boundary fractions</span></span>
 <span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">poly</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">r</span></span>
 <span><span class="co">#&gt; &lt;controlledburn&gt; 20 x 20 grid, 1 geometry</span></span>
-<span><span class="co">#&gt;   runs:   74 (256 interior cells)</span></span>
-<span><span class="co">#&gt;   edges:  0 polygon boundary cells</span></span>
-<span><span class="co">#&gt;   sparsity: 36.0% empty</span></span>
+<span><span class="co">#&gt;   runs:   45 (240 interior cells)</span></span>
+<span><span class="co">#&gt;   edges:  32 polygon boundary cells</span></span>
+<span><span class="co">#&gt;   sparsity: 32.0% empty</span></span>
 <span></span>
 <span><span class="co"># Approx mode: cell-centre rule, runs only, no edges</span></span>
 <span><span class="va">r_approx</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">poly</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span>,</span>
@@ -121,23 +121,37 @@
 <span><span class="co">#&gt;   sparsity: 36.0% empty</span></span>
 <span></span>
 <span><span class="co"># Materialize only when you need it</span></span>
-<span><span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialize_chunk</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">mat</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/materialise_chunk.html">materialize_chunk</a></span><span class="op">(</span><span class="va">r</span><span class="op">)</span></span>
+<span><span class="fu">ximage</span><span class="fu">::</span><span class="fu">ximage</span><span class="op">(</span><span class="va">mat</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, asp <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">poly</span>, add <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<p><img src="reference/figures/README-usage-1.png" alt="" width="100%"></p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">mat</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0.000 0.240 1.000 0.192 0.800</span></span>
+<span><span class="co">## no variation in the approx mode</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="fu"><a href="reference/materialise_chunk.html">materialise_chunk</a></span><span class="op">(</span><span class="va">r_approx</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10] [,11] [,12] [,13] [,14]</span></span>
+<span><span class="co">#&gt; [1,]    0    0    0    0    0    0    0    0    0     0     0     0     0     0</span></span>
+<span><span class="co">#&gt; [2,]    0    0    1    1    1    1    1    1    1     1     1     1     1     1</span></span>
+<span><span class="co">#&gt;      [,15] [,16] [,17] [,18] [,19] [,20]</span></span>
+<span><span class="co">#&gt; [1,]     0     0     0     0     0     0</span></span>
+<span><span class="co">#&gt; [2,]     1     1     1     1     0     0</span></span></code></pre></div>
 <div class="section level3">
 <h3 id="default-grid-parameters">Default grid parameters<a class="anchor" aria-label="anchor" href="#default-grid-parameters"></a>
 </h3>
 <p>With no extent or dimension, controlledburn derives both from the geometry:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">poly</span><span class="op">)</span></span>
 <span><span class="co"># extent from wk::wk_bbox(), 256 cells on the long axis</span></span></code></pre></div>
 <p>Or specify resolution:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">poly</span>, resolution <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="lines-and-points">Lines and points<a class="anchor" aria-label="anchor" href="#lines-and-points"></a>
 </h3>
 <p>Lines produce a <code>$lines</code> table with absolute length within each cell (in CRS units, not a fraction):</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">line</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"LINESTRING (0 5, 10 5)"</span><span class="op">)</span></span>
 <span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">line</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">r</span><span class="op">$</span><span class="va">lines</span><span class="op">)</span></span>
@@ -149,7 +163,7 @@
 <span><span class="co">#&gt; 5  11   5    0.5  1</span></span>
 <span><span class="co">#&gt; 6  11   6    0.5  1</span></span></code></pre></div>
 <p>Points produce a <code>$points</code> table with one record per cell hit (no measure column — a point is either in a cell or it isn’t):</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">pts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"POINT (2 3)"</span>, <span class="st">"POINT (7 8)"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">pts</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20L</span>, <span class="fl">20L</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="va">r</span><span class="op">$</span><span class="va">points</span></span>
@@ -167,7 +181,7 @@
 <h3 id="shared-boundary-complementarity">Shared boundary complementarity<a class="anchor" aria-label="anchor" href="#shared-boundary-complementarity"></a>
 </h3>
 <p>Adjacent polygons with shared edges produce complementary coverage fractions that sum to exactly 1.0 in every boundary cell — no gaps, no overlaps:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">left</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((0 0, 5 0, 5 10, 0 10, 0 0))"</span><span class="op">)</span></span>
 <span><span class="va">right</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((5 0, 10 0, 10 10, 5 10, 5 0))"</span><span class="op">)</span></span>
 <span></span>
@@ -274,12 +288,12 @@
 <div class="section level2">
 <h2 id="cgaz-example">CGAZ example<a class="anchor" aria-label="anchor" href="#cgaz-example"></a>
 </h2>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu">geos</span><span class="fu">::</span><span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="fu">wk</span><span class="fu">::</span><span class="fu"><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wkb</a></span><span class="op">(</span><span class="fu">vapour</span><span class="fu">::</span><span class="fu">vapour_read_geometry</span><span class="op">(</span><span class="fu">sds</span><span class="fu">::</span><span class="fu">CGAZ</span><span class="op">(</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">g</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2560L</span>, <span class="fl">1280L</span><span class="op">)</span>, mode <span class="op">=</span> <span class="st">"approx"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.472   0.023   0.481</span></span>
+<span><span class="co">#&gt;   0.639   0.016   0.654</span></span>
 <span><span class="va">r</span></span>
 <span><span class="co">#&gt; &lt;controlledburn&gt; 2560 x 1280 grid, 206 geometries</span></span>
 <span><span class="co">#&gt;   runs:   29536 (1123628 interior cells)</span></span>
