@@ -10,8 +10,7 @@ Python bindings (pybind11) over the pure C++17 core in ../cpp.
 import shapely
 import controlledburn as cb
 
-geoms = [shapely.box(2.5, 4.5, 6.5, 8.5)]
-r = cb.burn([shapely.to_wkb(g) for g in geoms],
+r = cb.burn(shapely.box(2.5, 4.5, 6.5, 8.5),
             bounds=(0, 0, 10, 10),   # (xmin, ymin, xmax, ymax), rasterio-style
             shape=(10, 10))          # (nrow, ncol), numpy-style
 
@@ -26,6 +25,25 @@ pd.DataFrame(r.edges)  # structured arrays convert directly
 # Optional dense consumer (fasterize-style pixel functions):
 m = cb.materialize(r, fn="sum", edge_policy="fraction")
 ```
+
+Input can be WKB bytes, shapely geometries (scalar or sequence), a
+geopandas GeoSeries/GeoDataFrame, or a mixed sequence with `None`
+placeholders. Grid parameters follow the R package's rules when
+omitted: `bounds` defaults to the geometry bounding box, `shape`
+defaults to a 256-cell fit along the longer axis, and `resolution=`
+(mutually exclusive with `shape`) computes the shape from a cell size:
+
+```python
+r = cb.burn(geoms)                    # bbox extent, 256-cell fit
+r = cb.burn(geoms, resolution=0.01)   # cell size in CRS units
+```
+
+`materialize()` is the polygon consumer (runs + edges, the fasterize
+path). Line, point, and mixed-kind results raise rather than silently
+returning an empty array: what a dense line or point raster should
+mean is an aggregation question deliberately left unresolved (see the
+tracking issue). The sparse tables are the product; dense consumption
+of lines and points is a few lines of numpy over them.
 
 Tables use 1-BASED row/col with row 1 at the top -- identical values to
 the R package, so cross-language fixtures compare directly. The
