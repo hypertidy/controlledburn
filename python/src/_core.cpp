@@ -34,8 +34,16 @@ py::array_t<T> column(const std::vector<Struct>& v, Member Struct::* m) {
 // structured arrays and issues warnings.
 py::dict py_burn_wkb(py::sequence wkb_list,
                      double xmin, double ymin, double xmax, double ymax,
-                     int ncol, int nrow) {
+                     int ncol, int nrow,
+                     const std::string& mode = "coverage") {
     cb::GridSpec grid{xmin, ymin, xmax, ymax, ncol, nrow};
+
+    cb::BurnMode burn_mode = cb::BurnMode::Coverage;
+    if (mode == "approx") {
+        burn_mode = cb::BurnMode::Approx;
+    } else if (mode != "coverage") {
+        throw py::value_error("mode must be 'coverage' or 'approx'");
+    }
 
     // Hold buffer views for the duration of the call; WKBSpan is
     // non-owning.
@@ -61,7 +69,7 @@ py::dict py_burn_wkb(py::sequence wkb_list,
     cb::BurnResult res;
     {
         py::gil_scoped_release release;
-        res = cb::burn_wkb(spans, grid);
+        res = cb::burn_wkb(spans, grid, burn_mode);
     }
 
     py::dict runs;
@@ -169,7 +177,8 @@ PYBIND11_MODULE(_core, m) {
     m.def("burn_wkb", &py_burn_wkb,
           py::arg("wkb_list"),
           py::arg("xmin"), py::arg("ymin"), py::arg("xmax"), py::arg("ymax"),
-          py::arg("ncol"), py::arg("nrow"));
+          py::arg("ncol"), py::arg("nrow"),
+          py::arg("mode") = "coverage");
     m.def("materialize", &py_materialize,
           py::arg("runs_row"), py::arg("runs_col_start"),
           py::arg("runs_col_end"), py::arg("runs_id"),

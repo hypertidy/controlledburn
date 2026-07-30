@@ -64,6 +64,7 @@ def burn(
     wkb: Sequence,
     bounds: Sequence[float],
     shape: Sequence[int],
+    mode: str = "coverage",
 ) -> BurnResult:
     """Burn WKB geometries onto a regular grid, returning sparse tables.
 
@@ -80,15 +81,24 @@ def burn(
     shape : (nrow, ncol)
         Grid dimensions, numpy-style ordering. (The R package's
         ``dimension`` is ``c(ncol, nrow)``.)
+    mode : str
+        ``"coverage"`` (default) computes exact coverage fractions for
+        polygon boundary cells. ``"approx"`` uses the cell-center rule
+        (fasterize semantics): boundary cells are included as full run
+        cells iff the cell center is inside the polygon. No edges are
+        produced for polygons in approx mode. Lines and points are
+        unaffected by mode.
 
     Non-fatal problems (unparseable WKB, GeometryCollection input) are
     raised as warnings and the offending geometry is skipped;
     GeometryCollections must be split into homogeneous groups upstream.
     """
+    if mode not in ("coverage", "approx"):
+        raise ValueError("mode must be 'coverage' or 'approx'")
     xmin, ymin, xmax, ymax = (float(v) for v in bounds)
     nrow, ncol = (int(v) for v in shape)
 
-    raw = _core.burn_wkb(list(wkb), xmin, ymin, xmax, ymax, ncol, nrow)
+    raw = _core.burn_wkb(list(wkb), xmin, ymin, xmax, ymax, ncol, nrow, mode)
 
     for geom_index, message in raw["notes"]:
         warnings.warn(f"geometry {geom_index}: {message}", stacklevel=2)

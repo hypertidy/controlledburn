@@ -162,3 +162,49 @@ def test_pandas_roundtrip():
 def test_invalid_grid_raises():
     with pytest.raises(Exception, match="extent|positive"):
         cb.burn([wkb(shapely.box(0, 0, 1, 1))], bounds=(0, 0, 0, 10), shape=(10, 10))
+
+
+# ---- Approx mode ----
+
+def test_approx_no_edges():
+    g = shapely.box(2.5, 4.5, 6.5, 8.5)
+    r = cb.burn([wkb(g)], **G10, mode="approx")
+    assert len(r.edges) == 0
+    assert len(r.runs) > 0
+
+
+def test_approx_aligned_rectangle():
+    g = shapely.box(2, 4, 6, 8)
+    r = cb.burn([wkb(g)], **G10, mode="approx")
+    assert len(r.edges) == 0
+    assert covered_area(r, G10["bounds"], G10["shape"]) == pytest.approx(16.0)
+
+
+def test_approx_beyond_extent():
+    g = shapely.box(-100, -100, 100, 100)
+    r = cb.burn([wkb(g)], bounds=(0, 0, 10, 10), shape=(5, 5), mode="approx")
+    assert len(r.edges) == 0
+    assert covered_area(r, (0, 0, 10, 10), (5, 5)) == pytest.approx(100.0)
+
+
+def test_approx_hole():
+    outer = [(1, 1), (9, 1), (9, 9), (1, 9)]
+    hole = [(3, 3), (7, 3), (7, 7), (3, 7)]
+    g = shapely.Polygon(outer, [hole])
+    r = cb.burn([wkb(g)], bounds=(0, 0, 10, 10), shape=(20, 20), mode="approx")
+    assert len(r.edges) == 0
+    area = covered_area(r, (0, 0, 10, 10), (20, 20))
+    assert 40 < area < 56
+
+
+def test_approx_line_unchanged():
+    g = shapely.LineString([(0.5, 0.5), (9.5, 7.5)])
+    r_cov = cb.burn([wkb(g)], **G10, mode="coverage")
+    r_app = cb.burn([wkb(g)], **G10, mode="approx")
+    np.testing.assert_array_equal(r_app.lines, r_cov.lines)
+
+
+def test_approx_invalid_mode():
+    with pytest.raises((ValueError, Exception)):
+        cb.burn([wkb(shapely.box(0, 0, 1, 1))], bounds=(0, 0, 10, 10),
+                shape=(10, 10), mode="bad")
