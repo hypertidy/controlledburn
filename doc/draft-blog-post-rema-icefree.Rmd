@@ -1,0 +1,134 @@
+---
+title: "Antarctic rock outcrop at 32m resolution"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+Sys.setenv("GDAL_DISABLE_READDIR_ON_OPEN" = "EMPTY_DIR")
+```
+
+controlledburn rasterizes vector geometry into sparse run-length tables
+without allocating a dense raster. This example burns 25,954 Antarctic
+rock outcrop polygons onto the REMA 32m DEM grid — 851,000 × 913,000
+pixels, ~780 billion cells — then extracts a single 50 km tile for
+display. The full burn takes under a second.
+
+## Data
+
+Three cloud-hosted sources, read directly via GDAL virtual filesystem
+paths:
+
+```{r data}
+# REMA 32m DEM mosaic (grid spec only — no pixels read)
+dsn <- paste0(
+  "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/",
+  "main/rema-vrt/32m_dem_tiles.vrt")
+
+# Antarctic rock outcrop polygons (v7.3)
+shp <- paste0(
+  "/vsizip/{/vsicurl/https://github.com/AustralianAntarcticDivision/",
+  "rema.proc/raw/refs/heads/master/01_rock_classification/",
+  "Medium_resolution_vector_polygons_of_Antarctic_rock_outcrop_-_",
+  "VERSION_7.3.zip}/Medium resolution vector polygons of Antarctic ",
+  "rock outcrop - VERSION 7.3/",
+  "add_rock_outcrop_medium_res_polygon_v7.3.gpkg")
+
+# REMA tile index (for choosing a view window)
+rema_tiles <- paste0(
+  "/vsizip/{/vsicurl/https://data.pgc.umn.edu/elev/dem/setsm/REMA/",
+  "indexes/REMA_Mosaic_Index_latest_shp.zip}/REMA_Mosaic_Index_v2_shp")
+```
+
+## Read geometry and grid spec
+
+The raster is never read — only its extent and dimensions. The polygons
+are read as WKB.
+
+```{r read}
+library(terra)
+tiles <- terra::vect(rema_tiles)
+
+raster_info <- vapour::vapour_raster_info(dsn)
+rock_info <- vapour::vapour_layer_info(shp)
+rock <- wk::wkb(vapour::vapour_read_geometry(shp),
+                 crs = rock_info$projection$Wkt)
+
+cat(sprintf("Grid: %d × %d (%.0f billion cells)\n",
+    raster_info$dimension[1], raster_info$dimension[2],
+    prod(as.numeric(raster_info$dimension)) / 1e9))
+cat(sprintf("Polygons: %d geometries\n", length(rock)))
+```
+
+## Burn
+
+Both modes burn all 25,954 polygons onto the full continental grid.
+Approx mode (cell-centre rule) produces runs only; coverage mode
+adds exact boundary fractions.
+
+```{r burn}
+library(controlledburn)
+
+system.time({
+  ba <- burn(rock, extent = raster_info$extent,
+             dimension = raster_info$dimension, mode = "approx")
+})
+
+system.time({
+  be <- burn(rock, extent = raster_info$extent,
+             dimension = raster_info$dimension, mode = "coverage")
+})
+
+ba
+be
+```
+
+## Extract a tile
+
+Pick a location (Cape Hallett area), find the REMA tile that covers it,
+crop the sparse burn to that tile, and materialise a dense matrix for
+display.
+
+```{r tile, fig.width = 7, fig.height = 7}
+ll <- cbind(lon = 169.6539, lat = -71.50035)
+xy <- reproj::reproj_xy(ll, crs(tiles), source = "EPSG:4326")
+idx <- which(terra::is.related(tiles, vect(xy), "intersects"))
+
+tile_ex <- as.vector(ext(tiles[idx, ]))
+
+# Approx mode tile
+ma <- materialize_chunk(crop_burn(ba, tile_ex))
+
+# Find which rock polygons overlap this tile
+rock_tile_index <- unlist(
+  geos::geos_strtree_query(
+    geos::geos_strtree(geos::as_geos_geometry(rock)),
+    tiles[idx, ]))
+
+plot(tiles[idx, ])
+ximage::ximage(ma, tile_ex, add = TRUE, col = c("black", "white"))
+plot(rock[rock_tile_index], add = TRUE, border = "hotpink", lwd = 2)
+```
+
+The white cells are rock outcrop at 32m resolution. The pink outlines
+are the source polygon boundaries. Each tile materialises to a
+`r paste(dim(ma), collapse = " × ")` matrix — small enough to work
+with, produced instantly from the sparse burn that covered the entire
+continent.
+
+```{r coverage-tile, fig.width = 7, fig.height = 7}
+# Coverage mode tile — same view, exact boundary fractions
+mc <- materialize_chunk(crop_burn(be, tile_ex))
+plot(tiles[idx, ])
+ximage::ximage(mc, tile_ex, add = TRUE, col = c("black", "white"))
+plot(rock[rock_tile_index], add = TRUE, border = "hotpink", lwd = 2)
+```
+
+At 32m resolution the two modes are nearly indistinguishable. The
+difference is sub-pixel boundary fractions:
+
+```{r diff}
+cat(sprintf("Cells that differ: %d out of %d (%.4f%%)\n",
+    sum(ma != mc), length(ma),
+    100 * sum(ma != mc) / length(ma)))
+```
