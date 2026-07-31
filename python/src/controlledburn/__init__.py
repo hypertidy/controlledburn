@@ -353,11 +353,8 @@ def materialize(
 
     if kinds and kinds[0] != "polygon":
         raise NotImplementedError(
-            f"materialize() handles polygon output (runs + edges) only; "
-            f"this result contains {kinds[0]} records. Dense {kinds[0]} "
-            "rasterization semantics are deliberately unresolved -- "
-            "consume the sparse tables directly (numpy indexing on "
-            f"result.{kinds[0]}s) or see the tracking issue."
+            "... deliberately unresolved -- consume the sparse tables directly "
+            "or see https://github.com/hypertidy/controlledburn/issues/13"
         )
 
     return _core.materialize(
