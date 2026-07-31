@@ -1,31 +1,38 @@
 ---
-title: "Antarctic rock outcrop at 32m resolution"
+title: "Rasterizing a continent in under a second"
 output: html_document
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>",
+                      fig.width = 8, fig.height = 8)
 Sys.setenv("GDAL_DISABLE_READDIR_ON_OPEN" = "EMPTY_DIR")
 ```
 
-controlledburn rasterizes vector geometry into sparse run-length tables
-without allocating a dense raster. This example burns 25,954 Antarctic
-rock outcrop polygons onto the REMA 32m DEM grid — 851,000 × 913,000
-pixels, ~780 billion cells — then extracts a single 50 km tile for
-display. The full burn takes under a second.
+Antarctica's exposed rock — the ice-free ground — has been mapped as
+25,954 polygons covering nunataks, coastal outcrops, and mountain
+ranges across the continent. The Reference Elevation Model of
+Antarctica (REMA) provides a 2m DEM mosaic of the entire ice sheet,
+tiled at multiple resolutions.
 
-## Data
+What does it take to rasterize those polygons onto the REMA grid? At
+32m resolution, the grid is 851,000 × 913,000 pixels — about 780
+billion cells. A dense raster at that size would need ~3 TB of memory.
+controlledburn does it in under a second, producing 438 MB of sparse
+output, then serves up any individual tile on demand.
 
-Three cloud-hosted sources, read directly via GDAL virtual filesystem
-paths:
+## Setup
+
+Three cloud-hosted datasets, read directly via GDAL virtual filesystem
+paths. No downloads, no local copies.
 
 ```{r data}
-# REMA 32m DEM mosaic (grid spec only — no pixels read)
+# REMA 32m DEM mosaic — we read only the grid spec, no pixel values
 dsn <- paste0(
   "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/",
   "main/rema-vrt/32m_dem_tiles.vrt")
 
-# Antarctic rock outcrop polygons (v7.3)
+# Antarctic rock outcrop polygons (v7.3, Burton-Johnson et al.)
 shp <- paste0(
   "/vsizip/{/vsicurl/https://github.com/AustralianAntarcticDivision/",
   "rema.proc/raw/refs/heads/master/01_rock_classification/",
@@ -34,16 +41,17 @@ shp <- paste0(
   "rock outcrop - VERSION 7.3/",
   "add_rock_outcrop_medium_res_polygon_v7.3.gpkg")
 
-# REMA tile index (for choosing a view window)
+# REMA tile index — for choosing a view window
 rema_tiles <- paste0(
   "/vsizip/{/vsicurl/https://data.pgc.umn.edu/elev/dem/setsm/REMA/",
   "indexes/REMA_Mosaic_Index_latest_shp.zip}/REMA_Mosaic_Index_v2_shp")
 ```
 
-## Read geometry and grid spec
+## Read
 
-The raster is never read — only its extent and dimensions. The polygons
-are read as WKB.
+The raster is never opened — `vapour_raster_info()` reads only the
+metadata (extent, dimensions, CRS). The polygons are read as raw WKB
+bytes.
 
 ```{r read}
 library(terra)
@@ -54,17 +62,19 @@ rock_info <- vapour::vapour_layer_info(shp)
 rock <- wk::wkb(vapour::vapour_read_geometry(shp),
                  crs = rock_info$projection$Wkt)
 
-cat(sprintf("Grid: %d × %d (%.0f billion cells)\n",
-    raster_info$dimension[1], raster_info$dimension[2],
+cat(sprintf("Grid: %s × %s pixels (%.0f billion cells)\n",
+    format(raster_info$dimension[1], big.mark = ","),
+    format(raster_info$dimension[2], big.mark = ","),
     prod(as.numeric(raster_info$dimension)) / 1e9))
-cat(sprintf("Polygons: %d geometries\n", length(rock)))
+cat(sprintf("Polygons: %s geometries\n",
+    format(length(rock), big.mark = ",")))
 ```
 
-## Burn
+## Burn the continent
 
-Both modes burn all 25,954 polygons onto the full continental grid.
-Approx mode (cell-centre rule) produces runs only; coverage mode
-adds exact boundary fractions.
+One call rasterizes every polygon onto the full continental grid.
+The output is a sparse table of run-length encoded interior cells —
+no dense matrix is allocated, no pixel values are touched.
 
 ```{r burn}
 library(controlledburn)
@@ -74,61 +84,88 @@ system.time({
              dimension = raster_info$dimension, mode = "approx")
 })
 
+ba
+cat(sprintf("\nObject size: %.0f MB\n", as.numeric(lobstr::obj_size(ba)) / 1e6))
+```
+
+Coverage mode computes exact boundary fractions — slower, but the total
+burned area equals the true polygon area to floating-point precision:
+
+```{r burn-coverage}
 system.time({
   be <- burn(rock, extent = raster_info$extent,
              dimension = raster_info$dimension, mode = "coverage")
 })
 
-ba
 be
 ```
 
-## Extract a tile
+## Look at a tile
 
-Pick a location (Cape Hallett area), find the REMA tile that covers it,
-crop the sparse burn to that tile, and materialise a dense matrix for
-display.
+The sparse output covers the whole continent but we can extract any
+sub-window instantly with `crop_burn()`. Here: a 50 km REMA tile near
+Cape Hallett, northern Victoria Land.
 
-```{r tile, fig.width = 7, fig.height = 7}
+```{r tile-locate}
 ll <- cbind(lon = 169.6539, lat = -71.50035)
 xy <- reproj::reproj_xy(ll, crs(tiles), source = "EPSG:4326")
 idx <- which(terra::is.related(tiles, vect(xy), "intersects"))
-
 tile_ex <- as.vector(ext(tiles[idx, ]))
+```
 
-# Approx mode tile
+```{r tile-approx, fig.cap = "Rock outcrop near Cape Hallett, approx mode (cell-centre rule). White = exposed rock, dark = ice or ocean. Pink outlines are the source polygon boundaries."}
 ma <- materialize_chunk(crop_burn(ba, tile_ex))
+cat(sprintf("Tile: %d × %d pixels\n", ncol(ma), nrow(ma)))
 
-# Find which rock polygons overlap this tile
-rock_tile_index <- unlist(
+# Rock polygons that overlap this tile
+rock_idx <- unlist(
   geos::geos_strtree_query(
     geos::geos_strtree(geos::as_geos_geometry(rock)),
     tiles[idx, ]))
 
-plot(tiles[idx, ])
-ximage::ximage(ma, tile_ex, add = TRUE, col = c("black", "white"))
-plot(rock[rock_tile_index], add = TRUE, border = "hotpink", lwd = 2)
+par(bg = "#1a1a2e", mar = c(3, 3, 2, 1))
+plot(tiles[idx, ], col = NA, border = NA,
+     main = "Cape Hallett rock outcrop — 32m",
+     col.main = "white", col.axis = "grey60")
+ximage::ximage(ma, tile_ex, add = TRUE,
+               col = c("#1a1a2e", "#e8d5b7"))
+plot(rock[rock_idx], add = TRUE, border = "#e05780", lwd = 0.6)
 ```
 
-The white cells are rock outcrop at 32m resolution. The pink outlines
-are the source polygon boundaries. Each tile materialises to a
-`r paste(dim(ma), collapse = " × ")` matrix — small enough to work
-with, produced instantly from the sparse burn that covered the entire
-continent.
-
-```{r coverage-tile, fig.width = 7, fig.height = 7}
-# Coverage mode tile — same view, exact boundary fractions
+```{r tile-coverage, fig.cap = "Same view, coverage mode. Boundary cells carry exact fractional weights — visible as soft edges where the polygon boundary crosses pixel boundaries."}
 mc <- materialize_chunk(crop_burn(be, tile_ex))
-plot(tiles[idx, ])
-ximage::ximage(mc, tile_ex, add = TRUE, col = c("black", "white"))
-plot(rock[rock_tile_index], add = TRUE, border = "hotpink", lwd = 2)
+
+par(bg = "#1a1a2e", mar = c(3, 3, 2, 1))
+plot(tiles[idx, ], col = NA, border = NA,
+     main = "Cape Hallett rock outcrop — 32m, exact coverage",
+     col.main = "white", col.axis = "grey60")
+ximage::ximage(mc, tile_ex, add = TRUE,
+               col = hcl.colors(64, "Lajolla"))
+plot(rock[rock_idx], add = TRUE, border = "#e05780", lwd = 0.6)
 ```
 
-At 32m resolution the two modes are nearly indistinguishable. The
-difference is sub-pixel boundary fractions:
+At 32m resolution the two modes are nearly identical. The difference
+is sub-pixel boundary treatment:
 
 ```{r diff}
-cat(sprintf("Cells that differ: %d out of %d (%.4f%%)\n",
-    sum(ma != mc), length(ma),
-    100 * sum(ma != mc) / length(ma)))
+n_diff <- sum(ma != mc)
+cat(sprintf("Cells that differ: %s out of %s (%.3f%%)\n",
+    format(n_diff, big.mark = ","),
+    format(length(ma), big.mark = ","),
+    100 * n_diff / length(ma)))
 ```
+
+## What just happened
+
+controlledburn burned 25,954 polygons onto a 780-billion-cell grid in
+under a second, producing a sparse run-length table small enough to
+hold in memory. Any tile can be extracted and materialised on demand.
+The raster was never read — only its grid specification. The polygons
+were never validated or reprojected — just raw WKB bytes from a
+cloud-hosted GeoPackage.
+
+This is rasterization as an O(perimeter) operation: the cost scales
+with the complexity of the polygon boundaries, not the number of
+pixels in the grid. The sparse output is a reusable intermediate —
+downstream processing (zonal statistics, masking, tiling) operates on
+the same table without re-burning.
