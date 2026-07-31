@@ -23,6 +23,11 @@
   No `$edges` produced in approx mode. Lines and points are unaffected
   by mode.
 
+* **`crop_burn(x, target)`** extracts a sub-window from a
+  `controlledburn` result. Filters and clips runs/edges/lines/points
+  to the target extent (snapped outward to cell boundaries), re-bases
+  row/col indices. Pure R data frame filtering — no dense allocation.
+
 * **Lightweight approx sweep.** Approx mode uses a dedicated
   edge-row intersection sweep (~120 lines of C++) that bypasses the
   exactextract walker entirely. On CGAZ (218 countries, 10.1M
