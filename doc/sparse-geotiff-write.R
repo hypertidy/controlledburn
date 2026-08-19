@@ -23,14 +23,12 @@ outfile <- file.path(tempdir(), "cgaz_approx.tif")
 block_size <- 256L
 
 ext <- ba$extent
-dim <- ba$dimension
-dx <- (ext[2] - ext[1]) / dim[1]
-dy <- (ext[4] - ext[3]) / dim[2]
+dm <- ba$dimension
 
 ds <- create(
   format = "GTiff",
   dst_filename = outfile,
-  xsize = dim[1], ysize = dim[2],
+  xsize = dm[1], ysize = dm[2],
   nbands = 1,
   dataType = "Int32",
   options = c("TILED=YES",
@@ -41,63 +39,48 @@ ds <- create(
   return_obj = TRUE
 )
 
-ds$setGeoTransform(c(ext[1], dx, 0, ext[4], 0, -dy))
+ds$setGeoTransform(vaster::extent_dim_to_gt(ext, dm))
 ds$setNoDataValue(band = 1, 0)
 
+## --- Tile index from grout ---
+
+gg <- grout::grout(dm, ext, blocksize = block_size)
+tiles <- grout::tile_index(gg)
+
+# Pre-filter to tile-rows that have any data — skip entire rows of
+# tiles where no geometry touched any pixel row in that band.
+data_rows <- unique(c(ba$runs$row, ba$edges$row, ba$lines$row, ba$points$row))
+tiles <- tiles[tiles$tile_row %in% unique(ceiling(data_rows / block_size)), ]
+
 ## --- Write tiles ---
-
-n_tiles_x <- ceiling(dim[1] / block_size)
-n_tiles_y <- ceiling(dim[2] / block_size)
-
-# Pre-compute which rows have data for fast tile skipping
-rows_with_data <- sort(unique(ba$runs$row))
+## Each row of tiles has the extent, pixel offset, and dimensions
+## for one tile. crop_burn extracts the sparse data; materialize_chunk
+## makes it dense; gdalraster writes the block. Empty tiles are skipped
+## — SPARSE_OK means they cost nothing on disk.
 
 tiles_written <- 0L
-tiles_skipped <- 0L
 
-for (ty in seq_len(n_tiles_y)) {
-  row_lo <- (ty - 1L) * block_size + 1L
-  row_hi <- min(ty * block_size, dim[2])
+for (i in seq_len(nrow(tiles))) {
+  sub <- crop_burn(ba, c(tiles$xmin[i], tiles$xmax[i],
+                         tiles$ymin[i], tiles$ymax[i]))
 
-  # Skip entire row of tiles if no runs touch these rows
-  if (!any(rows_with_data >= row_lo & rows_with_data <= row_hi)) {
-    tiles_skipped <- tiles_skipped + n_tiles_x
-    next
-  }
+  if (nrow(sub$runs) == 0 && nrow(sub$edges) == 0) next
 
-  for (tx in seq_len(n_tiles_x)) {
-    col_lo <- (tx - 1L) * block_size + 1L
-    col_hi <- min(tx * block_size, dim[1])
+  mat <- materialize_chunk(sub, fun = "id")
+  mat[is.na(mat)] <- 0
 
-    tile_xmin <- ext[1] + (col_lo - 1L) * dx
-    tile_xmax <- ext[1] + col_hi * dx
-    tile_ymin <- ext[4] - row_hi * dy
-    tile_ymax <- ext[4] - (row_lo - 1L) * dy
+  ds$write(band = 1,
+           xoff = tiles$offset_x[i], yoff = tiles$offset_y[i],
+           xsize = tiles$ncol[i], ysize = tiles$nrow[i],
+           rasterData = as.integer(t(mat)))
 
-    sub <- crop_burn(ba, c(tile_xmin, tile_xmax, tile_ymin, tile_ymax))
-
-    if (nrow(sub$runs) == 0 && nrow(sub$edges) == 0) {
-      tiles_skipped <- tiles_skipped + 1L
-      next
-    }
-
-    # Materialise with polygon IDs (or use fun = "sum" for a mask)
-    mat <- materialize_chunk(sub, fun = "id")
-    mat[is.na(mat)] <- 0
-
-    ds$write(band = 1,
-             xoff = col_lo - 1L, yoff = row_lo - 1L,
-             xsize = sub$dimension[1], ysize = sub$dimension[2],
-             rasterData = as.integer(t(mat)))
-
-    tiles_written <- tiles_written + 1L
-  }
+  tiles_written <- tiles_written + 1L
 }
 
 ds$flushCache()
 ds$close()
 
-cat(sprintf("tiles written: %d, skipped: %d\n", tiles_written, tiles_skipped))
+cat(sprintf("tiles written: %d of %d\n", tiles_written, nrow(tiles)))
 cat(sprintf("file size: %.1f KB\n", file.size(outfile) / 1024))
 
 ## --- Verify ---
