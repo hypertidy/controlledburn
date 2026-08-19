@@ -211,10 +211,10 @@ g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
 
 system.time(r <- burn(g, dimension = c(2560L, 1280L), mode = "approx"))
 #>    user  system elapsed 
-#>   0.631   0.016   0.648
+#>   0.442   0.008   0.449
 r
-#> <controlledburn> 2560 x 1280 grid, 206 geometries
-#>   runs:   29536 (1123628 interior cells)
+#> <controlledburn> 2560 x 1280 grid, 205 geometries
+#>   runs:   25232 (1123628 interior cells)
 #>   edges:  0 polygon boundary cells
 #>   sparsity: 65.7% empty
 ```
@@ -236,6 +236,37 @@ polygon/line/point rasterization → dual-mode engine (coverage + approx)
 
 See `vignette("architecture")` for the full story, [NEWS](NEWS.md) for
 the version history, and `inst/docs-design/` for design records.
+
+In 2017, the “cell-abstraction mode” request in fasterize
+(<https://github.com/hypertidy/fasterize/issues/11>) asked for the
+scanline algorithm to return its natural product directly: cell and
+polygon-ID pairs, rather than burning values into a dense matrix. The
+motivations were relational: overlapping polygons are recorded rather
+than resolved (one cell, many features), empty pixels are never created,
+and the (cell, id) table plugs straight into tidy per-cell, per-feature,
+and per-layer summaries. For very large grids the dense matrix is not
+just wasteful, it is the thing that makes the task impossible.
+
+In 2019, Thomas Knudsen proposed the same core representation from a
+completely different direction, in a PROJ discussion about
+area-of-interest lookup for coordinate transformations
+(<https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992>).
+Rather than storing area-of-use polygons as vertices and doing
+point-in-polygon tests, rasterize each polygon onto a global grid and
+run-length encode each row. Most rows are all zeros; the rest are a
+handful of runs. His scheme adds further compression on top: identical
+rows (even non-adjacent ones) share a single stored representation via a
+row-start index, all-zero rows are special-cased, and a bounding box
+trims the stored region. Resolution is just a parameter - grow the grid
+and the RLE keeps the representation growth under control.
+
+The fasterize issue is about the *relational* payoff of sparse
+rasterization, the PROJ comment is about the *compression* payoff of the
+same structure as a storage and lookup format. controlledburn’s output
+sits at the meeting point: the runs table is Knudsen’s row encoding, and
+expanding runs to cells gives the classified cell/ID table from the
+fasterize issue. The closest implementation is now in GEOS with
+[GEOSSubdiveByGrid](https://github.com/libgeos/geos/releases/tag/3.15.0beta3).
 
 ## See also
 
