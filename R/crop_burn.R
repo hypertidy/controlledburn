@@ -30,11 +30,14 @@ crop_burn <- function(x, target) {
   dx <- (ext[2] - ext[1]) / dim[1]
   dy <- (ext[4] - ext[3]) / dim[2]
 
-  # Target extent to row/col bounds (snap outward, 1-based)
-  col_lo <- max(1L, as.integer(floor((target[1] - ext[1]) / dx)) + 1L)
-  col_hi <- min(dim[1], as.integer(ceiling((target[2] - ext[1]) / dx)))
-  row_hi <- min(dim[2], as.integer(ceiling((ext[4] - target[3]) / dy)))
-  row_lo <- max(1L, as.integer(floor((ext[4] - target[4]) / dy)) + 1L)
+  # Target extent to row/col bounds (snap outward, 1-based).
+  # Tolerance nudge avoids floating-point floor/ceiling errors when
+  # the target aligns exactly with cell boundaries.
+  eps <- 1e-8
+  col_lo <- max(1L, as.integer(floor((target[1] - ext[1]) / dx + eps)) + 1L)
+  col_hi <- min(dim[1], as.integer(ceiling((target[2] - ext[1]) / dx - eps)))
+  row_hi <- min(dim[2], as.integer(ceiling((ext[4] - target[3]) / dy - eps)))
+  row_lo <- max(1L, as.integer(floor((ext[4] - target[4]) / dy + eps)) + 1L)
 
   if (col_lo > col_hi || row_lo > row_hi) {
     warning("target extent does not overlap the grid")
