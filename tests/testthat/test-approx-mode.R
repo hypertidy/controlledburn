@@ -49,6 +49,29 @@ test_that("approx mode does not affect points", {
   expect_equal(r_app$points, r_cov$points)
 })
 
+test_that("approx mode produces no degenerate runs (col_start > col_end)", {
+  # Regression test: the lightweight sweep previously emitted runs with
+  # col_start > col_end at edge intercepts landing in the same cell or
+  # at the grid boundary. These caused subscript-out-of-bounds in
+  # materialize_chunk(). Use CGAZ-like complex geometry to exercise the
+  # sweep thoroughly.
+  skip_if_not_installed("geos")
+  skip_if_not(requireNamespace("sds", quietly = TRUE), "sds not available")
+
+  g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
+  r <- burn(g, dimension = c(2560L, 1280L), mode = "approx")
+
+  # No degenerate runs
+  expect_true(all(r$runs$col_start <= r$runs$col_end))
+  # All indices within grid bounds
+ expect_true(all(r$runs$row >= 1L & r$runs$row <= r$dimension[2]))
+  expect_true(all(r$runs$col_start >= 1L & r$runs$col_end <= r$dimension[1]))
+
+  # materialize_chunk must not error
+  m <- materialize_chunk(r)
+  expect_equal(dim(m), c(r$dimension[2], r$dimension[1]))
+})
+
 test_that("mode argument is validated", {
   poly <- as_geos_geometry("POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))")
   expect_error(burn(poly, extent = c(0, 3, 0, 3), dimension = c(3L, 3L), mode = "bad"))
