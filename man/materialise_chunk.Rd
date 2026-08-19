@@ -5,20 +5,28 @@
 \alias{materialize_chunk}
 \title{Materialise a controlledburn sparse result into a dense matrix}
 \usage{
-materialise_chunk(x, fun = "sum")
+materialise_chunk(x, fun = c("sum", "id"))
 
-materialize_chunk(x, fun = "sum")
+materialize_chunk(x, fun = c("sum", "id"))
 }
 \arguments{
 \item{x}{A \code{controlledburn} object returned by \code{\link[=burn]{burn()}}.}
 
-\item{fun}{Currently only \code{"sum"} (default).}
+\item{fun}{character, the pixel function:
+\describe{
+\item{\code{"sum"}}{(default) Polygon runs contribute 1, edges
+contribute their coverage fraction, lines contribute length,
+points contribute 1. Values accumulate additively across
+overlapping geometries. Background is 0.}
+\item{\code{"id"}}{Write the geometry id (\verb{$runs$id}, \verb{$edges$id},
+etc.) into each cell. When geometries overlap, the last id
+wins. Background is \code{NA}.}
+}}
 }
 \value{
 A numeric matrix with dimensions \verb{nrow × ncol}.
 }
 \description{
 Converts the sparse run/edge/line tables from \code{\link[=burn]{burn()}} into a dense
-matrix. Polygon runs and edges are summed; lines contribute their
-per-cell length; points contribute 1.
+matrix.
 }

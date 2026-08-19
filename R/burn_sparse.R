@@ -45,52 +45,93 @@ print.controlledburn <- function(x, ...) {
 #' Materialise a controlledburn sparse result into a dense matrix
 #'
 #' Converts the sparse run/edge/line tables from [burn()] into a dense
-#' matrix. Polygon runs and edges are summed; lines contribute their
-#' per-cell length; points contribute 1.
+#' matrix.
 #'
 #' @param x A `controlledburn` object returned by [burn()].
-#' @param fun Currently only `"sum"` (default).
+#' @param fun character, the pixel function:
+#'   \describe{
+#'     \item{`"sum"`}{(default) Polygon runs contribute 1, edges
+#'       contribute their coverage fraction, lines contribute length,
+#'       points contribute 1. Values accumulate additively across
+#'       overlapping geometries. Background is 0.}
+#'     \item{`"id"`}{Write the geometry id (`$runs$id`, `$edges$id`,
+#'       etc.) into each cell. When geometries overlap, the last id
+#'       wins. Background is `NA`.}
+#'   }
 #' @return A numeric matrix with dimensions `nrow × ncol`.
 #' @export
-materialise_chunk <- function(x, fun = "sum") {
+materialise_chunk <- function(x, fun = c("sum", "id")) {
   stopifnot(inherits(x, "controlledburn"))
+  fun <- match.arg(fun)
   ext <- x$extent
   dim <- x$dimension
   ncol_full <- dim[1]
   nrow_full <- dim[2]
 
-  mat <- matrix(0.0, nrow = nrow_full, ncol = ncol_full)
+  if (fun == "id") {
+    mat <- matrix(NA_real_, nrow = nrow_full, ncol = ncol_full)
 
-  if (nrow(x$runs) > 0) {
-    for (i in seq_len(nrow(x$runs))) {
-      r <- x$runs$row[i]
-      cs <- x$runs$col_start[i]
-      ce <- x$runs$col_end[i]
-      mat[r, cs:ce] <- 1
+    if (nrow(x$runs) > 0) {
+      for (i in seq_len(nrow(x$runs))) {
+        r <- x$runs$row[i]
+        cs <- x$runs$col_start[i]
+        ce <- x$runs$col_end[i]
+        mat[r, cs:ce] <- x$runs$id[i]
+      }
     }
-  }
 
-  if (nrow(x$edges) > 0) {
-    for (i in seq_len(nrow(x$edges))) {
-      r <- x$edges$row[i]
-      c <- x$edges$col[i]
-      mat[r, c] <- mat[r, c] + x$edges$fraction[i]
+    if (nrow(x$edges) > 0) {
+      for (i in seq_len(nrow(x$edges))) {
+        mat[x$edges$row[i], x$edges$col[i]] <- x$edges$id[i]
+      }
     }
-  }
 
-  if (!is.null(x$lines) && nrow(x$lines) > 0) {
-    for (i in seq_len(nrow(x$lines))) {
-      r <- x$lines$row[i]
-      c <- x$lines$col[i]
-      mat[r, c] <- mat[r, c] + x$lines$length[i]
+    if (!is.null(x$lines) && nrow(x$lines) > 0) {
+      for (i in seq_len(nrow(x$lines))) {
+        mat[x$lines$row[i], x$lines$col[i]] <- x$lines$id[i]
+      }
     }
-  }
 
-  if (!is.null(x$points) && nrow(x$points) > 0) {
-    for (i in seq_len(nrow(x$points))) {
-      r <- x$points$row[i]
-      c <- x$points$col[i]
-      mat[r, c] <- mat[r, c] + 1
+    if (!is.null(x$points) && nrow(x$points) > 0) {
+      for (i in seq_len(nrow(x$points))) {
+        mat[x$points$row[i], x$points$col[i]] <- x$points$id[i]
+      }
+    }
+  } else {
+    # fun == "sum"
+    mat <- matrix(0.0, nrow = nrow_full, ncol = ncol_full)
+
+    if (nrow(x$runs) > 0) {
+      for (i in seq_len(nrow(x$runs))) {
+        r <- x$runs$row[i]
+        cs <- x$runs$col_start[i]
+        ce <- x$runs$col_end[i]
+        mat[r, cs:ce] <- 1
+      }
+    }
+
+    if (nrow(x$edges) > 0) {
+      for (i in seq_len(nrow(x$edges))) {
+        r <- x$edges$row[i]
+        c <- x$edges$col[i]
+        mat[r, c] <- mat[r, c] + x$edges$fraction[i]
+      }
+    }
+
+    if (!is.null(x$lines) && nrow(x$lines) > 0) {
+      for (i in seq_len(nrow(x$lines))) {
+        r <- x$lines$row[i]
+        c <- x$lines$col[i]
+        mat[r, c] <- mat[r, c] + x$lines$length[i]
+      }
+    }
+
+    if (!is.null(x$points) && nrow(x$points) > 0) {
+      for (i in seq_len(nrow(x$points))) {
+        r <- x$points$row[i]
+        c <- x$points$col[i]
+        mat[r, c] <- mat[r, c] + 1
+      }
     }
   }
 
