@@ -57,8 +57,9 @@ test_that("approx mode produces no degenerate runs (col_start > col_end)", {
   # sweep thoroughly.
   skip_if_not_installed("geos")
   skip_if_not(requireNamespace("sds", quietly = TRUE), "sds not available")
-
-  g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
+  skip_on_cran()
+  g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ(),
+                                                                   sql = sds::CGAZ_sql(c("Antarctica", "Russia")))))
   r <- burn(g, dimension = c(2560L, 1280L), mode = "approx")
 
   # No degenerate runs

@@ -1,5 +1,5 @@
 ---
-title: "Rasterizing a continent in under a second"
+title: "Rasterizing ice-free Antarctica"
 output: html_document
 ---
 
@@ -16,15 +16,14 @@ Antarctica (REMA) provides a 2m DEM mosaic of the entire ice sheet,
 tiled at multiple resolutions.
 
 What does it take to rasterize those polygons onto the REMA grid? At
-32m resolution, the grid is 851,000 × 913,000 pixels — about 780
-billion cells. A dense raster at that size would need ~3 TB of memory.
-controlledburn does it in under a second, producing 438 MB of sparse
+32m resolution, the grid is 170318 x 182568 pixels. A dense raster at that size would enormous
+memory, butcontrolledburn does it in under a second, producing 438 MB of sparse
 output, then serves up any individual tile on demand.
 
 ## Setup
 
 Three cloud-hosted datasets, read directly via GDAL virtual filesystem
-paths. No downloads, no local copies.
+paths. 
 
 ```{r data}
 # REMA 32m DEM mosaic — we read only the grid spec, no pixel values
@@ -155,9 +154,9 @@ cat(sprintf("Cells that differ: %s out of %s (%.3f%%)\n",
     100 * n_diff / length(ma)))
 ```
 
-## What just happened
+## Summary of the lazy rasterization process
 
-controlledburn burned 25,954 polygons onto a 780-billion-cell grid in
+controlledburn burned 25,954 polygons onto a 31-billion-cell grid in
 under a second, producing a sparse run-length table small enough to
 hold in memory. Any tile can be extracted and materialised on demand.
 The raster was never read — only its grid specification. The polygons
@@ -169,3 +168,7 @@ with the complexity of the polygon boundaries, not the number of
 pixels in the grid. The sparse output is a reusable intermediate —
 downstream processing (zonal statistics, masking, tiling) operates on
 the same table without re-burning.
+
+## Creating a raster file
+
+Now we have a very dense version of our rock layer as 

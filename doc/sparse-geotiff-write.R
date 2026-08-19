@@ -11,29 +11,51 @@
 library(controlledburn)
 library(gdalraster)
 
-## --- Burn (from README) ---
-
+## --- Burn (from README) --- pretty big raster of the world
 g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
-ba <- burn(g, dimension = c(2560L, 1280L), mode = "approx")
-ba
+ba <- burn(g, dimension = c(25600L, 12800L), mode = "approx")
+
+## Burn from REMA/icefree example - much larger, the write takes several minutes at least for ~90000 tiles
+# REMA 32m DEM mosaic — we read only the grid spec, no pixel values
+# dsn <- paste0(
+#   "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/",
+#   "main/rema-vrt/32m_dem_tiles.vrt")
+# raster_info <- vapour::vapour_raster_info(dsn)
+# ext <- raster_info$extent
+# dm <- raster_info$dimension
+#
+# shp <- paste0(
+#   "/vsizip/{/vsicurl/https://github.com/AustralianAntarcticDivision/",
+#   "rema.proc/raw/refs/heads/master/01_rock_classification/",
+#   "Medium_resolution_vector_polygons_of_Antarctic_rock_outcrop_-_",
+#   "VERSION_7.3.zip}/Medium resolution vector polygons of Antarctic ",
+#   "rock outcrop - VERSION 7.3/",
+#   "add_rock_outcrop_medium_res_polygon_v7.3.gpkg")
+#
+# rock_info <- vapour::vapour_layer_info(shp)
+# rock <- wk::wkb(vapour::vapour_read_geometry(shp),
+#                 crs = rock_info$projection$Wkt)
+#
+# ba <- burn(rock, extent = ext,
+#            dimension = dm, mode = "approx")
 
 ## --- Create SPARSE_OK GeoTIFF ---
 
-outfile <- file.path(tempdir(), "cgaz_approx.tif")
-block_size <- 256L
+outfile <- file.path(tempdir(), "rema_approx.tif")
+block_size <- 512L
 
 ext <- ba$extent
 dm <- ba$dimension
 
 ds <- create(
-  format = "GTiff",
+  format = "COG",
   dst_filename = outfile,
   xsize = dm[1], ysize = dm[2],
   nbands = 1,
   dataType = "Int32",
   options = c("TILED=YES",
-              paste0("BLOCKXSIZE=", block_size),
-              paste0("BLOCKYSIZE=", block_size),
+              paste0("BLOCKSIZE=", block_size),
+              #paste0("BLOCKYSIZE=", block_size),
               "SPARSE_OK=YES",
               "COMPRESS=DEFLATE"),
   return_obj = TRUE
@@ -90,3 +112,8 @@ cat(sprintf("output: %d × %d %s, nodata=%s\n",
             ds2$getRasterXSize(), ds2$getRasterYSize(),
             ds2$getDataTypeName(1), ds2$getNoDataValue(1)))
 ds2$close()
+
+
+#library(terra)
+#plot(rast(outfile))
+
