@@ -291,10 +291,10 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">g</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2560L</span>, <span class="fl">1280L</span><span class="op">)</span>, mode <span class="op">=</span> <span class="st">"approx"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.631   0.016   0.648</span></span>
+<span><span class="co">#&gt;   0.442   0.008   0.449</span></span>
 <span><span class="va">r</span></span>
-<span><span class="co">#&gt; &lt;controlledburn&gt; 2560 x 1280 grid, 206 geometries</span></span>
-<span><span class="co">#&gt;   runs:   29536 (1123628 interior cells)</span></span>
+<span><span class="co">#&gt; &lt;controlledburn&gt; 2560 x 1280 grid, 205 geometries</span></span>
+<span><span class="co">#&gt;   runs:   25232 (1123628 interior cells)</span></span>
 <span><span class="co">#&gt;   edges:  0 polygon boundary cells</span></span>
 <span><span class="co">#&gt;   sparsity: 65.7% empty</span></span></code></pre></div>
 </div>
@@ -304,6 +304,9 @@
 <p>controlledburn was derived from <a href="https://github.com/ecohealthalliance/fasterize" class="external-link">fasterize</a> by Noam Ross (EcoHealth Alliance). The exact coverage fraction algorithm is from Daniel Baston’s <a href="https://github.com/isciences/exactextract" class="external-link">exactextract</a> C++ library, vendored as 9 GEOS-free analytical geometry files.</p>
 <p>The development history: fasterize’s scanline algorithm → sparse run-length output → exactextract integration for exact coverage fractions → native WKB parser and ring walker replacing GEOS → unified polygon/line/point rasterization → dual-mode engine (coverage + approx) → lightweight approx sweep → GEOS dependency removed entirely.</p>
 <p>See <code><a href="articles/architecture.html">vignette("architecture")</a></code> for the full story, <a href="NEWS.html">NEWS</a> for the version history, and <code>inst/docs-design/</code> for design records.</p>
+<p>In 2017, the “cell-abstraction mode” request in fasterize (<a href="https://github.com/hypertidy/fasterize/issues/11" class="external-link uri">https://github.com/hypertidy/fasterize/issues/11</a>) asked for the scanline algorithm to return its natural product directly: cell and polygon-ID pairs, rather than burning values into a dense matrix. The motivations were relational: overlapping polygons are recorded rather than resolved (one cell, many features), empty pixels are never created, and the (cell, id) table plugs straight into tidy per-cell, per-feature, and per-layer summaries. For very large grids the dense matrix is not just wasteful, it is the thing that makes the task impossible.</p>
+<p>In 2019, Thomas Knudsen proposed the same core representation from a completely different direction, in a PROJ discussion about area-of-interest lookup for coordinate transformations (<a href="https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992" class="external-link uri">https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992</a>). Rather than storing area-of-use polygons as vertices and doing point-in-polygon tests, rasterize each polygon onto a global grid and run-length encode each row. Most rows are all zeros; the rest are a handful of runs. His scheme adds further compression on top: identical rows (even non-adjacent ones) share a single stored representation via a row-start index, all-zero rows are special-cased, and a bounding box trims the stored region. Resolution is just a parameter - grow the grid and the RLE keeps the representation growth under control.</p>
+<p>The fasterize issue is about the <em>relational</em> payoff of sparse rasterization, the PROJ comment is about the <em>compression</em> payoff of the same structure as a storage and lookup format. controlledburn’s output sits at the meeting point: the runs table is Knudsen’s row encoding, and expanding runs to cells gives the classified cell/ID table from the fasterize issue. The closest implementation is now in GEOS with <a href="https://github.com/libgeos/geos/releases/tag/3.15.0beta3" class="external-link">GEOSSubdiveByGrid</a>.</p>
 </div>
 <div class="section level2">
 <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a>
