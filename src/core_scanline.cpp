@@ -705,8 +705,9 @@ static void process_polygon_approx(
         int new_winding = winding + ix.delta;
         if (winding != 0 && new_winding == 0) {
           // Leaving polygon before cell center: close run before this cell
-          if (run_start >= 0 && run_start <= col - 1)
-            all_runs.push_back({r + 1, run_start + 1, col, poly_id});
+          int col_end = col;  // 0-based, exclusive (last col is col-1)
+          if (run_start >= 0 && run_start < col_end)
+            all_runs.push_back({r + 1, run_start + 1, col_end, poly_id});
           run_start = -1;
         } else if (winding == 0 && new_winding != 0) {
           // Entering polygon: this cell is inside
@@ -718,7 +719,9 @@ static void process_polygon_approx(
         if (winding != 0 && new_winding == 0) {
           // Leaving polygon after cell center: include this cell
           if (run_start < 0) run_start = col;
-          all_runs.push_back({r + 1, run_start + 1, col + 1, poly_id});
+          int col_end_1 = std::min(col + 1, gs.ncol);  // clamp to grid
+          if (run_start < col_end_1)
+            all_runs.push_back({r + 1, run_start + 1, col_end_1, poly_id});
           run_start = -1;
         } else if (winding == 0 && new_winding != 0) {
           // Entering polygon after cell center: start after this cell
