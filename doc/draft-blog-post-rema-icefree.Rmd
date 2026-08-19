@@ -16,7 +16,7 @@ Antarctica (REMA) provides a 2m DEM mosaic of the entire ice sheet,
 tiled at multiple resolutions.
 
 What does it take to rasterize those polygons onto the REMA grid? At
-32m resolution, the grid is 170318 x 182568 pixels. A dense raster at that size would enormous
+32m resolution, the grid is 170318 x 182568 pixels. A raster at that size would require enormous
 memory, butcontrolledburn does it in under a second, producing 438 MB of sparse
 output, then serves up any individual tile on demand.
 
@@ -171,4 +171,201 @@ the same table without re-burning.
 
 ## Creating a raster file
 
-Now we have a very dense version of our rock layer as 
+Now we have a very dense version of our rock layer as a latent raster, we can
+materialise arbitrary windows of it and write them to an actual raster file.
+The strategy: create a SPARSE_OK Cloud-Optimised GeoTIFF (COG), iterate over
+spatial tiles, crop the sparse burn result to each tile, materialise the dense
+matrix, and write it via `gdalraster`. Tiles with no burned pixels are skipped
+entirely — SPARSE_OK means unwritten tiles cost nothing on disk.
+
+### Why `crop_burn()`?
+
+`crop_burn()` is the spatial subsetting workhorse. Given a `controlledburn`
+object covering an arbitrarily large grid, it filters the sparse tables (runs,
+edges, lines, points) to a target extent and re-bases row/col indices to 1.
+No dense matrix is ever allocated — it is pure data-frame filtering, so the
+cost depends only on how many run-length entries fall inside the window, not
+on how many pixels the full grid contains. This is what makes it feasible to
+iterate over thousands of tiles without blowing up memory: each iteration
+crops, materialises a small dense block, writes it, and discards it.
+
+### Why super-tiles instead of native 512×512 blocks?
+
+The COG internal tiling is 512×512, but writing one 512×512 block at a time
+means ~120,000 write calls for the full grid. GDAL's `RasterIO()` accepts
+arbitrary windows — they don't have to align with the internal block grid —
+but it works best when the window is a multiple of the native block size.
+Grouping into "super-tiles" of 2048×2048 (4×4 native blocks) brings the
+tile count down to ~8,000 while keeping each dense allocation under 16 MB.
+The dense output from `materialize_chunk()` is *not* itself tiled; it is a
+plain row-major matrix. The tiling structure exists only in the GeoTIFF
+container and is handled entirely by GDAL on write.
+
+### The write loop
+
+```{r geotiff-write, eval = FALSE}
+library(controlledburn)
+library(gdalraster)
+
+outfile <- file.path(tempdir(), "rema_approx.tif")
+block_size <- 512L
+
+ext <- ba$extent
+dm  <- ba$dimension
+gdalraster::set_config_option("GDAL_NUM_THREADS", "ALL_CPUS")
+
+ds <- create(
+  format       = "COG",
+  dst_filename = outfile,
+  xsize = dm[1], ysize = dm[2],
+  nbands   = 1,
+  dataType = "Int32",
+  options  = c(paste0("BLOCKSIZE=", block_size),
+               "SPARSE_OK=YES",
+               "COMPRESS=DEFLATE",
+               "OVERVIEW_RESAMPLING=NEAREST",
+               "NUM_THREADS=ALL_CPUS"),
+  return_obj = TRUE
+)
+
+ds$setGeoTransform(vaster::extent_dim_to_gt(ext, dm))
+ds$setNoDataValue(band = 1, 0)
+```
+
+Build a tile index with `grout`, then pre-filter to rows that contain any
+burned data. This avoids even *visiting* tiles over open ocean or interior
+ice sheet:
+
+```{r geotiff-tiles, eval = FALSE}
+superblock <- block_size * 4
+gg    <- grout::grout(dm, ext, blocksize = superblock)
+tiles <- grout::tile_index(gg)
+
+# Keep only tile-rows that intersect at least one data row
+data_rows <- unique(c(ba$runs$row, ba$edges$row,
+                      ba$lines$row, ba$points$row))
+tiles <- tiles[tiles$tile_row %in%
+                 unique(ceiling(data_rows / superblock)), ]
+```
+
+The loop itself is straightforward: crop → materialise → write.
+
+```{r geotiff-loop, eval = FALSE}
+tiles_written <- 0L
+for (i in seq_len(nrow(tiles))) {
+  sub <- crop_burn(ba, c(tiles$xmin[i], tiles$xmax[i],
+                         tiles$ymin[i], tiles$ymax[i]))
+
+  if (nrow(sub$runs) == 0 && nrow(sub$edges) == 0) next
+
+  mat <- materialize_chunk(sub, fun = "id")
+  mat[is.na(mat)] <- 0
+
+  ds$write(band = 1,
+           xoff = tiles$offset_x[i], yoff = tiles$offset_y[i],
+           xsize = tiles$ncol[i], ysize = tiles$nrow[i],
+           rasterData = as.integer(t(mat)))
+
+  tiles_written <- tiles_written + 1L
+}
+
+ds$flushCache()
+ds$close()
+```
+
+```
+## ~445 seconds elapsed
+## tiles written: 3,482 of 7,511
+## file size: 26,782 KB
+## output: 170318 × 182568 Int32, nodata=0
+```
+
+The result is a valid COG — internally tiled, compressed, with overviews —
+that weighs in at around 26 MB on disk for a 31-billion-cell grid. Only the
+tiles that actually contain rock outcrop carry any data.
+
+The compressed file is informationally equivalent to the sparse burn object
+itself — both encode exactly the same set of non-empty cells. The burn
+object in memory is `lobstr::obj_size(ba)` → 27.27 MB; the COG on disk is
+26 MB. The sparse representation *is* the information content of the raster;
+the file is just a different container for the same signal.
+
+## Extracting point values
+
+Not every downstream operation needs a dense raster. `extract_burn()` queries
+the sparse tables directly at arbitrary point locations, with no
+materialisation step at all. It matches interior runs by row equality and
+column interval containment, and edges/lines/points by exact (row, col)
+match. Cost is O(points + hits), independent of grid dimension.
+
+
+The following code chunk is purely for illustration, these locations probably are NA in terms of the polygons. 
+
+ ```{r extract-points, eval = FALSE}
+# Some coordinates in the burn's CRS (Antarctic Polar Stereographic)
+pts <- matrix(c(-1680000, -1100000,
+                 2200000,   400000,
+                 -300000,  -700000), ncol = 2, byrow = TRUE)
+
+extract_burn(ba, pts, fun = "id")
+```
+
+The function returns `NA` for background cells (no geometry touched that
+pixel) and the geometry ID for cells inside a polygon. With `fun = "sum"`,
+coverage-mode burns return exact fractional coverage at each point.
+
+This pattern generalises. Because the sparse representation is a reusable
+intermediate, other raster operations — zonal statistics, reclassification,
+distance transforms — can be built on top of the same sparse tables without
+re-burning or allocating a full dense grid. The burn is computed once;
+everything else is derived.
+
+## Packing, compression, and sparsity
+
+A useful comparison: the Australian Antarctic Data Centre publishes
+[Ice-free Antarctica](https://doi.org/10.26179/7mnh-j215) (Toth &
+Terauds 2023) — a union of rock outcrop layers from imagery spanning
+1960–2020, encoded as a single-band GeoTIFF at 100 m resolution
+(52765 × 48132 pixels). Values are 0 (ice/ocean), 1, 2, or 3
+(rock, by source layer), stored at 2 bits per sample (NBITS=2) in
+128 × 128 tiles. The file is 613 MB.
+
+That 2-bit packing is already a 4× saving over a byte raster —
+but it is a fixed per-pixel economy. Every tile is materialised:
+ocean, ice sheet, and rock alike each cost their full 4096 bytes.
+The encoding is indifferent to the fact that the vast majority of
+pixels say the same thing: zero. Recompressing the same tiles
+with DEFLATE collapses the file to about 5.6 MB — a ~100×
+reduction with zero information loss, because constant regions
+become long runs of identical bytes, and long runs are the best
+possible input to any general-purpose codec.
+
+Our controlledburn COG encodes different (but related) data at
+32 m resolution — a grid 10× denser in each dimension — and
+lands at 26 MB on disk. The sparse burn object in memory is
+27 MB. These numbers are not directly comparable (different
+polygons, different resolution, different pixel semantics), but
+the *relationship* between them is the point: the information
+content of "where is the rock?" is small relative to the grid
+that contains it, regardless of how you choose to encode it.
+
+The three approaches — bit-packing, codec compression, and
+run-length sparse representation — are related lenses on the
+same underlying reality. Bit-packing reduces the cost per pixel
+but remains grid-dense. Compression recovers structure after the
+fact, collapsing constant regions that the format didn't know to
+avoid. Sparse rasterization exploits the same structure *before*
+pixels exist: polygon interiors are runs by construction, so the
+compact representation is produced directly rather than recovered
+by a codec.
+
+None of these is categorically superior. The AADC file is a
+finished product, designed for broad interoperability and direct
+random-access reads — the choice not to compress may well
+reflect downstream tooling constraints or the simplicity of a
+uniform tile stride. controlledburn's sparse format is an
+intermediate: it is meant to sit between the vector source and
+whatever raster product or analysis comes next. The value is in
+seeing them as points on the same continuum — rasterization,
+compression, and sparse encoding are all ways of negotiating
+between the geometry of the data and the geometry of the grid.

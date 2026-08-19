@@ -12,32 +12,32 @@ library(controlledburn)
 library(gdalraster)
 
 ## --- Burn (from README) --- pretty big raster of the world
-g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
-ba <- burn(g, dimension = c(25600L, 12800L), mode = "approx")
+#g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
+#ba <- burn(g, dimension = c(25600L, 12800L), mode = "approx")
 
-## Burn from REMA/icefree example - much larger, the write takes several minutes at least for ~90000 tiles
-# REMA 32m DEM mosaic — we read only the grid spec, no pixel values
-# dsn <- paste0(
-#   "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/",
-#   "main/rema-vrt/32m_dem_tiles.vrt")
-# raster_info <- vapour::vapour_raster_info(dsn)
-# ext <- raster_info$extent
-# dm <- raster_info$dimension
-#
-# shp <- paste0(
-#   "/vsizip/{/vsicurl/https://github.com/AustralianAntarcticDivision/",
-#   "rema.proc/raw/refs/heads/master/01_rock_classification/",
-#   "Medium_resolution_vector_polygons_of_Antarctic_rock_outcrop_-_",
-#   "VERSION_7.3.zip}/Medium resolution vector polygons of Antarctic ",
-#   "rock outcrop - VERSION 7.3/",
-#   "add_rock_outcrop_medium_res_polygon_v7.3.gpkg")
-#
-# rock_info <- vapour::vapour_layer_info(shp)
-# rock <- wk::wkb(vapour::vapour_read_geometry(shp),
-#                 crs = rock_info$projection$Wkt)
-#
-# ba <- burn(rock, extent = ext,
-#            dimension = dm, mode = "approx")
+# Burn from REMA/icefree example - much larger, the write takes several minutes at least for ~90000 tiles
+#REMA 32m DEM mosaic — we read only the grid spec, no pixel values
+dsn <- paste0(
+  "/vsicurl/https://raw.githubusercontent.com/mdsumner/rema-ovr/",
+  "main/rema-vrt/32m_dem_tiles.vrt")
+raster_info <- vapour::vapour_raster_info(dsn)
+ext <- raster_info$extent
+dm <- raster_info$dimension
+
+shp <- paste0(
+  "/vsizip/{/vsicurl/https://github.com/AustralianAntarcticDivision/",
+  "rema.proc/raw/refs/heads/master/01_rock_classification/",
+  "Medium_resolution_vector_polygons_of_Antarctic_rock_outcrop_-_",
+  "VERSION_7.3.zip}/Medium resolution vector polygons of Antarctic ",
+  "rock outcrop - VERSION 7.3/",
+  "add_rock_outcrop_medium_res_polygon_v7.3.gpkg")
+
+rock_info <- vapour::vapour_layer_info(shp)
+rock <- wk::wkb(vapour::vapour_read_geometry(shp),
+                crs = rock_info$projection$Wkt)
+
+ba <- burn(rock, extent = ext,
+           dimension = dm, mode = "approx")
 
 ## --- Create SPARSE_OK GeoTIFF ---
 
@@ -46,6 +46,7 @@ block_size <- 512L
 
 ext <- ba$extent
 dm <- ba$dimension
+gdalraster::set_config_option("GDAL_NUM_THREADS", "ALL_CPUS")
 
 ds <- create(
   format = "COG",
@@ -53,11 +54,14 @@ ds <- create(
   xsize = dm[1], ysize = dm[2],
   nbands = 1,
   dataType = "Int32",
-  options = c("TILED=YES",
+  options = c(
+       #"TILED=YES",
               paste0("BLOCKSIZE=", block_size),
               #paste0("BLOCKYSIZE=", block_size),
               "SPARSE_OK=YES",
-              "COMPRESS=DEFLATE"),
+              "COMPRESS=DEFLATE",
+              "OVERVIEW_RESAMPLING=NEAREST",
+              "NUM_THREADS=ALL_CPUS"),
   return_obj = TRUE
 )
 
@@ -66,13 +70,18 @@ ds$setNoDataValue(band = 1, 0)
 
 ## --- Tile index from grout ---
 
-gg <- grout::grout(dm, ext, blocksize = block_size)
+## we are writing to 512x512 but that's only 1Mb at a time, so let's multiply
+## up to super-tiles (GDAL handles arbitrary window writes, but aligned ones are best)
+## it brings tile number down from 120K to ~8000
+superblock <- block_size * 4
+gg <- grout::grout(dm, ext, blocksize = superblock)
 tiles <- grout::tile_index(gg)
 
 # Pre-filter to tile-rows that have any data — skip entire rows of
 # tiles where no geometry touched any pixel row in that band.
 data_rows <- unique(c(ba$runs$row, ba$edges$row, ba$lines$row, ba$points$row))
-tiles <- tiles[tiles$tile_row %in% unique(ceiling(data_rows / block_size)), ]
+tiles <- tiles[tiles$tile_row %in% unique(ceiling(data_rows / superblock)), ]
+dim(tiles)
 
 ## --- Write tiles ---
 ## Each row of tiles has the extent, pixel offset, and dimensions
@@ -81,7 +90,8 @@ tiles <- tiles[tiles$tile_row %in% unique(ceiling(data_rows / block_size)), ]
 ## — SPARSE_OK means they cost nothing on disk.
 
 tiles_written <- 0L
-
+library(tictoc)
+tic()
 for (i in seq_len(nrow(tiles))) {
   sub <- crop_burn(ba, c(tiles$xmin[i], tiles$xmax[i],
                          tiles$ymin[i], tiles$ymax[i]))
@@ -101,7 +111,8 @@ for (i in seq_len(nrow(tiles))) {
 
 ds$flushCache()
 ds$close()
-
+toc()
+## 445s for a 182568, 170318 COG
 cat(sprintf("tiles written: %d of %d\n", tiles_written, nrow(tiles)))
 cat(sprintf("file size: %.1f KB\n", file.size(outfile) / 1024))
 
@@ -114,6 +125,15 @@ cat(sprintf("output: %d × %d %s, nodata=%s\n",
 ds2$close()
 
 
-#library(terra)
-#plot(rast(outfile))
+library(terra)
+r <- rast(outfile)
+
+#plot(r)
+# class       : SpatRaster
+# size        : 182568, 170318, 1  (nrow, ncol, nlyr)
+# resolution  : 32, 32  (x, y)
+# extent      : -2700096, 2750080, -2500096, 3342080  (xmin, xmax, ymin, ymax)
+# coord. ref. :
+#   source      : rema_approx.tif
+# name        : rema_approx
 

@@ -1,6 +1,6 @@
 Package: controlledburn
 Title: Sparse Polygon Rasterization with Exact Coverage Fractions
-Version: 0.2.0
+Version: 0.2.0.9001
 Authors@R: c(
     person("Michael", "Sumner", email = "mdsumner@gmail.com",
            role = c("aut", "cre"),

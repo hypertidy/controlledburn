@@ -15,6 +15,8 @@
 
 ## What's new
 
+* `extract_burn()` to extract values at points
+
 * **`mode = c("coverage", "approx")`** parameter on `burn()`.
   `"coverage"` (default) computes exact coverage fractions for polygon
   boundary cells via the analytical traversal engine. `"approx"` uses
