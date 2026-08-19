@@ -55,12 +55,7 @@ test_that("approx mode produces no degenerate runs (col_start > col_end)", {
   # at the grid boundary. These caused subscript-out-of-bounds in
   # materialize_chunk(). Use CGAZ-like complex geometry to exercise the
   # sweep thoroughly.
-  skip_if_not_installed("geos")
-  skip_if_not(requireNamespace("sds", quietly = TRUE), "sds not available")
-  skip_on_cran()
-  g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ(),
-                                                                   sql = sds::CGAZ_sql(c("Antarctica", "Russia")))))
-  r <- burn(g, dimension = c(2560L, 1280L), mode = "approx")
+  r <- burn(rusant, dimension = c(2560L, 1280L), mode = "approx")
 
   # No degenerate runs
   expect_true(all(r$runs$col_start <= r$runs$col_end))
