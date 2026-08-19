@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.2.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.2.0.9001</span>
       </span>
     </div>
 
@@ -73,7 +73,8 @@
 </ul></div>
 <div class="section level3">
 <h3 id="whats-new-0-2-0">What’s new<a class="anchor" aria-label="anchor" href="#whats-new-0-2-0"></a></h3>
-<ul><li><p><strong><code>mode = c("coverage", "approx")</code></strong> parameter on <code><a href="../reference/burn.html">burn()</a></code>. <code>"coverage"</code> (default) computes exact coverage fractions for polygon boundary cells via the analytical traversal engine. <code>"approx"</code> uses the cell-centre rule (fasterize semantics): boundary cells are included as full run cells iff the cell centre is inside the polygon. No <code>$edges</code> produced in approx mode. Lines and points are unaffected by mode.</p></li>
+<ul><li><p><code><a href="../reference/extract_burn.html">extract_burn()</a></code> to extract values at points</p></li>
+<li><p><strong><code>mode = c("coverage", "approx")</code></strong> parameter on <code><a href="../reference/burn.html">burn()</a></code>. <code>"coverage"</code> (default) computes exact coverage fractions for polygon boundary cells via the analytical traversal engine. <code>"approx"</code> uses the cell-centre rule (fasterize semantics): boundary cells are included as full run cells iff the cell centre is inside the polygon. No <code>$edges</code> produced in approx mode. Lines and points are unaffected by mode.</p></li>
 <li><p><strong><code>crop_burn(x, target)</code></strong> extracts a sub-window from a <code>controlledburn</code> result. Filters and clips runs/edges/lines/points to the target extent (snapped outward to cell boundaries), re-bases row/col indices. Pure R data frame filtering — no dense allocation.</p></li>
 <li><p><strong>Lightweight approx sweep.</strong> Approx mode uses a dedicated edge-row intersection sweep (~120 lines of C++) that bypasses the exactextract walker entirely. On CGAZ (218 countries, 10.1M vertices), this is 1.6–14.5× faster than the walker-based path and crosses over fasterize at ~134 million cells. At 537M cells, controlledburn is 6.8× faster than fasterize; at 8.6 billion cells (where fasterize runs out of memory), the sweep completes in 2.4 seconds.</p></li>
 <li><p><strong>Cell-for-cell fasterize parity.</strong> On NC counties at 2000×800, the lightweight sweep produces identical output to fasterize (zero discrepant cells). Boundary conventions match fasterize: left-inclusive, top-inclusive, half-open interval for horizontal edges at cell-centre y-coordinates.</p></li>
