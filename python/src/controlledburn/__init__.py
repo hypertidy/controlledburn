@@ -57,15 +57,15 @@ def as_wkb_list(x) -> list:
     if isinstance(x, (bytes, bytearray, memoryview)):
         return [x]
 
-    if hasattr(x, "geom_type"):                            # one shapely geom
-        import shapely
-        return [shapely.to_wkb(x)]
-
     if hasattr(x, "geometry") and hasattr(x, "columns"):   # GeoDataFrame
         x = x.geometry
 
-    if hasattr(x, "to_wkb"):                               # GeoSeries etc.
+    if hasattr(x, "to_wkb") and hasattr(x, "__len__"):     # GeoSeries etc.
         return list(x.to_wkb())
+
+    if hasattr(x, "geom_type"):                            # one shapely geom
+        import shapely
+        return [shapely.to_wkb(x)]
 
     out = []
     for g in x:
@@ -353,7 +353,8 @@ def materialize(
 
     if kinds and kinds[0] != "polygon":
         raise NotImplementedError(
-            "... deliberately unresolved -- consume the sparse tables directly "
+            f"dense materialization of {kinds[0]} input is deliberately "
+            "unresolved -- consume the sparse tables directly "
             "or see https://github.com/hypertidy/controlledburn/issues/13"
         )
 
