@@ -44,7 +44,7 @@ BugReports: https://github.com/hypertidy/controlledburn/issues
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Remotes: mdsumner/align
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.0
 Depends: 
     R (>= 3.5)
 LazyData: true
