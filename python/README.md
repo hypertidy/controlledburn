@@ -9,8 +9,8 @@ Python bindings (pybind11) over the pure C++17 core in ../cpp.
 ```python
 import shapely
 import controlledburn as cb
-
-r = cb.burn(shapely.box(2.5, 4.5, 6.5, 8.5),
+poly = shapely.box(2.5, 4.5, 6.5, 8.5)
+r = cb.burn([shapely.to_wkb(poly)],
             bounds=(0, 0, 10, 10),   # (xmin, ymin, xmax, ymax), rasterio-style
             shape=(10, 10))          # (nrow, ncol), numpy-style
 
