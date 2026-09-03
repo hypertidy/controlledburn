@@ -13,12 +13,13 @@ import shapely
 
 import controlledburn as cb
 
-G10 = dict(bounds=(0, 0, 10, 10), shape=(10, 10))
+G10 = dict(extent=(0, 10, 0, 10), shape=(10, 10))
 
 
-def covered_area(r, bounds, shape):
+def covered_area(r, extent, shape):
+    # extent is (xmin, xmax, ymin, ymax), matching R's extent ordering
     nrow, ncol = shape
-    cell = ((bounds[2] - bounds[0]) / ncol) * ((bounds[3] - bounds[1]) / nrow)
+    cell = ((extent[1] - extent[0]) / ncol) * ((extent[3] - extent[2]) / nrow)
     full = cell * (r.runs["col_end"] - r.runs["col_start"] + 1).sum()
     frac = cell * r.edges["fraction"].sum(dtype=np.float64)
     return full + frac
@@ -33,14 +34,14 @@ def test_aligned_rectangle():
     r = cb.burn([wkb(g)], **G10)
     assert len(r.edges) == 0
     assert len(r.runs) > 0
-    assert covered_area(r, G10["bounds"], G10["shape"]) == pytest.approx(16.0)
+    assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(16.0)
     assert (r.runs["id"] == 1).all()
 
 
 def test_offset_rectangle():
     g = shapely.box(2.5, 4.5, 6.5, 8.5)
     r = cb.burn([wkb(g)], **G10)
-    assert covered_area(r, G10["bounds"], G10["shape"]) == pytest.approx(16.0)
+    assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(16.0)
     quarters = np.isclose(r.edges["fraction"], 0.25).sum()
     halves = np.isclose(r.edges["fraction"], 0.5).sum()
     assert quarters == 4
@@ -49,9 +50,9 @@ def test_offset_rectangle():
 
 def test_triangle_awkward_grid():
     tri = shapely.Polygon([(13.3, 17.7), (88.1, 22.4), (41.9, 79.2)])
-    bounds, shape = (0, 0, 100, 100), (41, 37)
-    r = cb.burn([wkb(tri)], bounds=bounds, shape=shape)
-    assert covered_area(r, bounds, shape) == pytest.approx(tri.area, rel=1e-4)
+    extent, shape = (0, 100, 0, 100), (41, 37)
+    r = cb.burn([wkb(tri)], extent=extent, shape=shape)
+    assert covered_area(r, extent, shape) == pytest.approx(tri.area, rel=1e-4)
 
 
 def test_hole_both_orientations():
@@ -60,13 +61,13 @@ def test_hole_both_orientations():
     for hole in (hole_ccw, hole_ccw[::-1]):
         g = shapely.Polygon(outer, [hole])
         r = cb.burn([wkb(g)], **G10)
-        assert covered_area(r, G10["bounds"], G10["shape"]) == pytest.approx(48.0)
+        assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(48.0)
 
 
 def test_multipolygon_disjoint():
     g = shapely.MultiPolygon([shapely.box(1, 1, 3, 3), shapely.box(6, 6, 9, 9)])
     r = cb.burn([wkb(g)], **G10)
-    assert covered_area(r, G10["bounds"], G10["shape"]) == pytest.approx(13.0)
+    assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(13.0)
     assert (r.runs["id"] == 1).all()  # one geometry -> one id
 
 
@@ -74,9 +75,9 @@ def test_beyond_extent():
     # Exercises the padding-column winding case: edges entirely outside
     # the grid must still contribute winding to grid rows.
     g = shapely.box(-100, -100, 100, 100)
-    r = cb.burn([wkb(g)], bounds=(0, 0, 10, 10), shape=(5, 5))
+    r = cb.burn([wkb(g)], extent=(0, 10, 0, 10), shape=(5, 5))
     assert len(r.edges) == 0
-    assert covered_area(r, (0, 0, 10, 10), (5, 5)) == pytest.approx(100.0)
+    assert covered_area(r, (0, 10, 0, 10), (5, 5)) == pytest.approx(100.0)
 
 
 def test_line_length_conserved():
@@ -116,7 +117,7 @@ def test_bad_wkb_warns_and_skips():
         r = cb.burn([b"\x01\x03\x00", wkb(shapely.box(2, 4, 6, 8))], **G10)
     # second geometry still burned with id 2
     assert (r.runs["id"] == 2).all()
-    assert covered_area(r, G10["bounds"], G10["shape"]) == pytest.approx(16.0)
+    assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(16.0)
 
 
 def test_none_entries_skipped():
@@ -161,7 +162,7 @@ def test_pandas_roundtrip():
 
 def test_invalid_grid_raises():
     with pytest.raises(Exception, match="extent|positive"):
-        cb.burn([wkb(shapely.box(0, 0, 1, 1))], bounds=(0, 0, 0, 10), shape=(10, 10))
+        cb.burn([wkb(shapely.box(0, 0, 1, 1))], extent=(0, 0, 0, 10), shape=(10, 10))
 
 
 # ---- Approx mode ----
@@ -177,23 +178,23 @@ def test_approx_aligned_rectangle():
     g = shapely.box(2, 4, 6, 8)
     r = cb.burn([wkb(g)], **G10, mode="approx")
     assert len(r.edges) == 0
-    assert covered_area(r, G10["bounds"], G10["shape"]) == pytest.approx(16.0)
+    assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(16.0)
 
 
 def test_approx_beyond_extent():
     g = shapely.box(-100, -100, 100, 100)
-    r = cb.burn([wkb(g)], bounds=(0, 0, 10, 10), shape=(5, 5), mode="approx")
+    r = cb.burn([wkb(g)], extent=(0, 10, 0, 10), shape=(5, 5), mode="approx")
     assert len(r.edges) == 0
-    assert covered_area(r, (0, 0, 10, 10), (5, 5)) == pytest.approx(100.0)
+    assert covered_area(r, (0, 10, 0, 10), (5, 5)) == pytest.approx(100.0)
 
 
 def test_approx_hole():
     outer = [(1, 1), (9, 1), (9, 9), (1, 9)]
     hole = [(3, 3), (7, 3), (7, 7), (3, 7)]
     g = shapely.Polygon(outer, [hole])
-    r = cb.burn([wkb(g)], bounds=(0, 0, 10, 10), shape=(20, 20), mode="approx")
+    r = cb.burn([wkb(g)], extent=(0, 10, 0, 10), shape=(20, 20), mode="approx")
     assert len(r.edges) == 0
-    area = covered_area(r, (0, 0, 10, 10), (20, 20))
+    area = covered_area(r, (0, 10, 0, 10), (20, 20))
     assert 40 < area < 56
 
 
@@ -206,5 +207,5 @@ def test_approx_line_unchanged():
 
 def test_approx_invalid_mode():
     with pytest.raises((ValueError, Exception)):
-        cb.burn([wkb(shapely.box(0, 0, 1, 1))], bounds=(0, 0, 10, 10),
+        cb.burn([wkb(shapely.box(0, 0, 1, 1))], extent=(0, 10, 0, 10),
                 shape=(10, 10), mode="bad")

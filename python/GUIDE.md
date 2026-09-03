@@ -27,11 +27,12 @@ values agree exactly across languages.
 8. [Lines](#lines)
 9. [Points](#points)
 10. [Materializing to a dense array](#materializing-to-a-dense-array)
-11. [Georeferencing the output](#georeferencing-the-output)
-12. [pandas, scipy.sparse, xarray](#pandas-scipysparse-xarray)
-13. [Scale](#scale)
-14. [Sharp edges](#sharp-edges)
-15. [R to Python cheatsheet](#r-to-python-cheatsheet)
+11. [Cropping and tiling](#cropping-and-tiling)
+12. [Georeferencing the output](#georeferencing-the-output)
+13. [pandas, scipy.sparse, xarray](#pandas-scipysparse-xarray)
+14. [Scale](#scale)
+15. [Sharp edges](#sharp-edges)
+16. [R to Python cheatsheet](#r-to-python-cheatsheet)
 
 ---
 
@@ -66,7 +67,7 @@ import controlledburn as cb
 poly = shapely.box(2.5, 4.5, 6.5, 8.5)
 
 r = cb.burn([shapely.to_wkb(poly)],
-            bounds=(0, 0, 10, 10),   # (xmin, ymin, xmax, ymax)
+            extent=(0, 10, 0, 10),   # (xmin, xmax, ymin, ymax), matches R's extent
             shape=(10, 10))          # (nrow, ncol)
 
 r.runs     # interior cells, run-length encoded
@@ -108,7 +109,7 @@ means exactly one thing.
 | `lines` | `row, col, length, id` | CRS units | lines |
 | `points` | `row, col, id` | none | points |
 
-Plus `r.bounds` and `r.shape`, echoing what you passed in.
+Plus `r.extent` and `r.shape`, echoing what you passed in.
 
 Three rules that hold everywhere:
 
@@ -132,7 +133,7 @@ mixed = cb.burn([shapely.to_wkb(g) for g in [
     shapely.box(2.5, 4.5, 6.5, 8.5),
     shapely.LineString([(0.5, 0.5), (9.5, 7.5)]),
     shapely.Point(1.5, 1.5),
-]], bounds=(0, 0, 10, 10), shape=(10, 10))
+]], extent=(0, 10, 0, 10), shape=(10, 10))
 
 len(mixed.runs), len(mixed.edges), len(mixed.lines), len(mixed.points)
 # (3, 16, 16, 1)
@@ -145,13 +146,14 @@ len(mixed.runs), len(mixed.edges), len(mixed.lines), len(mixed.points)
 Two arguments, both required, both in Python-native order:
 
 ```python
-bounds = (xmin, ymin, xmax, ymax)   # rasterio ordering
+extent = (xmin, xmax, ymin, ymax)   # matches R's extent ordering
 shape  = (nrow, ncol)               # numpy ordering
 ```
 
-These deliberately differ from the R package, which uses
-`extent = c(xmin, xmax, ymin, ymax)` and `dimension = c(ncol, nrow)`.
-Each language uses its own idiom. The *values* in the output tables are
+`extent` uses the same ordering as the R package's
+`extent = c(xmin, xmax, ymin, ymax)`. `shape` follows the numpy idiom
+`(nrow, ncol)`, which is the transpose of the R package's
+`dimension = c(ncol, nrow)`. The *values* in the output tables are
 identical either way.
 
 `shape` is the easiest thing to get backwards. If your result looks
@@ -161,10 +163,10 @@ mistakes are silent -- a square grid will not complain at all.
 Invalid grids do raise:
 
 ```python
-cb.burn(wkb, bounds=(0, 0, 0, 10), shape=(10, 10))
+cb.burn(wkb, extent=(0, 0, 0, 10), shape=(10, 10))
 # ValueError: invalid extent: xmax must be > xmin, ymax must be > ymin
 
-cb.burn(wkb, bounds=(0, 0, 10, 10), shape=(0, 10))
+cb.burn(wkb, extent=(0, 10, 0, 10), shape=(0, 10))
 # ValueError: ncol and nrow must be positive
 ```
 
@@ -178,14 +180,14 @@ instead of a dimension. Python does not do this yet (see
 import numpy as np
 import shapely
 
-def resolve_grid(geoms, bounds=None, shape=None, resolution=None, size=256):
+def resolve_grid(geoms, extent=None, shape=None, resolution=None, size=256):
     """Mirror of the R package's grid parameter resolution."""
-    if bounds is None:
+    if extent is None:
         g = as_wkb_list(geoms)                 # see the next section
         b = np.atleast_2d(shapely.bounds(shapely.from_wkb(g)))
-        bounds = (float(np.nanmin(b[:, 0])), float(np.nanmin(b[:, 1])),
-                  float(np.nanmax(b[:, 2])), float(np.nanmax(b[:, 3])))
-    xmin, ymin, xmax, ymax = (float(v) for v in bounds)
+        extent = (float(np.nanmin(b[:, 0])), float(np.nanmax(b[:, 2])),
+                  float(np.nanmin(b[:, 1])), float(np.nanmax(b[:, 3])))
+    xmin, xmax, ymin, ymax = (float(v) for v in extent)
 
     if shape is not None and resolution is not None:
         raise ValueError("specify 'shape' or 'resolution', not both")
@@ -200,15 +202,15 @@ def resolve_grid(geoms, bounds=None, shape=None, resolution=None, size=256):
         m = max(w, h)
         shape = (int(np.ceil(size * h / m)), int(np.ceil(size * w / m)))
 
-    return bounds, (int(shape[0]), int(shape[1]))
+    return extent, (int(shape[0]), int(shape[1]))
 ```
 
 ```python
 resolve_grid(shapely.box(2.5, 4.5, 6.5, 8.5))
-# ((2.5, 4.5, 6.5, 8.5), (256, 256))
+# ((2.5, 6.5, 4.5, 8.5), (256, 256))
 
 resolve_grid(shapely.box(2.5, 4.5, 6.5, 8.5), resolution=0.5)
-# ((2.5, 4.5, 6.5, 8.5), (8, 8))
+# ((2.5, 6.5, 4.5, 8.5), (8, 8))
 ```
 
 The default fits at most 256 cells along the longer axis and preserves
@@ -225,7 +227,7 @@ than rejected. `None` entries are skipped (and still consume an id).
 **shapely, one at a time:**
 
 ```python
-cb.burn([shapely.to_wkb(g) for g in geoms], bounds=..., shape=...)
+cb.burn([shapely.to_wkb(g) for g in geoms], extent=..., shape=...)
 ```
 
 **shapely, vectorized** (much faster for large collections; `to_wkb` on an
@@ -234,17 +236,18 @@ array returns an object array of bytes, which `burn()` accepts directly):
 ```python
 import numpy as np
 arr = np.asarray(geoms)
-cb.burn(shapely.to_wkb(arr), bounds=..., shape=...)
+cb.burn(shapely.to_wkb(arr), extent=..., shape=...)
 ```
 
 **geopandas:**
 
 ```python
-cb.burn(gdf.geometry.to_wkb(), bounds=tuple(gdf.total_bounds), shape=(2000, 2000))
+xmin, ymin, xmax, ymax = gdf.total_bounds
+cb.burn(gdf.geometry.to_wkb(), extent=(xmin, xmax, ymin, ymax), shape=(2000, 2000))
 ```
 
-`gdf.total_bounds` is already `(xmin, ymin, xmax, ymax)`, so it drops
-straight in.
+`gdf.total_bounds` is `(xmin, ymin, xmax, ymax)` (rasterio order), so it
+needs reordering to controlledburn's `(xmin, xmax, ymin, ymax)` extent.
 
 **pyogrio, skipping shapely entirely:**
 
@@ -252,7 +255,7 @@ straight in.
 import pyogrio
 tbl = pyogrio.read_arrow("countries.gpkg")[1]
 wkb = tbl.column("wkb_geometry").to_pylist()
-cb.burn(wkb, bounds=(-180, -90, 180, 90), shape=(1800, 3600))
+cb.burn(wkb, extent=(-180, 180, -90, 90), shape=(1800, 3600))
 ```
 
 **Anything else** that can hand you bytes: a WKB column out of DuckDB or
@@ -300,7 +303,7 @@ import warnings
 with warnings.catch_warnings(record=True) as w:
     warnings.simplefilter("always")
     r = cb.burn([b"\x01\x03\x00", shapely.to_wkb(shapely.box(2, 4, 6, 8))],
-                bounds=(0, 0, 10, 10), shape=(10, 10))
+                extent=(0, 10, 0, 10), shape=(10, 10))
 # UserWarning: geometry 1: ... WKB ...
 # the second geometry is still burned, with id 2
 ```
@@ -319,8 +322,8 @@ Use `shapely.is_valid` and `shapely.make_valid` when you do want that.
 ## Coverage mode and approx mode
 
 ```python
-cb.burn(wkb, bounds=..., shape=..., mode="coverage")   # default
-cb.burn(wkb, bounds=..., shape=..., mode="approx")
+cb.burn(wkb, extent=..., shape=..., mode="coverage")   # default
+cb.burn(wkb, extent=..., shape=..., mode="approx")
 ```
 
 **`coverage`** computes exact analytical coverage fractions for polygon
@@ -336,7 +339,7 @@ entirely, and it is substantially faster.
 ```python
 g = shapely.box(2.5, 4.5, 6.5, 8.5)
 for mode in ("coverage", "approx"):
-    r = cb.burn([shapely.to_wkb(g)], bounds=(0, 0, 10, 10),
+    r = cb.burn([shapely.to_wkb(g)], extent=(0, 10, 0, 10),
                 shape=(10, 10), mode=mode)
     print(mode, len(r.runs), "runs,", len(r.edges), "edges")
 # coverage 3 runs, 16 edges
@@ -360,7 +363,7 @@ stays small even on enormous grids. Boundary cells arrive individually.
 
 ```python
 def covered_area(r):
-    xmin, ymin, xmax, ymax = r.bounds
+    xmin, xmax, ymin, ymax = r.extent
     nrow, ncol = r.shape
     cell = ((xmax - xmin) / ncol) * ((ymax - ymin) / nrow)
     full = (r.runs["col_end"] - r.runs["col_start"] + 1).sum()
@@ -369,7 +372,7 @@ def covered_area(r):
 
 ```python
 tri = shapely.Polygon([(13.3, 17.7), (88.1, 22.4), (41.9, 79.2)])
-r = cb.burn([shapely.to_wkb(tri)], bounds=(0, 0, 100, 100), shape=(41, 37))
+r = cb.burn([shapely.to_wkb(tri)], extent=(0, 100, 0, 100), shape=(41, 37))
 covered_area(r), tri.area
 # agrees to better than 1 part in 10,000 on an awkward non-square grid
 ```
@@ -382,7 +385,7 @@ and produce a single `id`:
 ```python
 g = shapely.Polygon([(1, 1), (9, 1), (9, 9), (1, 9)],
                     [[(3, 3), (7, 3), (7, 7), (3, 7)]])
-r = cb.burn([shapely.to_wkb(g)], bounds=(0, 0, 10, 10), shape=(10, 10))
+r = cb.burn([shapely.to_wkb(g)], extent=(0, 10, 0, 10), shape=(10, 10))
 covered_area(r)   # 48.0, the 64-unit square minus the 16-unit hole
 ```
 
@@ -394,7 +397,7 @@ sum to exactly 1.0 in every boundary cell. No gaps, no double counting:
 ```python
 left, right = shapely.box(0, 0, 5, 10), shapely.box(5, 0, 10, 10)
 r = cb.burn(shapely.to_wkb(np.array([left, right])),
-            bounds=(0, 0, 10, 10), shape=(20, 20))
+            extent=(0, 10, 0, 10), shape=(20, 20))
 m = cb.materialize(r, values=[1.0, 1.0], fn="sum",
                    edge_policy="fraction", background=0.0)
 np.unique(np.round(m, 6))
@@ -411,7 +414,7 @@ the grid:
 
 ```python
 g = shapely.box(-100, -100, 100, 100)
-r = cb.burn([shapely.to_wkb(g)], bounds=(0, 0, 10, 10), shape=(5, 5))
+r = cb.burn([shapely.to_wkb(g)], extent=(0, 10, 0, 10), shape=(5, 5))
 len(r.edges), covered_area(r)
 # (0, 100.0)  -- every cell fully covered, no boundary cells at all
 ```
@@ -426,7 +429,7 @@ normalised weight.
 
 ```python
 line = shapely.LineString([(0.5, 0.5), (9.5, 7.5)])
-r = cb.burn([shapely.to_wkb(line)], bounds=(0, 0, 10, 10), shape=(10, 10))
+r = cb.burn([shapely.to_wkb(line)], extent=(0, 10, 0, 10), shape=(10, 10))
 
 len(r.lines), r.lines["length"].sum(dtype="f8"), line.length
 # (16, 11.4018..., 11.4018...)
@@ -450,7 +453,7 @@ a point is either in a cell or it is not.
 ```python
 pts = [shapely.Point(0.5, 9.5), shapely.Point(9.5, 0.5), shapely.Point(15, 5)]
 r = cb.burn([shapely.to_wkb(p) for p in pts],
-            bounds=(0, 0, 10, 10), shape=(10, 10))
+            extent=(0, 10, 0, 10), shape=(10, 10))
 
 r.points
 # array([(1, 1, 1), (10, 10, 2)],
@@ -506,7 +509,7 @@ burns the id itself, which is how you get a zone raster.
 ```python
 geoms = [shapely.box(2, 4, 6, 8), shapely.box(4, 4, 8, 8)]
 r = cb.burn([shapely.to_wkb(g) for g in geoms],
-            bounds=(0, 0, 10, 10), shape=(10, 10))
+            extent=(0, 10, 0, 10), shape=(10, 10))
 
 m = cb.materialize(r, values=[1.0, 1.0], fn="sum")
 np.isfinite(m).sum()          # 24 cells in the union
@@ -517,7 +520,7 @@ Area conservation with `edge_policy="fraction"`:
 
 ```python
 g = shapely.box(2.5, 4.5, 6.5, 8.5)
-r = cb.burn([shapely.to_wkb(g)], bounds=(0, 0, 10, 10), shape=(10, 10))
+r = cb.burn([shapely.to_wkb(g)], extent=(0, 10, 0, 10), shape=(10, 10))
 np.nansum(cb.materialize(r, values=[1.0], fn="sum", edge_policy="fraction"))
 # 16.0 -- the polygon area, in cell units
 ```
@@ -550,7 +553,7 @@ def materialize_all(r, shape=None, background=0.0):
 
 ```python
 line = shapely.LineString([(0.5, 0.5), (9.5, 7.5)])
-r = cb.burn([shapely.to_wkb(line)], bounds=(0, 0, 10, 10), shape=(10, 10))
+r = cb.burn([shapely.to_wkb(line)], extent=(0, 10, 0, 10), shape=(10, 10))
 
 cb.materialize(r, background=0.0).sum()   # 0.0   <- silently empty
 materialize_all(r).sum()                  # 11.4018, the line length
@@ -560,6 +563,69 @@ materialize_all(r).sum()                  # 11.4018, the line length
 Summing a dimensionless fraction, a length in metres and a point count
 into one array mixes three different units. Filter by `id` to one
 geometry kind first, or burn each kind separately.
+
+---
+
+## Cropping and tiling
+
+Burn once, then cut as many windows out of the result as you like.
+`BurnResult.crop()` filters and clips the four sparse tables to a
+sub-window, re-basing the row/col indices to 1 and snapping the window
+outward to whole cells. Nothing is materialized, so cropping a burn that
+covers a trillion-cell grid is just structured-array filtering. It is the
+Python counterpart of the R package's `crop_burn()`.
+
+```python
+r = cb.burn([shapely.to_wkb(shapely.box(2.5, 4.5, 6.5, 8.5))],
+            extent=(0, 10, 0, 10), shape=(10, 10))
+
+tile = r.crop((3, 7, 5, 9))   # (xmin, xmax, ymin, ymax), same order as extent
+tile.shape, tile.extent
+# ((4, 4), (3.0, 7.0, 5.0, 9.0))
+```
+
+The target window uses the same `(xmin, xmax, ymin, ymax)` ordering as
+`extent`, matching the R package's `crop_burn()`.
+
+Because `crop()` returns a `BurnResult` and `materialize()` is also a
+method, the tile workflow reads as a single chain -- and nothing dense is
+allocated until the final step:
+
+```python
+window = (3, 7, 5, 9)
+dense = r.crop(window).materialize(fn="sum", edge_policy="fraction")
+```
+
+Cropping then materializing gives exactly the same pixels as slicing the
+full dense array over that window, without ever allocating the full array:
+
+```python
+full = r.materialize(fn="sum", edge_policy="fraction")
+np.array_equal(np.nan_to_num(dense), np.nan_to_num(full[1:5, 3:7]))
+# True
+```
+
+That equivalence is what makes `crop()` the tiling primitive: burn one
+huge extent, then loop over windows writing tiles.
+
+```python
+def tiles(r, tile_rows, tile_cols):
+    """Yield (row_offset, col_offset, dense_tile) over a grid of windows."""
+    xmin, xmax, ymin, ymax = r.extent
+    nrow, ncol = r.shape
+    dx, dy = (xmax - xmin) / ncol, (ymax - ymin) / nrow
+    for r0 in range(0, nrow, tile_rows):
+        for c0 in range(0, ncol, tile_cols):
+            win = (xmin + c0 * dx,
+                   xmin + min(c0 + tile_cols, ncol) * dx,
+                   ymax - min(r0 + tile_rows, nrow) * dy,
+                   ymax - r0 * dy)
+            yield r0, c0, r.crop(win).materialize(fn="sum",
+                                                  edge_policy="fraction")
+```
+
+A window that does not overlap the grid warns and returns empty tables
+with `shape == (0, 0)`.
 
 ---
 
@@ -573,14 +639,14 @@ every case.
 ```python
 def transform(r):
     """GDAL/rasterio-style affine (a, b, c, d, e, f)."""
-    xmin, ymin, xmax, ymax = r.bounds
+    xmin, xmax, ymin, ymax = r.extent
     nrow, ncol = r.shape
     return ((xmax - xmin) / ncol, 0.0, xmin,
             0.0, -(ymax - ymin) / nrow, ymax)
 ```
 
 ```python
-transform(r)   # (1.0, 0.0, 0.0, 0.0, -1.0, 10.0) for bounds (0,0,10,10), shape (10,10)
+transform(r)   # (1.0, 0.0, 0.0, 0.0, -1.0, 10.0) for extent (0,10,0,10), shape (10,10)
 ```
 
 Feeding rasterio:
@@ -604,9 +670,9 @@ array drops into a raster with no flipping.
 ### Cell centres
 
 ```python
-def cell_centers(row, col, bounds, shape):
+def cell_centers(row, col, extent, shape):
     """1-based (row, col) to (x, y) cell centre coordinates."""
-    xmin, ymin, xmax, ymax = bounds
+    xmin, xmax, ymin, ymax = extent
     nrow, ncol = shape
     x = xmin + (np.asarray(col) - 0.5) * (xmax - xmin) / ncol
     y = ymax - (np.asarray(row) - 0.5) * (ymax - ymin) / nrow
@@ -616,8 +682,8 @@ def cell_centers(row, col, bounds, shape):
 ```python
 r = cb.burn([shapely.to_wkb(p) for p in
              [shapely.Point(0.5, 9.5), shapely.Point(9.5, 0.5)]],
-            bounds=(0, 0, 10, 10), shape=(10, 10))
-cell_centers(r.points["row"], r.points["col"], r.bounds, r.shape)
+            extent=(0, 10, 0, 10), shape=(10, 10))
+cell_centers(r.points["row"], r.points["col"], r.extent, r.shape)
 # (array([0.5, 9.5]), array([9.5, 0.5]))
 ```
 
@@ -699,7 +765,7 @@ def to_coo(r, kind="polygon"):
 ```python
 polys = shapely.buffer(shapely.points(rng.uniform(0, 1000, 500),
                                       rng.uniform(0, 1000, 500)), 5)
-r = cb.burn(shapely.to_wkb(polys), bounds=(0, 0, 1000, 1000),
+r = cb.burn(shapely.to_wkb(polys), extent=(0, 1000, 0, 1000),
             shape=(20000, 20000), mode="approx")
 s = to_coo(r)
 s.nnz            # 15,544,875 of 400,000,000 cells -- 3.9 percent occupied
@@ -711,7 +777,7 @@ s.nnz            # 15,544,875 of 400,000,000 cells -- 3.9 percent occupied
 import xarray as xr
 
 nrow, ncol = r.shape
-xmin, ymin, xmax, ymax = r.bounds
+xmin, xmax, ymin, ymax = r.extent
 da = xr.DataArray(
     materialize_all(r),
     dims=("y", "x"),
@@ -773,7 +839,7 @@ something that was already correct.
 returns an all-background array with no warning. Use `materialize_all()`
 above. This is the single most likely way to get a wrong answer quietly.
 
-**5. `bounds` and `shape` are mandatory.** No geometry-derived default, no
+**5. `extent` and `shape` are mandatory.** No geometry-derived default, no
 `resolution=`. Use `resolve_grid()` above.
 
 **6. `burn()` needs WKB, not shapely objects.** Passing a shapely geometry
@@ -818,9 +884,10 @@ out. controlledburn does no geodesy.
 **9. `edge_policy="threshold"` is not fasterize parity.** For true
 cell-for-cell fasterize agreement use `mode="approx"` at burn time.
 
-**10. Version skew.** The Python package reports `0.1.0` while the R
-package is at `0.2.0`. They share the same core; the numbers are just not
-synchronised yet.
+**10. Independent versions.** The Python package (`0.3.0`) is versioned
+separately from the R package (`0.2.0`); they share the same C++ core, so
+numeric output matches regardless of the package version numbers. See
+`python/CHANGELOG.md` for the Python history.
 
 ---
 
@@ -828,16 +895,17 @@ synchronised yet.
 
 | Concept | R | Python |
 |---|---|---|
-| Burn | `burn(x, extent, dimension)` | `cb.burn(wkb, bounds, shape)` |
-| Extent | `c(xmin, xmax, ymin, ymax)` | `(xmin, ymin, xmax, ymax)` |
+| Burn | `burn(x, extent, dimension)` | `cb.burn(wkb, extent, shape)` |
+| Extent | `c(xmin, xmax, ymin, ymax)` | `(xmin, xmax, ymin, ymax)` |
 | Dimensions | `c(ncol, nrow)` | `(nrow, ncol)` |
 | Mode | `mode = "coverage" \| "approx"` | `mode="coverage" \| "approx"` |
 | Interior | `r$runs` | `r.runs` |
 | Boundary | `r$edges` (`$fraction`) | `r.edges` (`["fraction"]`) |
 | Lines | `r$lines` (`$length`) | `r.lines` (`["length"]`) |
 | Points | `r$points` | `r.points` |
-| Grid echo | `r$extent`, `r$dimension` | `r.bounds`, `r.shape` |
-| Dense | `materialise_chunk(r)` | `cb.materialize(r)` (polygons only) |
+| Grid echo | `r$extent`, `r$dimension` | `r.extent`, `r.shape` |
+| Dense | `materialise_chunk(r)` | `cb.materialize(r)` or `r.materialize()` (polygons only) |
+| Crop / tile | `crop_burn(r, c(xmin, xmax, ymin, ymax))` | `r.crop((xmin, xmax, ymin, ymax))` |
 | Summary | `print(r)` | `summary(r)` recipe above |
 | From bbox | `burn(x)` | `resolve_grid()` recipe above |
 | By resolution | `burn(x, resolution = 0.5)` | `resolve_grid()` recipe above |

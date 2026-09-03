@@ -1,6 +1,6 @@
 # test_conveniences.py -- tests for the ergonomic layer added on top of
 # the core bindings: input coercion (as_wkb_list), grid parameter
-# resolution (resolve_grid, optional bounds/shape/resolution on burn),
+# resolution (resolve_grid, optional extent/shape/resolution on burn),
 # the summary __repr__, and materialize() handling of line/point/mixed
 # input.
 #
@@ -13,13 +13,13 @@ import shapely
 
 import controlledburn as cb
 
-G10 = dict(bounds=(0, 0, 10, 10), shape=(10, 10))
+G10 = dict(extent=(0, 10, 0, 10), shape=(10, 10))
 BOX = shapely.box(2.5, 4.5, 6.5, 8.5)
 LINE = shapely.LineString([(0.5, 0.5), (9.5, 7.5)])
 
 
 def covered_area(r):
-    xmin, ymin, xmax, ymax = r.bounds
+    xmin, xmax, ymin, ymax = r.extent
     nrow, ncol = r.shape
     cell = ((xmax - xmin) / ncol) * ((ymax - ymin) / nrow)
     full = (r.runs["col_end"] - r.runs["col_start"] + 1).sum()
@@ -69,47 +69,47 @@ def test_as_wkb_list_rejects_nonsense():
 
 # ---- grid parameter resolution ---------------------------------------
 
-def test_bounds_default_from_geometry():
+def test_extent_default_from_geometry():
     r = cb.burn(BOX, shape=(10, 10))
-    assert r.bounds == (2.5, 4.5, 6.5, 8.5)
+    assert r.extent == (2.5, 6.5, 4.5, 8.5)
 
 
 def test_shape_default_256_fit():
     # taller than wide: 256 on the long (y) axis, aspect preserved
     r = cb.burn(shapely.box(0, 0, 5, 10))
     assert r.shape == (256, 128)
-    assert r.bounds == (0.0, 0.0, 5.0, 10.0)
+    assert r.extent == (0.0, 5.0, 0.0, 10.0)
 
 
 def test_resolution_scalar():
-    r = cb.burn(BOX, bounds=(0, 0, 10, 10), resolution=0.5)
+    r = cb.burn(BOX, extent=(0, 10, 0, 10), resolution=0.5)
     assert r.shape == (20, 20)
 
 
 def test_resolution_anisotropic():
-    r = cb.burn(BOX, bounds=(0, 0, 10, 10), resolution=(0.5, 1.0))
+    r = cb.burn(BOX, extent=(0, 10, 0, 10), resolution=(0.5, 1.0))
     assert r.shape == (10, 20)  # (nrow from dy, ncol from dx)
 
 
 def test_resolution_and_shape_conflict():
     with pytest.raises(ValueError, match="not both"):
-        cb.burn(BOX, bounds=(0, 0, 10, 10), shape=(10, 10), resolution=0.5)
+        cb.burn(BOX, extent=(0, 10, 0, 10), shape=(10, 10), resolution=0.5)
 
 
 def test_resolution_matches_r_ceiling_rule():
     # R: dimension <- ceiling(c(dx_extent, dy_extent) / resolution)
-    bounds, shape = cb.resolve_grid(BOX, bounds=(0, 0, 10, 10), resolution=3.0)
+    extent, shape = cb.resolve_grid(BOX, extent=(0, 10, 0, 10), resolution=3.0)
     assert shape == (4, 4)  # ceil(10/3)
 
 
-def test_invalid_bounds_still_raise():
+def test_invalid_extent_still_raise():
     with pytest.raises(ValueError, match="extent"):
-        cb.burn(shapely.to_wkb(BOX), bounds=(0, 0, 0, 10), shape=(10, 10))
+        cb.burn(shapely.to_wkb(BOX), extent=(0, 0, 0, 10), shape=(10, 10))
 
 
 def test_invalid_shape_still_raises():
     with pytest.raises(ValueError, match="positive"):
-        cb.burn(shapely.to_wkb(BOX), bounds=(0, 0, 10, 10), shape=(0, 10))
+        cb.burn(shapely.to_wkb(BOX), extent=(0, 10, 0, 10), shape=(0, 10))
 
 
 # ---- repr -------------------------------------------------------------

@@ -32,9 +32,10 @@ def load_fixtures():
     return fixtures
 
 
-def covered_area(r, bounds, shape):
+def covered_area(r, extent, shape):
+    # extent is (xmin, xmax, ymin, ymax), matching R's extent ordering
     nrow, ncol = shape
-    cell = ((bounds[2] - bounds[0]) / ncol) * ((bounds[3] - bounds[1]) / nrow)
+    cell = ((extent[1] - extent[0]) / ncol) * ((extent[3] - extent[2]) / nrow)
     full = cell * (r.runs["col_end"] - r.runs["col_start"] + 1).sum()
     frac = cell * r.edges["fraction"].sum(dtype=np.float64)
     return full + frac
@@ -50,16 +51,16 @@ def test_parity(fixture):
     geom = shapely.from_wkt(g["wkt"])
     wkb = shapely.to_wkb(geom)
 
-    bounds = (float(g["xmin"]), float(g["ymin"]),
-              float(g["xmax"]), float(g["ymax"]))
+    extent = (float(g["xmin"]), float(g["xmax"]),
+              float(g["ymin"]), float(g["ymax"]))
     shape = (int(g["nrow"]), int(g["ncol"]))
 
-    r = cb.burn([wkb], bounds=bounds, shape=shape)
+    r = cb.burn([wkb], extent=extent, shape=shape)
 
     if e["covered_area"] != "NA":
         expected_area = float(e["covered_area"])
         tol = float(e["tol_rel"])
-        actual = covered_area(r, bounds, shape)
+        actual = covered_area(r, extent, shape)
         assert actual == pytest.approx(expected_area, rel=tol), \
             f"{case}: area {actual} != {expected_area}"
 

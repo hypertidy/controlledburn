@@ -17,7 +17,7 @@ Usage:
     arr = materialize_all(r)
 
 Requires numpy. shapely is needed only for geometry coercion and for
-deriving bounds from geometry; the rest works on WKB bytes alone.
+deriving extent from geometry; the rest works on WKB bytes alone.
 """
 
 from __future__ import annotations
@@ -86,29 +86,29 @@ def as_wkb_list(x):
 # grid resolution -- the analogue of R's .resolve_grid_params()
 # --------------------------------------------------------------------
 
-def resolve_grid(geoms, bounds=None, shape=None, resolution=None, size=256):
-    """Fill in bounds and shape the way the R package does.
+def resolve_grid(geoms, extent=None, shape=None, resolution=None, size=256):
+    """Fill in extent and shape the way the R package does.
 
-    bounds defaults to the bounding box of `geoms`. shape defaults to a
+    extent defaults to the bounding box of `geoms`. shape defaults to a
     grid of at most `size` cells on the longer axis, preserving aspect
     ratio. `shape` and `resolution` are mutually exclusive.
 
-    Returns (bounds, shape) with bounds as (xmin, ymin, xmax, ymax) and
-    shape as (nrow, ncol).
+    Returns (extent, shape) with extent as (xmin, xmax, ymin, ymax)
+    (matching the R package's extent ordering) and shape as (nrow, ncol).
     """
-    if bounds is None:
+    if extent is None:
         import shapely
         wkb = as_wkb_list(geoms)
         wkb = [w for w in wkb if w is not None]
         if not wkb:
-            raise ValueError("cannot derive bounds from empty geometry")
+            raise ValueError("cannot derive extent from empty geometry")
         b = np.atleast_2d(shapely.bounds(shapely.from_wkb(wkb)))
-        bounds = (float(np.nanmin(b[:, 0])), float(np.nanmin(b[:, 1])),
-                  float(np.nanmax(b[:, 2])), float(np.nanmax(b[:, 3])))
+        extent = (float(np.nanmin(b[:, 0])), float(np.nanmax(b[:, 2])),
+                  float(np.nanmin(b[:, 1])), float(np.nanmax(b[:, 3])))
 
-    xmin, ymin, xmax, ymax = (float(v) for v in bounds)
+    xmin, xmax, ymin, ymax = (float(v) for v in extent)
     if not (xmax > xmin and ymax > ymin):
-        raise ValueError("invalid bounds: need xmax > xmin and ymax > ymin")
+        raise ValueError("invalid extent: need xmax > xmin and ymax > ymin")
 
     if shape is not None and resolution is not None:
         raise ValueError("specify 'shape' or 'resolution', not both")
@@ -129,23 +129,23 @@ def resolve_grid(geoms, bounds=None, shape=None, resolution=None, size=256):
     if nrow <= 0 or ncol <= 0:
         raise ValueError("shape must be positive")
 
-    return (xmin, ymin, xmax, ymax), (nrow, ncol)
+    return (xmin, xmax, ymin, ymax), (nrow, ncol)
 
 
 # --------------------------------------------------------------------
-# burn wrapper -- optional bounds/shape, resolution, flexible input
+# burn wrapper -- optional extent/shape, resolution, flexible input
 # --------------------------------------------------------------------
 
-def burn(geoms, bounds=None, shape=None, resolution=None, mode="coverage",
+def burn(geoms, extent=None, shape=None, resolution=None, mode="coverage",
          size=256):
     """controlledburn.burn() with R-style conveniences.
 
-    Unlike cb.burn(), `bounds` and `shape` are optional and `geoms` may
+    Unlike cb.burn(), `extent` and `shape` are optional and `geoms` may
     be shapely geometries, a GeoSeries, a GeoDataFrame, or WKB.
     """
     wkb = as_wkb_list(geoms)
-    bounds, shape = resolve_grid(wkb, bounds, shape, resolution, size)
-    return _cb.burn(wkb, bounds=bounds, shape=shape, mode=mode)
+    extent, shape = resolve_grid(wkb, extent, shape, resolution, size)
+    return _cb.burn(wkb, extent=extent, shape=shape, mode=mode)
 
 
 # --------------------------------------------------------------------
@@ -225,7 +225,7 @@ def materialize_all(r, shape=None, background=0.0, allow_mixed=False):
 
 def covered_area(r):
     """Total polygon area covered, in CRS units, from runs + edges."""
-    xmin, ymin, xmax, ymax = r.bounds
+    xmin, xmax, ymin, ymax = r.extent
     nrow, ncol = r.shape
     cell = ((xmax - xmin) / ncol) * ((ymax - ymin) / nrow)
     full = int((r.runs["col_end"] - r.runs["col_start"] + 1).sum())
@@ -238,15 +238,15 @@ def covered_area(r):
 
 def transform(r):
     """GDAL/rasterio affine tuple (a, b, c, d, e, f) for the burn grid."""
-    xmin, ymin, xmax, ymax = r.bounds
+    xmin, xmax, ymin, ymax = r.extent
     nrow, ncol = r.shape
     return ((xmax - xmin) / ncol, 0.0, xmin,
             0.0, -(ymax - ymin) / nrow, ymax)
 
 
-def cell_centers(row, col, bounds, shape):
+def cell_centers(row, col, extent, shape):
     """1-based (row, col) to (x, y) cell centre coordinates."""
-    xmin, ymin, xmax, ymax = bounds
+    xmin, xmax, ymin, ymax = extent
     nrow, ncol = shape
     x = xmin + (np.asarray(col) - 0.5) * (xmax - xmin) / ncol
     y = ymax - (np.asarray(row) - 0.5) * (ymax - ymin) / nrow

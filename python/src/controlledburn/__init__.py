@@ -15,7 +15,7 @@ import numpy as np
 from . import _core
 
 __all__ = ["burn", "materialize", "as_wkb_list", "resolve_grid", "BurnResult"]
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 _RUNS_DTYPE = np.dtype(
     [("row", "i4"), ("col_start", "i4"), ("col_end", "i4"), ("id", "i4")]
@@ -89,38 +89,39 @@ def as_wkb_list(x) -> list:
 
 def resolve_grid(
     geoms,
-    bounds: Optional[Sequence[float]] = None,
+    extent: Optional[Sequence[float]] = None,
     shape: Optional[Sequence[int]] = None,
     resolution=None,
     size: int = 256,
 ):
-    """Fill in ``bounds`` and ``shape`` the way the R package does.
+    """Fill in ``extent`` and ``shape`` the way the R package does.
 
-    ``bounds`` defaults to the bounding box of ``geoms`` (requires
+    ``extent`` defaults to the bounding box of ``geoms`` (requires
     shapely). ``shape`` defaults to a grid of at most ``size`` cells
     along the longer axis, preserving aspect ratio. ``resolution``
     (scalar or ``(dx, dy)``) computes ``shape`` from the extent and is
     mutually exclusive with ``shape``.
 
-    Returns ``(bounds, shape)`` with bounds as
-    ``(xmin, ymin, xmax, ymax)`` and shape as ``(nrow, ncol)``.
+    Returns ``(extent, shape)`` with extent as
+    ``(xmin, xmax, ymin, ymax)`` (matching the R package's extent
+    ordering) and shape as ``(nrow, ncol)``.
     """
-    if bounds is None:
+    if extent is None:
         try:
             import shapely
         except ImportError:
             raise ImportError(
-                "deriving bounds from geometry requires shapely; "
-                "pass bounds=(xmin, ymin, xmax, ymax) explicitly"
+                "deriving extent from geometry requires shapely; "
+                "pass extent=(xmin, xmax, ymin, ymax) explicitly"
             ) from None
         wkb = [w for w in as_wkb_list(geoms) if w is not None]
         if not wkb:
-            raise ValueError("cannot derive bounds from empty geometry input")
+            raise ValueError("cannot derive extent from empty geometry input")
         b = np.atleast_2d(shapely.bounds(shapely.from_wkb(wkb)))
-        bounds = (float(np.nanmin(b[:, 0])), float(np.nanmin(b[:, 1])),
-                  float(np.nanmax(b[:, 2])), float(np.nanmax(b[:, 3])))
+        extent = (float(np.nanmin(b[:, 0])), float(np.nanmax(b[:, 2])),
+                  float(np.nanmin(b[:, 1])), float(np.nanmax(b[:, 3])))
 
-    xmin, ymin, xmax, ymax = (float(v) for v in bounds)
+    xmin, xmax, ymin, ymax = (float(v) for v in extent)
     if not (xmax > xmin and ymax > ymin):
         raise ValueError(
             "invalid extent: xmax must be > xmin, ymax must be > ymin"
@@ -145,7 +146,7 @@ def resolve_grid(
     if nrow <= 0 or ncol <= 0:
         raise ValueError("ncol and nrow must be positive")
 
-    return (xmin, ymin, xmax, ymax), (nrow, ncol)
+    return (xmin, xmax, ymin, ymax), (nrow, ncol)
 
 
 @dataclass
@@ -167,7 +168,7 @@ class BurnResult:
     edges: np.ndarray
     lines: np.ndarray
     points: np.ndarray
-    bounds: tuple = field(default=None)
+    extent: tuple = field(default=None)
     shape: tuple = field(default=None)
 
     def __repr__(self) -> str:
@@ -201,10 +202,134 @@ class BurnResult:
             out.append(f"  sparsity: {100.0 * (1.0 - touched / total):.1f}% empty")
         return "\n".join(out)
 
+    def crop(self, target: Sequence[float]) -> "BurnResult":
+        """Crop to a target window, returning a new BurnResult.
+
+        The sparse analogue of a raster crop and the Python counterpart
+        of the R package's ``crop_burn()``: filter and clip the four
+        tables (runs, edges, lines, points) to a sub-window, re-basing
+        row/col indices to 1 and snapping the window outward to whole
+        cells. No dense allocation -- just structured-array filtering.
+
+        Chains with :meth:`materialize` to cut tiles from a single burn::
+
+            tile = r.crop((150, 250, 150, 250)).materialize(fn="sum",
+                                                             edge_policy="fraction")
+
+        Parameters
+        ----------
+        target : (xmin, xmax, ymin, ymax)
+            Target window in CRS units, same ordering as ``extent`` and
+            as the R package's ``crop_burn()`` target. The window is
+            snapped outward to cell boundaries.
+
+        Returns
+        -------
+        BurnResult
+            A result covering only the target window, with row/col
+            indices re-based to 1 and ``extent``/``shape`` updated to
+            the snapped window. A window that does not overlap the grid
+            warns and returns empty tables with ``shape == (0, 0)``.
+        """
+        if self.extent is None or self.shape is None:
+            raise ValueError("crop requires extent and shape to be set")
+        if len(target) != 4:
+            raise ValueError("target must be (xmin, xmax, ymin, ymax)")
+
+        xmin, xmax, ymin, ymax = (float(v) for v in self.extent)
+        nrow, ncol = int(self.shape[0]), int(self.shape[1])
+        txmin, txmax, tymin, tymax = (float(v) for v in target)
+
+        dx = (xmax - xmin) / ncol
+        dy = (ymax - ymin) / nrow
+
+        # 1-based inclusive row/col limits, snapped outward. The eps
+        # nudge avoids floor/ceil flips when the target aligns exactly
+        # with a cell boundary.
+        eps = 1e-8
+        col_lo = max(1, int(np.floor((txmin - xmin) / dx + eps)) + 1)
+        col_hi = min(ncol, int(np.ceil((txmax - xmin) / dx - eps)))
+        row_hi = min(nrow, int(np.ceil((ymax - tymin) / dy - eps)))
+        row_lo = max(1, int(np.floor((ymax - tymax) / dy + eps)) + 1)
+
+        if col_lo > col_hi or row_lo > row_hi:
+            warnings.warn("target extent does not overlap the grid",
+                          stacklevel=2)
+            return BurnResult(
+                runs=self.runs[:0].copy(),
+                edges=self.edges[:0].copy(),
+                lines=self.lines[:0].copy(),
+                points=self.points[:0].copy(),
+                extent=(txmin, txmax, tymin, tymax),
+                shape=(0, 0),
+            )
+
+        new_extent = (
+            xmin + (col_lo - 1) * dx,
+            xmin + col_hi * dx,
+            ymax - row_hi * dy,
+            ymax - (row_lo - 1) * dy,
+        )
+        new_shape = (row_hi - row_lo + 1, col_hi - col_lo + 1)
+
+        def crop_single(a):
+            if len(a) == 0:
+                return a.copy()
+            keep = ((a["row"] >= row_lo) & (a["row"] <= row_hi) &
+                    (a["col"] >= col_lo) & (a["col"] <= col_hi))
+            out = a[keep].copy()
+            out["row"] -= row_lo - 1
+            out["col"] -= col_lo - 1
+            return out
+
+        def crop_runs(a):
+            if len(a) == 0:
+                return a.copy()
+            keep = ((a["row"] >= row_lo) & (a["row"] <= row_hi) &
+                    (a["col_end"] >= col_lo) & (a["col_start"] <= col_hi))
+            out = a[keep].copy()
+            out["row"] -= row_lo - 1
+            out["col_start"] = np.maximum(out["col_start"], col_lo) - (col_lo - 1)
+            out["col_end"] = np.minimum(out["col_end"], col_hi) - (col_lo - 1)
+            return out
+
+        return BurnResult(
+            runs=crop_runs(self.runs),
+            edges=crop_single(self.edges),
+            lines=crop_single(self.lines),
+            points=crop_single(self.points),
+            extent=new_extent,
+            shape=new_shape,
+        )
+
+    def materialize(
+        self,
+        shape: Optional[Sequence[int]] = None,
+        values: Optional[Sequence[float]] = None,
+        fn: str = "last",
+        edge_policy: str = "threshold",
+        threshold: float = 0.5,
+        background: float = np.nan,
+    ) -> np.ndarray:
+        """Dense materialization of this result.
+
+        Method form of the module-level :func:`materialize`, so the
+        crop/materialize tile workflow reads as a chain::
+
+            r.crop((150, 250, 150, 250)).materialize(fn="sum")
+
+        See :func:`materialize` for the full parameter documentation.
+        """
+        return materialize(
+            self, shape=shape, values=values, fn=fn,
+            edge_policy=edge_policy, threshold=threshold,
+            background=background,
+        )
+
 
 def burn(
     geoms,
-    bounds: Optional[Sequence[float]] = None,
+    extent: Optional[Sequence[float]] = None,
     shape: Optional[Sequence[int]] = None,
     resolution=None,
     mode: str = "coverage",
@@ -221,11 +346,10 @@ def burn(
         byte order; Z/M ordinates are skipped. Geometry k (0-based
         position) is assigned id k + 1 in the output tables. ``None``
         entries are skipped.
-    bounds : (xmin, ymin, xmax, ymax), optional
-        Grid extent, rasterio-style bounds ordering. Defaults to the
-        bounding box of the input geometry (requires shapely). (Note
-        this differs from the R package's
-        ``extent = c(xmin, xmax, ymin, ymax)``.)
+    extent : (xmin, xmax, ymin, ymax), optional
+        Grid extent, matching the R package's
+        ``extent = c(xmin, xmax, ymin, ymax)`` ordering. Defaults to the
+        bounding box of the input geometry (requires shapely).
     shape : (nrow, ncol), optional
         Grid dimensions, numpy-style ordering. Defaults to a grid of at
         most 256 cells along the longer axis of the extent, preserving
@@ -251,8 +375,8 @@ def burn(
         raise ValueError("mode must be 'coverage' or 'approx'")
 
     wkb = as_wkb_list(geoms)
-    bounds, shape = resolve_grid(wkb, bounds, shape, resolution)
-    xmin, ymin, xmax, ymax = bounds
+    extent, shape = resolve_grid(wkb, extent, shape, resolution)
+    xmin, xmax, ymin, ymax = extent
     nrow, ncol = shape
 
     raw = _core.burn_wkb(list(wkb), xmin, ymin, xmax, ymax, ncol, nrow, mode)
@@ -265,7 +389,7 @@ def burn(
         edges=_structured(raw["edges"], _EDGES_DTYPE),
         lines=_structured(raw["lines"], _LINES_DTYPE),
         points=_structured(raw["points"], _POINTS_DTYPE),
-        bounds=bounds,
+        extent=extent,
         shape=shape,
     )
 

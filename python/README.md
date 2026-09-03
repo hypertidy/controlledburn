@@ -11,7 +11,7 @@ import shapely
 import controlledburn as cb
 poly = shapely.box(2.5, 4.5, 6.5, 8.5)
 r = cb.burn([shapely.to_wkb(poly)],
-            bounds=(0, 0, 10, 10),   # (xmin, ymin, xmax, ymax), rasterio-style
+            extent=(0, 10, 0, 10),   # (xmin, xmax, ymin, ymax), matches R's extent
             shape=(10, 10))          # (nrow, ncol), numpy-style
 
 r.runs    # interior RLE:       (row, col_start, col_end, id)
@@ -24,12 +24,16 @@ pd.DataFrame(r.edges)  # structured arrays convert directly
 
 # Optional dense consumer (fasterize-style pixel functions):
 m = cb.materialize(r, fn="sum", edge_policy="fraction")
+
+# Crop the sparse result to a sub-window and materialize just that tile
+# (the counterpart of R's crop_burn() + materialise_chunk()):
+tile = r.crop((3, 7, 5, 9)).materialize(fn="sum", edge_policy="fraction")
 ```
 
 Input can be WKB bytes, shapely geometries (scalar or sequence), a
 geopandas GeoSeries/GeoDataFrame, or a mixed sequence with `None`
 placeholders. Grid parameters follow the R package's rules when
-omitted: `bounds` defaults to the geometry bounding box, `shape`
+omitted: `extent` defaults to the geometry bounding box, `shape`
 defaults to a 256-cell fit along the longer axis, and `resolution=`
 (mutually exclusive with `shape`) computes the shape from a cell size:
 
@@ -46,10 +50,10 @@ tracking issue). The sparse tables are the product; dense consumption
 of lines and points is a few lines of numpy over them.
 
 Tables use 1-BASED row/col with row 1 at the top -- identical values to
-the R package, so cross-language fixtures compare directly. The
-argument conventions are deliberately Python-native and differ from R:
-`bounds=(xmin, ymin, xmax, ymax)` vs R's `extent = c(xmin, xmax, ymin,
-ymax)`, and `shape=(nrow, ncol)` vs R's `dimension = c(ncol, nrow)`.
+the R package, so cross-language fixtures compare directly. `extent`
+uses the same ordering as R's `extent = c(xmin, xmax, ymin, ymax)`,
+while `shape=(nrow, ncol)` remains the numpy transpose of R's
+`dimension = c(ncol, nrow)`.
 
 Non-fatal problems (unparseable WKB, GeometryCollection input) are
 raised as Python warnings and the offending geometry is skipped.
