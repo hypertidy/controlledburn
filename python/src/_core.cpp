@@ -29,49 +29,13 @@ py::array_t<T> column(const std::vector<Struct>& v, Member Struct::* m) {
     return out;
 }
 
-// burn_wkb over a list of bytes-like objects. Returns a dict of dicts of
-// column arrays plus the notes list; the Python wrapper assembles
-// structured arrays and issues warnings.
-py::dict py_burn_wkb(py::sequence wkb_list,
-                     double xmin, double ymin, double xmax, double ymax,
-                     int ncol, int nrow,
-                     const std::string& mode = "coverage") {
-    cb::GridSpec grid{xmin, ymin, xmax, ymax, ncol, nrow};
+cb::BurnMode parse_mode(const std::string& mode) {
+    if (mode == "coverage") return cb::BurnMode::Coverage;
+    if (mode == "approx")   return cb::BurnMode::Approx;
+    throw py::value_error("mode must be 'coverage' or 'approx'");
+}
 
-    cb::BurnMode burn_mode = cb::BurnMode::Coverage;
-    if (mode == "approx") {
-        burn_mode = cb::BurnMode::Approx;
-    } else if (mode != "coverage") {
-        throw py::value_error("mode must be 'coverage' or 'approx'");
-    }
-
-    // Hold buffer views for the duration of the call; WKBSpan is
-    // non-owning.
-    std::vector<py::buffer_info> keep;
-    std::vector<cb::WKBSpan> spans;
-    keep.reserve(py::len(wkb_list));
-    spans.reserve(py::len(wkb_list));
-
-    for (py::handle h : wkb_list) {
-        if (h.is_none()) {
-            spans.push_back({nullptr, 0});
-            continue;
-        }
-        py::buffer buf = py::reinterpret_borrow<py::buffer>(h);
-        keep.push_back(buf.request());
-        const py::buffer_info& info = keep.back();
-        spans.push_back({
-            static_cast<const uint8_t*>(info.ptr),
-            static_cast<size_t>(info.size)
-        });
-    }
-
-    cb::BurnResult res;
-    {
-        py::gil_scoped_release release;
-        res = cb::burn_wkb(spans, grid, burn_mode);
-    }
-
+py::dict assemble_result(const cb::BurnResult& res) {
     py::dict runs;
     runs["row"]       = column<int32_t>(res.runs, &cb::GridRun::row);
     runs["col_start"] = column<int32_t>(res.runs, &cb::GridRun::col_start);
@@ -107,6 +71,141 @@ py::dict py_burn_wkb(py::sequence wkb_list,
     out["points"] = points;
     out["notes"] = notes;
     return out;
+}
+
+// burn_wkb over a list of bytes-like objects. Returns a dict of dicts of
+// column arrays plus the notes list; the Python wrapper assembles
+// structured arrays and issues warnings.
+py::dict py_burn_wkb(py::sequence wkb_list,
+                     double xmin, double ymin, double xmax, double ymax,
+                     int ncol, int nrow,
+                     const std::string& mode = "coverage") {
+    cb::GridSpec grid{xmin, ymin, xmax, ymax, ncol, nrow};
+
+    cb::BurnMode burn_mode = parse_mode(mode);
+
+    // Hold buffer views for the duration of the call; WKBSpan is
+    // non-owning.
+    std::vector<py::buffer_info> keep;
+    std::vector<cb::WKBSpan> spans;
+    keep.reserve(py::len(wkb_list));
+    spans.reserve(py::len(wkb_list));
+
+    for (py::handle h : wkb_list) {
+        if (h.is_none()) {
+            spans.push_back({nullptr, 0});
+            continue;
+        }
+        py::buffer buf = py::reinterpret_borrow<py::buffer>(h);
+        keep.push_back(buf.request());
+        const py::buffer_info& info = keep.back();
+        spans.push_back({
+            static_cast<const uint8_t*>(info.ptr),
+            static_cast<size_t>(info.size)
+        });
+    }
+
+    cb::BurnResult res;
+    {
+        py::gil_scoped_release release;
+        res = cb::burn_wkb(spans, grid, burn_mode);
+    }
+
+    return assemble_result(res);
+}
+
+// Build non-owning WKBSpans over an Arrow (large_)binary array's buffers:
+// a contiguous values buffer, an int64 offsets array (length n + 1), and
+// an optional per-element validity mask (uint8, 1 = valid). Returns the
+// values buffer_info, which the caller must keep alive for as long as the
+// spans are used (the spans point straight into it -- zero copy).
+py::buffer_info build_arrow_spans(
+        py::buffer values,
+        const py::array_t<int64_t, py::array::c_style | py::array::forcecast>& offsets,
+        py::object valid,
+        std::vector<cb::WKBSpan>& spans) {
+    py::buffer_info vinfo = values.request();
+    const uint8_t* base = static_cast<const uint8_t*>(vinfo.ptr);
+    const size_t data_len =
+        static_cast<size_t>(vinfo.size) * static_cast<size_t>(vinfo.itemsize);
+
+    auto off = offsets.unchecked<1>();
+    if (off.shape(0) < 1) {
+        throw py::value_error("offsets must have length n + 1 (>= 1)");
+    }
+    const py::ssize_t n = off.shape(0) - 1;
+
+    const uint8_t* validp = nullptr;
+    py::array_t<uint8_t, py::array::c_style | py::array::forcecast> valid_arr;
+    if (!valid.is_none()) {
+        valid_arr = valid.cast<
+            py::array_t<uint8_t, py::array::c_style | py::array::forcecast>>();
+        if (valid_arr.shape(0) != n) {
+            throw py::value_error(
+                "validity mask length must equal offsets length - 1");
+        }
+        validp = valid_arr.data();
+    }
+
+    spans.clear();
+    spans.reserve(static_cast<size_t>(n));
+    for (py::ssize_t i = 0; i < n; i++) {
+        if (validp && validp[i] == 0) {
+            spans.push_back({nullptr, 0});
+            continue;
+        }
+        const int64_t start = off(i);
+        const int64_t end = off(i + 1);
+        if (start < 0 || end < start ||
+            static_cast<size_t>(end) > data_len) {
+            throw py::value_error("offset out of range for values buffer");
+        }
+        spans.push_back({base + static_cast<size_t>(start),
+                         static_cast<size_t>(end - start)});
+    }
+    return vinfo;
+}
+
+// burn from Arrow WKB buffers -- the zero-copy Arrow path, no per-geometry
+// Python objects. The Python wrapper (via nanoarrow) supplies the buffers.
+py::dict py_burn_wkb_arrow(
+        py::buffer values,
+        py::array_t<int64_t, py::array::c_style | py::array::forcecast> offsets,
+        py::object valid,
+        double xmin, double ymin, double xmax, double ymax,
+        int ncol, int nrow,
+        const std::string& mode = "coverage") {
+    cb::GridSpec grid{xmin, ymin, xmax, ymax, ncol, nrow};
+    cb::BurnMode burn_mode = parse_mode(mode);
+
+    std::vector<cb::WKBSpan> spans;
+    py::buffer_info keep = build_arrow_spans(values, offsets, valid, spans);
+
+    cb::BurnResult res;
+    {
+        py::gil_scoped_release release;
+        res = cb::burn_wkb(spans, grid, burn_mode);
+    }
+    return assemble_result(res);
+}
+
+// Envelope (bounding box) of Arrow WKB buffers via the core's WKB scan.
+// Returns (xmin, ymin, xmax, ymax), or None when no finite coordinate is
+// found. Lets the Python side derive a default extent without shapely.
+py::object py_bbox_wkb_arrow(
+        py::buffer values,
+        py::array_t<int64_t, py::array::c_style | py::array::forcecast> offsets,
+        py::object valid) {
+    std::vector<cb::WKBSpan> spans;
+    py::buffer_info keep = build_arrow_spans(values, offsets, valid, spans);
+
+    cb::BBox bb;
+    {
+        py::gil_scoped_release release;
+        bb = cb::bbox_wkb(spans);
+    }
+    if (!bb.valid) return py::none();
+    return py::make_tuple(bb.xmin, bb.ymin, bb.xmax, bb.ymax);
 }
 
 // Materialize runs/edges column arrays into a (nrow, ncol) float64 array.
@@ -179,6 +278,13 @@ PYBIND11_MODULE(_core, m) {
           py::arg("xmin"), py::arg("ymin"), py::arg("xmax"), py::arg("ymax"),
           py::arg("ncol"), py::arg("nrow"),
           py::arg("mode") = "coverage");
+    m.def("burn_wkb_arrow", &py_burn_wkb_arrow,
+          py::arg("values"), py::arg("offsets"), py::arg("valid"),
+          py::arg("xmin"), py::arg("ymin"), py::arg("xmax"), py::arg("ymax"),
+          py::arg("ncol"), py::arg("nrow"),
+          py::arg("mode") = "coverage");
+    m.def("bbox_wkb_arrow", &py_bbox_wkb_arrow,
+          py::arg("values"), py::arg("offsets"), py::arg("valid"));
     m.def("materialize", &py_materialize,
           py::arg("runs_row"), py::arg("runs_col_start"),
           py::arg("runs_col_end"), py::arg("runs_id"),

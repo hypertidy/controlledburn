@@ -29,6 +29,25 @@ share the same C++ core, so numeric output matches across languages.
 - **`BurnResult.materialize(...)`** — method form of the module-level
   `materialize()`, so the crop/materialize tile workflow reads as a
   chain: `r.crop(window).materialize(fn="sum", edge_policy="fraction")`.
+- **Arrow-native input.** `burn()` accepts anything implementing the
+  Arrow C data interface (`__arrow_c_array__` / `__arrow_c_stream__`)
+  with `(large_)binary` or `geoarrow.wkb` geometry — pyarrow, nanoarrow,
+  geoarrow-pyarrow, duckdb, polars. It reads WKB straight from the Arrow
+  values buffer through a new zero-copy core entry
+  (`_core.burn_wkb_arrow`): no per-geometry Python objects and no
+  shapely. Nulls consume an id; chunked streams are concatenated with an
+  id offset. Requires `nanoarrow` (optional dependency
+  `controlledburn[arrow]`). When `extent` is omitted it is derived from
+  the geometry by a WKB-envelope scan in the C++ core
+  (`bbox_wkb` / `_core.bbox_wkb_arrow`), so the Arrow path needs no
+  shapely at all. `as_wkb_list()` also gains an Arrow fallback branch.
+
+### Core
+
+- **`bbox_wkb()`** added to the shared C++ core: the axis-aligned
+  envelope of a set of WKB blobs (skipping nulls, unparseable blobs, and
+  non-finite coordinates), so bindings can derive a default grid extent
+  without a geometry library.
 
 ## 0.2.0
 

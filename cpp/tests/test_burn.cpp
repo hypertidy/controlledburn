@@ -210,6 +210,50 @@ static void test_wkb() {
     CHECK(rb.runs.empty());
 }
 
+// bbox_wkb: union envelope over WKB blobs, skipping nulls and unparseable.
+static void test_bbox_wkb() {
+    auto poly_wkb = [](double x0, double y0, double x1, double y1) {
+        std::vector<uint8_t> wkb;
+        auto push_u32 = [&](uint32_t v) {
+            for (int i = 0; i < 4; i++)
+                wkb.push_back(static_cast<uint8_t>(v >> (8 * i)));
+        };
+        auto push_f64 = [&](double d) {
+            uint64_t v;
+            std::memcpy(&v, &d, 8);
+            for (int i = 0; i < 8; i++)
+                wkb.push_back(static_cast<uint8_t>(v >> (8 * i)));
+        };
+        wkb.push_back(1);    // little endian
+        push_u32(3);         // Polygon
+        push_u32(1);         // 1 ring
+        push_u32(5);         // 5 coords
+        double c[5][2] = {{x0, y0}, {x1, y0}, {x1, y1}, {x0, y1}, {x0, y0}};
+        for (auto& p : c) { push_f64(p[0]); push_f64(p[1]); }
+        return wkb;
+    };
+    std::vector<uint8_t> a = poly_wkb(2, 4, 6, 8);
+    std::vector<uint8_t> b = poly_wkb(-1, 0, 3, 5);
+    std::vector<uint8_t> bad = {1, 3, 0};
+
+    std::vector<WKBSpan> spans = {
+        {a.data(), a.size()},
+        {nullptr, 0},               // null span skipped
+        {b.data(), b.size()},
+        {bad.data(), bad.size()},   // unparseable skipped
+    };
+    BBox bb = bbox_wkb(spans);
+    CHECK(bb.valid);
+    CHECK_NEAR(bb.xmin, -1.0, 1e-12);
+    CHECK_NEAR(bb.ymin, 0.0, 1e-12);
+    CHECK_NEAR(bb.xmax, 6.0, 1e-12);
+    CHECK_NEAR(bb.ymax, 8.0, 1e-12);
+
+    // No parseable geometry -> invalid envelope.
+    std::vector<WKBSpan> none = {{nullptr, 0}, {bad.data(), bad.size()}};
+    CHECK(!bbox_wkb(none).valid);
+}
+
 // Materialize: fasterize-style consumption of the sparse output.
 static void test_materialize() {
     GridSpec gs{0, 0, 10, 10, 10, 10};
@@ -354,6 +398,7 @@ int main() {
     test_line_length();
     test_points();
     test_wkb();
+    test_bbox_wkb();
     test_materialize();
     test_degenerate();
 

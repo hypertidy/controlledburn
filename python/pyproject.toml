@@ -13,7 +13,10 @@ authors = [{name = "Michael Sumner", email = "mdsumner@gmail.com"}]
 dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
-test = ["pytest", "shapely>=2.0"]
+# Arrow C data interface input (burn() on pyarrow/geoarrow/duckdb/polars
+# geometry) needs nanoarrow; WKB-bytes and shapely paths do not.
+arrow = ["nanoarrow>=0.5"]
+test = ["pytest", "shapely>=2.0", "pyarrow>=14", "nanoarrow>=0.5"]
 
 [tool.scikit-build]
 minimum-version = "0.10"

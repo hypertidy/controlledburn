@@ -18,6 +18,13 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
         python-version: ['3.11', '3.12']
+        # One combination also installs geopandas + geoarrow-pyarrow so the
+        # real-source Arrow tests in test_arrow.py actually run instead of
+        # being skipped (they are guarded with pytest.importorskip).
+        include:
+          - os: ubuntu-latest
+            python-version: '3.12'
+            geo: true
 
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +36,10 @@ jobs:
       - name: Install package and test dependencies
         run: |
           pip install ./python[test]
+
+      - name: Install real GeoArrow sources
+        if: matrix.geo
+        run: pip install geopandas geoarrow-pyarrow
 
       - name: Run tests
         run: pytest python/tests/ -v

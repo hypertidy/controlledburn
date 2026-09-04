@@ -22,17 +22,18 @@ values agree exactly across languages.
 3. [The four tables](#the-four-tables)
 4. [Specifying the grid](#specifying-the-grid)
 5. [Getting geometry in](#getting-geometry-in)
-6. [Coverage mode and approx mode](#coverage-mode-and-approx-mode)
-7. [Polygons](#polygons)
-8. [Lines](#lines)
-9. [Points](#points)
-10. [Materializing to a dense array](#materializing-to-a-dense-array)
-11. [Cropping and tiling](#cropping-and-tiling)
-12. [Georeferencing the output](#georeferencing-the-output)
-13. [pandas, scipy.sparse, xarray](#pandas-scipysparse-xarray)
-14. [Scale](#scale)
-15. [Sharp edges](#sharp-edges)
-16. [R to Python cheatsheet](#r-to-python-cheatsheet)
+6. [Arrow input](#arrow-input)
+7. [Coverage mode and approx mode](#coverage-mode-and-approx-mode)
+8. [Polygons](#polygons)
+9. [Lines](#lines)
+10. [Points](#points)
+11. [Materializing to a dense array](#materializing-to-a-dense-array)
+12. [Cropping and tiling](#cropping-and-tiling)
+13. [Georeferencing the output](#georeferencing-the-output)
+14. [pandas, scipy.sparse, xarray](#pandas-scipysparse-xarray)
+15. [Scale](#scale)
+16. [Sharp edges](#sharp-edges)
+17. [R to Python cheatsheet](#r-to-python-cheatsheet)
 
 ---
 
@@ -55,6 +56,14 @@ pip install "git+https://github.com/hypertidy/controlledburn#subdirectory=python
 The only hard runtime dependency is numpy. shapely is used throughout
 this guide to make geometry, but controlledburn itself only ever sees
 WKB bytes, so anything that can produce WKB will do.
+
+For [Arrow input](#arrow-input) (feeding `burn()` a GeoArrow / pyarrow
+array directly) install the optional `arrow` extra, which adds the small
+`nanoarrow` bridge:
+
+```sh
+pip install "controlledburn[arrow]"
+```
 
 ---
 
@@ -316,6 +325,63 @@ through the same fast path with no validity check. If your input has
 topological problems that matter for your science you will see them in
 the output. If they do not matter, you have saved the cost of checking.
 Use `shapely.is_valid` and `shapely.make_valid` when you do want that.
+
+---
+
+## Arrow input
+
+`burn()` also accepts geometry through the **Arrow C data interface** --
+anything exposing `__arrow_c_array__` or `__arrow_c_stream__` whose values
+are WKB. That covers a `pyarrow` `binary` / `large_binary` array, a
+GeoArrow `wkb` array from `geoarrow-pyarrow`, and WKB columns handed over
+by DuckDB, Sedona, or polars. It is the zero-copy path: WKB is read
+straight from the Arrow buffers, with no per-geometry Python objects and
+**no shapely**.
+
+```python
+import pyarrow as pa
+import controlledburn as cb
+
+wkb = pa.array([g.wkb for g in geoms], type=pa.binary())   # or large_binary
+r = cb.burn(wkb, extent=(0, 10, 0, 10), shape=(10, 10))
+```
+
+This path needs the small `nanoarrow` bridge (`pip install
+"controlledburn[arrow]"`). The same GeoArrow-WKB bytes are the
+interchange the R package reaches through `wk` / `nanoarrow`, so this is
+the recommended way to move geometry between the two.
+
+### Deriving the grid from Arrow input
+
+Arrow input needs no shapely to fit a default grid: when `extent` is
+omitted it is computed by a WKB-envelope scan in the C++ core, and
+`shape` / `resolution` then follow the usual rules.
+
+```python
+r = cb.burn(wkb)                    # extent from the geometry, 256-cell fit
+r = cb.burn(wkb, resolution=0.01)   # extent from the geometry, cell size set
+```
+
+### What is accepted
+
+- `binary` and `large_binary` WKB arrays, and the `geoarrow.wkb`
+  extension type (which is `binary` storage). Both ISO WKB and EWKB, as
+  everywhere else.
+- Chunked arrays and streams: chunks are consumed once (a stream is
+  single-pass) and concatenated, with ids continuing across chunk
+  boundaries.
+- Nulls, via the Arrow validity bitmap: skipped but still consuming an
+  id, exactly like `None` in a WKB list.
+
+**Native GeoArrow encodings** -- the struct-based `point`, `linestring`,
+and `polygon` types -- are not consumed directly: the core is WKB-native,
+so convert to `geoarrow.wkb` first. A non-WKB Arrow array raises a clear
+error rather than misreading buffers.
+
+shapely geometries and geopandas `GeoSeries` / `GeoDataFrame` keep using
+the WKB path of the previous section even though they also speak Arrow, so
+existing code is unaffected. To force the Arrow path, hand `burn()` a
+`pyarrow` / GeoArrow WKB array explicitly.
 
 ---
 
@@ -909,7 +975,8 @@ numeric output matches regardless of the package version numbers. See
 | Summary | `print(r)` | `summary(r)` recipe above |
 | From bbox | `burn(x)` | `resolve_grid()` recipe above |
 | By resolution | `burn(x, resolution = 0.5)` | `resolve_grid()` recipe above |
-| Input types | geos, sfc, wk_wkb, blob, raw list | WKB bytes |
+| Input types | geos, sfc, wk_wkb, blob, raw list | WKB bytes, shapely, geopandas |
+| Arrow / GeoArrow | `wk` + `nanoarrow` | `cb.burn(pa_wkb_array)` (`controlledburn[arrow]`) |
 | Cell to xy | `vaster` package | `cell_centers()` recipe above |
 
 Indices, orientation and all numeric values are identical between the two.

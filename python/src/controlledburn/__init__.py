@@ -67,6 +67,9 @@ def as_wkb_list(x) -> list:
         import shapely
         return [shapely.to_wkb(x)]
 
+    if _is_arrow(x):                                       # Arrow C data interface
+        return _arrow_to_wkb_list(x)
+
     out = []
     for g in x:
         if g is None or isinstance(g, (bytes, bytearray, memoryview)):
@@ -374,6 +377,9 @@ def burn(
     if mode not in ("coverage", "approx"):
         raise ValueError("mode must be 'coverage' or 'approx'")
 
+    if _is_arrow(geoms) and not _is_shapely_like(geoms):
+        return _burn_arrow(geoms, extent, shape, resolution, mode)
+
     wkb = as_wkb_list(geoms)
     extent, shape = resolve_grid(wkb, extent, shape, resolution)
     xmin, xmax, ymin, ymax = extent
@@ -499,3 +505,171 @@ def materialize(
             float(threshold),
             float(background),
         )
+
+
+# --------------------------------------------------------------------
+# Arrow input -- consume WKB directly from the Arrow C data interface
+# (GeoArrow "wkb" / plain (large_)binary) via nanoarrow. No shapely, and
+# no per-geometry Python objects on the fast path (see burn()).
+# --------------------------------------------------------------------
+
+def _is_arrow(x) -> bool:
+    return hasattr(x, "__arrow_c_array__") or hasattr(x, "__arrow_c_stream__")
+
+
+def _is_shapely_like(x) -> bool:
+    # objects as_wkb_list() already handles directly (shapely / geopandas);
+    # these take precedence over the Arrow path even when they also expose
+    # __arrow_c_stream__, so existing behaviour is preserved.
+    return (
+        hasattr(x, "geom_type")
+        or hasattr(x, "to_wkb")
+        or (hasattr(x, "geometry") and hasattr(x, "columns"))
+    )
+
+
+def _arrow_chunks(x):
+    """Yield ``(values, offsets, valid, n)`` per chunk from Arrow input.
+
+    ``values`` is a uint8 numpy view of the chunk's WKB data buffer,
+    ``offsets`` an int64 array of length ``n + 1``, ``valid`` a uint8 mask
+    (1 = valid) or ``None`` when there are no nulls. Imports the object
+    through nanoarrow's Arrow C data interface support -- accepts
+    ``(large_)binary`` and ``geoarrow.wkb`` (binary storage) arrays and
+    streams.
+    """
+    import nanoarrow as na
+
+    for chunk in na.Array(x).iter_chunks():
+        n = len(chunk)
+        if n == 0:
+            continue
+        bufs = chunk.buffers
+        if len(bufs) != 3:
+            raise NotImplementedError(
+                "Arrow input must be (large_)binary or geoarrow.wkb WKB; "
+                f"got an array with {len(bufs)} buffers (a native GeoArrow "
+                "encoding?). Convert to WKB first."
+            )
+        valid_b, off_b, data_b = bufs
+        off = np.asarray(off_b)
+        if off.dtype not in (np.int32, np.int64):
+            raise NotImplementedError(
+                "Arrow input must be (large_)binary or geoarrow.wkb WKB "
+                f"(int32/int64 offsets); got offset dtype {off.dtype}."
+            )
+        offsets = np.ascontiguousarray(off, dtype=np.int64)
+        if offsets.shape[0] != n + 1:
+            raise ValueError(
+                "unexpected offsets length; sliced arrays with a non-zero "
+                "offset are not supported yet"
+            )
+        data = np.asarray(data_b)
+        if data.dtype != np.uint8:
+            data = data.view(np.uint8)
+        vb = np.asarray(valid_b)
+        valid = None
+        if vb.size:
+            valid = np.unpackbits(
+                vb.astype(np.uint8, copy=False), bitorder="little"
+            )[:n].astype(np.uint8)
+        yield data, offsets, valid, n
+
+
+def _arrow_to_wkb_list(x) -> list:
+    """Materialize Arrow WKB input to a ``list[bytes | None]``.
+
+    The compatibility fallback used by :func:`as_wkb_list`; :func:`burn`
+    takes the zero-copy buffer path instead (see :func:`_burn_arrow`).
+    """
+    out = []
+    for data, offsets, valid, n in _arrow_chunks(x):
+        for i in range(n):
+            if valid is not None and not valid[i]:
+                out.append(None)
+            else:
+                out.append(bytes(data[offsets[i]:offsets[i + 1]]))
+    return out
+
+
+def _arrow_extent(chunks):
+    """Derive an ``(xmin, xmax, ymin, ymax)`` extent from Arrow WKB chunks.
+
+    Uses the C++ core's WKB-envelope scan (``_core.bbox_wkb_arrow``) --
+    no shapely. Chunks with no finite coordinate contribute nothing; an
+    all-empty input raises.
+    """
+    xmin = ymin = float("inf")
+    xmax = ymax = float("-inf")
+    found = False
+    for values, offsets, valid, _n in chunks:
+        bb = _core.bbox_wkb_arrow(values, offsets, valid)
+        if bb is None:
+            continue
+        bxmin, bymin, bxmax, bymax = bb
+        xmin = min(xmin, bxmin)
+        ymin = min(ymin, bymin)
+        xmax = max(xmax, bxmax)
+        ymax = max(ymax, bymax)
+        found = True
+    if not found:
+        raise ValueError(
+            "cannot derive extent from Arrow input: no finite coordinates"
+        )
+    return (xmin, xmax, ymin, ymax)
+
+
+def _burn_arrow(geoms, extent, shape, resolution, mode) -> BurnResult:
+    """Arrow-native burn: consume WKB directly from Arrow buffers.
+
+    The zero-copy counterpart of :func:`burn` for Arrow input (anything
+    exposing the Arrow C data interface with ``(large_)binary`` or
+    ``geoarrow.wkb`` geometry). No shapely, no per-geometry Python
+    objects -- spans point straight into the Arrow values buffer.
+
+    When ``extent`` is None it is derived from the geometry via a
+    WKB-envelope scan in the C++ core (:func:`_arrow_extent`), so the
+    Arrow path has no shapely dependency at all.
+    """
+    # An Arrow stream is single-pass, and deriving the extent needs a look
+    # at the data before the burn -- so materialize the chunk buffers once.
+    chunks = list(_arrow_chunks(geoms))
+
+    if extent is None:
+        extent = _arrow_extent(chunks)
+    extent, shape = resolve_grid(None, extent, shape, resolution)
+    xmin, xmax, ymin, ymax = extent
+    nrow, ncol = shape
+
+    dtypes = {"runs": _RUNS_DTYPE, "edges": _EDGES_DTYPE,
+              "lines": _LINES_DTYPE, "points": _POINTS_DTYPE}
+    parts = {k: [] for k in dtypes}
+    id_offset = 0
+    for values, offsets, valid, n in chunks:
+        raw = _core.burn_wkb_arrow(
+            values, offsets, valid,
+            xmin, ymin, xmax, ymax, ncol, nrow, mode,
+        )
+        for geom_index, message in raw["notes"]:
+            warnings.warn(f"geometry {geom_index + id_offset}: {message}",
+                          stacklevel=3)
+        for key, dt in dtypes.items():
+            arr = _structured(raw[key], dt)
+            if id_offset and len(arr):
+                arr = arr.copy()
+                arr["id"] += id_offset
+            parts[key].append(arr)
+        id_offset += n
+
+    return BurnResult(
+        runs=np.concatenate(parts["runs"]) if parts["runs"]
+        else np.empty(0, _RUNS_DTYPE),
+        edges=np.concatenate(parts["edges"]) if parts["edges"]
+        else np.empty(0, _EDGES_DTYPE),
+        lines=np.concatenate(parts["lines"]) if parts["lines"]
+        else np.empty(0, _LINES_DTYPE),
+        points=np.concatenate(parts["points"]) if parts["points"]
+        else np.empty(0, _POINTS_DTYPE),
+        extent=extent,
+        shape=shape,
+    )
