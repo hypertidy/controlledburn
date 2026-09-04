@@ -22,7 +22,7 @@ def covered_area(r):
     xmin, xmax, ymin, ymax = r.extent
     nrow, ncol = r.shape
     cell = ((xmax - xmin) / ncol) * ((ymax - ymin) / nrow)
-    full = (r.runs["col_end"] - r.runs["col_start"] + 1).sum()
+    full = (r.runs["col_end"] - r.runs["col_start"]).sum()
     return cell * (full + r.edges["fraction"].sum(dtype=np.float64))
 
 
@@ -35,7 +35,7 @@ def test_burn_accepts_single_shapely_geometry():
 
 def test_burn_accepts_list_of_shapely_geometries():
     r = cb.burn([BOX, shapely.box(0, 0, 1, 1)], **G10)
-    assert set(np.unique(np.concatenate([r.runs["id"], r.edges["id"]]))) == {1, 2}
+    assert set(np.unique(np.concatenate([r.runs["id"], r.edges["id"]]))) == {0, 1}
 
 
 def test_burn_accepts_bare_wkb_bytes():
@@ -52,7 +52,7 @@ def test_burn_accepts_shapely_array():
 def test_burn_accepts_mixed_wkb_shapely_none():
     r = cb.burn([None, shapely.to_wkb(BOX), shapely.box(0, 0, 1, 1)], **G10)
     ids = set(np.unique(np.concatenate([r.runs["id"], r.edges["id"]])))
-    assert ids == {2, 3}  # None consumed id 1
+    assert ids == {1, 2}  # None consumed id 0
 
 
 def test_burn_accepts_geopandas_geoseries():

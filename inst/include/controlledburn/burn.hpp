@@ -71,6 +71,17 @@ struct WKBSpan {
 BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& grid,
                     BurnMode mode = BurnMode::Coverage);
 
+// Axis-aligned envelope (bounding box) of a set of WKB geometries, in the
+// coordinate system of the input (no CRS awareness). Null spans,
+// unparseable blobs, and non-finite coordinates (e.g. POINT EMPTY) are
+// skipped; `valid` is false when no finite coordinate was found. Lets
+// bindings derive a default grid extent without a geometry library.
+struct BBox {
+    double xmin, ymin, xmax, ymax;
+    bool valid;
+};
+BBox bbox_wkb(const std::vector<WKBSpan>& wkb);
+
 } // namespace controlledburn
 
 #endif // CONTROLLEDBURN_BURN_HPP

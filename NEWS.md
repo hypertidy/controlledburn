@@ -2,6 +2,12 @@
 
 * Fixed python tests. 
 
+* Internal: the vendored C++ core now emits 0-based indices with an
+  exclusive `col_end` and `id = k` (aligning with controlledburn-rs and
+  every non-R consumer). The cpp11 shim (`src/scanline_shim.cpp`) adds 1
+  to row/col/col_start/id to restore the package's 1-based, inclusive
+  contract, so R output is unchanged.
+
 # controlledburn 0.2.0
 
 ## Breaking changes

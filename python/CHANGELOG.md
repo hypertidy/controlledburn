@@ -1,7 +1,24 @@
 # Changelog — controlledburn (Python)
 
 The Python package is versioned independently of the R package. Both
-share the same C++ core, so numeric output matches across languages.
+share the same C++ core; coverage fractions, lengths and areas match
+across languages, though the index base differs (Python 0-based, R
+1-based -- see 0.4.0).
+
+## 0.4.0
+
+### Breaking changes
+
+- **0-based indices with an exclusive `col_end`.** Tables now use 0-based
+  `row`/`col` with row 0 at the top, and `runs` cover the half-open range
+  `[col_start, col_end)` -- so `col_end - col_start` is the run length and
+  `buf[row, col_start:col_end]` is the slice. Geometry k gets `id = k`
+  (also 0-based). Index a dense array directly; the old `- 1` corrections
+  are gone. This moves the `+1` offset out of the shared C++ core (now
+  0-based, matching controlledburn-rs and every non-R consumer) and into
+  the R package's cpp11 shim, so R output is unchanged. `crop()`,
+  `materialize()` (now `values[k]`), `cell_centers()` and the guide's
+  recipe snippets are updated to match.
 
 ## 0.3.0
 

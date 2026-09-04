@@ -155,7 +155,7 @@ def burn(geoms, extent=None, shape=None, resolution=None, mode="coverage",
 def summary(r):
     """One-screen summary of a BurnResult. Safe on huge results."""
     nrow, ncol = r.shape
-    interior = int((r.runs["col_end"] - r.runs["col_start"] + 1).sum())
+    interior = int((r.runs["col_end"] - r.runs["col_start"]).sum())
     touched = interior + len(r.edges) + len(r.lines) + len(r.points)
     ids = np.unique(np.concatenate([
         r.runs["id"], r.edges["id"], r.lines["id"], r.points["id"]]))
@@ -211,15 +211,15 @@ def materialize_all(r, shape=None, background=0.0, allow_mixed=False):
     out = np.full((int(nrow), int(ncol)), float(background), dtype="f8")
 
     for run in r.runs:
-        out[run["row"] - 1, run["col_start"] - 1:run["col_end"]] += 1.0
+        out[run["row"], run["col_start"]:run["col_end"]] += 1.0
     if len(r.edges):
-        np.add.at(out, (r.edges["row"] - 1, r.edges["col"] - 1),
+        np.add.at(out, (r.edges["row"], r.edges["col"]),
                   r.edges["fraction"].astype("f8"))
     if len(r.lines):
-        np.add.at(out, (r.lines["row"] - 1, r.lines["col"] - 1),
+        np.add.at(out, (r.lines["row"], r.lines["col"]),
                   r.lines["length"].astype("f8"))
     if len(r.points):
-        np.add.at(out, (r.points["row"] - 1, r.points["col"] - 1), 1.0)
+        np.add.at(out, (r.points["row"], r.points["col"]), 1.0)
     return out
 
 
@@ -228,7 +228,7 @@ def covered_area(r):
     xmin, xmax, ymin, ymax = r.extent
     nrow, ncol = r.shape
     cell = ((xmax - xmin) / ncol) * ((ymax - ymin) / nrow)
-    full = int((r.runs["col_end"] - r.runs["col_start"] + 1).sum())
+    full = int((r.runs["col_end"] - r.runs["col_start"]).sum())
     return cell * (full + float(r.edges["fraction"].sum(dtype="f8")))
 
 
@@ -245,11 +245,11 @@ def transform(r):
 
 
 def cell_centers(row, col, extent, shape):
-    """1-based (row, col) to (x, y) cell centre coordinates."""
+    """0-based (row, col) to (x, y) cell centre coordinates."""
     xmin, xmax, ymin, ymax = extent
     nrow, ncol = shape
-    x = xmin + (np.asarray(col) - 0.5) * (xmax - xmin) / ncol
-    y = ymax - (np.asarray(row) - 0.5) * (ymax - ymin) / nrow
+    x = xmin + (np.asarray(col) + 0.5) * (xmax - xmin) / ncol
+    y = ymax - (np.asarray(row) + 0.5) * (ymax - ymin) / nrow
     return x, y
 
 
@@ -264,8 +264,8 @@ def expand_runs(runs):
     """
     if len(runs) == 0:
         return np.empty(0, dtype=[("row", "i4"), ("col", "i4"), ("id", "i4")])
-    n = runs["col_end"] - runs["col_start"] + 1
-    cols = np.concatenate([np.arange(a, b + 1) for a, b in
+    n = runs["col_end"] - runs["col_start"]
+    cols = np.concatenate([np.arange(a, b) for a, b in
                            zip(runs["col_start"], runs["col_end"])])
     out = np.empty(int(n.sum()),
                    dtype=[("row", "i4"), ("col", "i4"), ("id", "i4")])
@@ -302,20 +302,20 @@ def to_coo(r, kind="polygon"):
     if kind == "polygon":
         if len(r.runs):
             ex = expand_runs(r.runs)
-            rows.append(ex["row"] - 1)
-            cols.append(ex["col"] - 1)
+            rows.append(ex["row"])
+            cols.append(ex["col"])
             vals.append(np.ones(len(ex)))
         if len(r.edges):
-            rows.append(r.edges["row"] - 1)
-            cols.append(r.edges["col"] - 1)
+            rows.append(r.edges["row"])
+            cols.append(r.edges["col"])
             vals.append(r.edges["fraction"].astype("f8"))
     elif kind == "line":
-        rows.append(r.lines["row"] - 1)
-        cols.append(r.lines["col"] - 1)
+        rows.append(r.lines["row"])
+        cols.append(r.lines["col"])
         vals.append(r.lines["length"].astype("f8"))
     elif kind == "point":
-        rows.append(r.points["row"] - 1)
-        cols.append(r.points["col"] - 1)
+        rows.append(r.points["row"])
+        cols.append(r.points["col"])
         vals.append(np.ones(len(r.points)))
     else:
         raise ValueError("kind must be 'polygon', 'line' or 'point'")

@@ -8,8 +8,12 @@
 // not GEOS -- GEOS remains in the package only for the older
 // burn_sparse path (controlledburn.cpp).
 //
-// The output contract is unchanged: runs/edges/lines/points tables with
-// 1-based row/col, row 1 at the top, geometry k (1-based) as id k.
+// The core now emits 0-based indices with an exclusive col_end and
+// id = k; this shim restores the R package's historical contract by
+// adding 1 to row/col/col_start/id (col_end is left as-is, since a
+// 0-based exclusive col_end equals a 1-based inclusive one). R output is
+// unchanged: 1-based row/col, row 1 at the top, geometry k (1-based) as
+// id k.
 //
 // Copyright (c) 2025 Michael Sumner
 // Licensed under Apache License 2.0
@@ -77,7 +81,7 @@ cpp11::writable::list cpp_scanline_burn(
   // rejection, per-geometry processing errors) as R warnings, matching
   // the historical behaviour of warn-and-skip.
   for (const auto& note : res.notes) {
-    cpp11::warning("geometry %d: %s", note.geom_index, note.message.c_str());
+    cpp11::warning("geometry %d: %s", note.geom_index + 1, note.message.c_str());
   }
 
   // Build R data.frames -- four tables, one per geometry kind.
@@ -92,10 +96,10 @@ cpp11::writable::list cpp_scanline_burn(
   cpp11::writable::integers runs_id(n_runs);
 
   for (size_t i = 0; i < n_runs; i++) {
-    runs_row[i] = res.runs[i].row;
-    runs_col_start[i] = res.runs[i].col_start;
-    runs_col_end[i] = res.runs[i].col_end;
-    runs_id[i] = res.runs[i].id;
+    runs_row[i] = res.runs[i].row + 1;
+    runs_col_start[i] = res.runs[i].col_start + 1;
+    runs_col_end[i] = res.runs[i].col_end;   // 0-based exclusive == 1-based inclusive
+    runs_id[i] = res.runs[i].id + 1;
   }
 
   cpp11::writable::list runs_df(4);
@@ -114,10 +118,10 @@ cpp11::writable::list cpp_scanline_burn(
   cpp11::writable::integers edges_id(n_edges);
 
   for (size_t i = 0; i < n_edges; i++) {
-    edges_row[i] = res.edges[i].row;
-    edges_col[i] = res.edges[i].col;
+    edges_row[i] = res.edges[i].row + 1;
+    edges_col[i] = res.edges[i].col + 1;
     edges_fraction[i] = static_cast<double>(res.edges[i].fraction);
-    edges_id[i] = res.edges[i].id;
+    edges_id[i] = res.edges[i].id + 1;
   }
 
   cpp11::writable::list edges_df(4);
@@ -136,10 +140,10 @@ cpp11::writable::list cpp_scanline_burn(
   cpp11::writable::integers lines_id(n_lines);
 
   for (size_t i = 0; i < n_lines; i++) {
-    lines_row[i] = res.lines[i].row;
-    lines_col[i] = res.lines[i].col;
+    lines_row[i] = res.lines[i].row + 1;
+    lines_col[i] = res.lines[i].col + 1;
     lines_length[i] = static_cast<double>(res.lines[i].length);
-    lines_id[i] = res.lines[i].id;
+    lines_id[i] = res.lines[i].id + 1;
   }
 
   cpp11::writable::list lines_df(4);
@@ -157,9 +161,9 @@ cpp11::writable::list cpp_scanline_burn(
   cpp11::writable::integers points_id(n_points);
 
   for (size_t i = 0; i < n_points; i++) {
-    points_row[i] = res.points[i].row;
-    points_col[i] = res.points[i].col;
-    points_id[i] = res.points[i].id;
+    points_row[i] = res.points[i].row + 1;
+    points_col[i] = res.points[i].col + 1;
+    points_id[i] = res.points[i].id + 1;
   }
 
   cpp11::writable::list points_df(3);

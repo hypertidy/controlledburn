@@ -36,7 +36,7 @@ def covered_area(r, extent, shape):
     # extent is (xmin, xmax, ymin, ymax), matching R's extent ordering
     nrow, ncol = shape
     cell = ((extent[1] - extent[0]) / ncol) * ((extent[3] - extent[2]) / nrow)
-    full = cell * (r.runs["col_end"] - r.runs["col_start"] + 1).sum()
+    full = cell * (r.runs["col_end"] - r.runs["col_start"]).sum()
     frac = cell * r.edges["fraction"].sum(dtype=np.float64)
     return full + frac
 

@@ -555,7 +555,7 @@ static void process_polygon(
 
     int winding = 0;
     int prev_col = -2;
-    int full_row = static_cast<int>(row_off + sr) + 1;
+    int full_row = static_cast<int>(row_off + sr);
 
     for (auto& mc : merged) {
       // Emit interior run between previous boundary cell and this one.
@@ -563,8 +563,8 @@ static void process_polygon(
       if (winding != 0 && prev_col > -2 && mc.col > prev_col + 1) {
         all_runs.push_back({
           full_row,
-          prev_col + 1 + 1,
-          mc.col - 1 + 1,
+          prev_col + 1,
+          mc.col,
           poly_id
         });
       }
@@ -572,9 +572,9 @@ static void process_polygon(
       if (mode == BurnMode::Coverage) {
         float w = mc.coverage;
         if (w > tol && w < (1.0f - tol)) {
-          all_edges.push_back({full_row, mc.col + 1, w, poly_id});
+          all_edges.push_back({full_row, mc.col, w, poly_id});
         } else if (w >= (1.0f - tol)) {
-          all_runs.push_back({full_row, mc.col + 1, mc.col + 1, poly_id});
+          all_runs.push_back({full_row, mc.col, mc.col + 1, poly_id});
         }
       } else {
         // Approx: cell center is inside iff winding at center != 0.
@@ -582,7 +582,7 @@ static void process_polygon(
         // left of center x within this cell).
         int winding_at_center = winding + mc.winding_delta_left;
         if (winding_at_center != 0) {
-          all_runs.push_back({full_row, mc.col + 1, mc.col + 1, poly_id});
+          all_runs.push_back({full_row, mc.col, mc.col + 1, poly_id});
         }
       }
 
@@ -707,7 +707,7 @@ static void process_polygon_approx(
           // Leaving polygon before cell center: close run before this cell
           int col_end = col;  // 0-based, exclusive (last col is col-1)
           if (run_start >= 0 && run_start < col_end)
-            all_runs.push_back({r + 1, run_start + 1, col_end, poly_id});
+            all_runs.push_back({r, run_start, col_end, poly_id});
           run_start = -1;
         } else if (winding == 0 && new_winding != 0) {
           // Entering polygon: this cell is inside
@@ -721,7 +721,7 @@ static void process_polygon_approx(
           if (run_start < 0) run_start = col;
           int col_end_1 = std::min(col + 1, gs.ncol);  // clamp to grid
           if (run_start < col_end_1)
-            all_runs.push_back({r + 1, run_start + 1, col_end_1, poly_id});
+            all_runs.push_back({r, run_start, col_end_1, poly_id});
           run_start = -1;
         } else if (winding == 0 && new_winding != 0) {
           // Entering polygon after cell center: start after this cell
@@ -733,7 +733,7 @@ static void process_polygon_approx(
 
     // Polygon extends beyond grid right edge
     if (winding != 0 && run_start >= 0 && run_start < gs.ncol) {
-      all_runs.push_back({r + 1, run_start + 1, gs.ncol, poly_id});
+      all_runs.push_back({r, run_start, gs.ncol, poly_id});
     }
   }
 }
@@ -789,10 +789,10 @@ static void process_line(
     }
 
     if (total_length > 0.0) {
-      // Map infinite_extent (r, c) to 1-based bounded grid; padding=1
-      // absorbs the +1.
+      // Map infinite_extent (r, c) to the 0-based bounded grid; padding=1
+      // means subtracting 1 recovers the bounded index.
       all_lines.push_back({
-        static_cast<int>(r), static_cast<int>(c),
+        static_cast<int>(r) - 1, static_cast<int>(c) - 1,
         static_cast<float>(total_length),
         line_id
       });
@@ -826,8 +826,8 @@ static void process_point(
   size_t c = full_grid.get_column(x);
 
   all_points.push_back({
-    static_cast<int>(r) + 1, // 1-based
-    static_cast<int>(c) + 1,
+    static_cast<int>(r), // 0-based
+    static_cast<int>(c),
     point_id
   });
 }
@@ -880,9 +880,9 @@ BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs,
     const Geometry& g = geoms[k];
     if (g.empty()) continue;
     try {
-      process_geometry(g, full_grid, gs, dx, dy, static_cast<int>(k) + 1, out, mode);
+      process_geometry(g, full_grid, gs, dx, dy, static_cast<int>(k), out, mode);
     } catch (const std::exception& e) {
-      out.notes.push_back({static_cast<int32_t>(k) + 1,
+      out.notes.push_back({static_cast<int32_t>(k),
                            std::string("error processing geometry: ") + e.what()});
     }
   }
@@ -907,16 +907,16 @@ BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& gs,
     try {
       g = parse_wkb(wkb[k].data, wkb[k].size);
     } catch (const WKBParseError& e) {
-      out.notes.push_back({static_cast<int32_t>(k) + 1,
+      out.notes.push_back({static_cast<int32_t>(k),
                            std::string("failed to parse WKB: ") + e.what()});
       continue;
     }
     if (g.empty()) continue;
 
     try {
-      process_geometry(g, full_grid, gs, dx, dy, static_cast<int>(k) + 1, out, mode);
+      process_geometry(g, full_grid, gs, dx, dy, static_cast<int>(k), out, mode);
     } catch (const std::exception& e) {
-      out.notes.push_back({static_cast<int32_t>(k) + 1,
+      out.notes.push_back({static_cast<int32_t>(k),
                            std::string("error processing geometry: ") + e.what()});
     }
   }

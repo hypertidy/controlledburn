@@ -19,7 +19,7 @@
 //                per boundary cell and is a candidate for a dedicated
 //                sweep mode in the core.
 //
-// The buffer is row-major, row 1 (top) first, `ncol * nrow` doubles,
+// The buffer is row-major, row 0 (top) first, `ncol * nrow` doubles,
 // caller-allocated and caller-initialized (typically to NaN background).
 //
 // Copyright (c) 2025 Michael Sumner
@@ -81,7 +81,7 @@ inline void apply(double* px, double value, PixelFn fn) {
 // Materialize polygon output (runs + edges) into `buffer`.
 //
 // `values` maps geometry id to burn value: value for id k is
-// values[k - 1]. Pass an empty vector to burn the id itself.
+// values[k]. Pass an empty vector to burn the id itself.
 // Cells never touched are left untouched (background is whatever the
 // caller initialized, conventionally NaN).
 inline void materialize(
@@ -96,29 +96,29 @@ inline void materialize(
 
     auto value_of = [&](int32_t id) -> double {
         if (values.empty()) return static_cast<double>(id);
-        size_t i = static_cast<size_t>(id) - 1;
+        size_t i = static_cast<size_t>(id);
         if (i >= values.size())
             throw std::out_of_range("materialize: geometry id exceeds values size");
         return values[i];
     };
 
     auto px = [&](int32_t row, int32_t col) -> double* {
-        // row/col are 1-based
-        return buffer + static_cast<size_t>(row - 1) * ncol + (col - 1);
+        // row/col are 0-based
+        return buffer + static_cast<size_t>(row) * ncol + col;
     };
 
     for (const auto& r : result.runs) {
-        if (r.row < 1 || r.row > nrow) continue;
-        int32_t c0 = r.col_start < 1 ? 1 : r.col_start;
-        int32_t c1 = r.col_end > ncol ? ncol : r.col_end;
+        if (r.row < 0 || r.row >= nrow) continue;
+        int32_t c0 = r.col_start < 0 ? 0 : r.col_start;
+        int32_t c1 = r.col_end > ncol ? ncol : r.col_end;  // exclusive
         double v = value_of(r.id);
-        for (int32_t c = c0; c <= c1; c++) {
+        for (int32_t c = c0; c < c1; c++) {
             detail::apply(px(r.row, c), v, opts.fn);
         }
     }
 
     for (const auto& e : result.edges) {
-        if (e.row < 1 || e.row > nrow || e.col < 1 || e.col > ncol) continue;
+        if (e.row < 0 || e.row >= nrow || e.col < 0 || e.col >= ncol) continue;
         double v = value_of(e.id);
         if (opts.edge_policy == EdgePolicy::Threshold) {
             if (e.fraction >= opts.threshold) {

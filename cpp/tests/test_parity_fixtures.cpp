@@ -95,7 +95,7 @@ static double covered_area(const BurnResult& r, const GridSpec& gs) {
     double cell = gs.dx() * gs.dy();
     double total = 0.0;
     for (const auto& run : r.runs)
-        total += cell * (run.col_end - run.col_start + 1);
+        total += cell * (run.col_end - run.col_start);
     for (const auto& e : r.edges)
         total += cell * e.fraction;
     return total;

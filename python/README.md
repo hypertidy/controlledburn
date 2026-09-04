@@ -49,11 +49,13 @@ mean is an aggregation question deliberately left unresolved (see the
 tracking issue). The sparse tables are the product; dense consumption
 of lines and points is a few lines of numpy over them.
 
-Tables use 1-BASED row/col with row 1 at the top -- identical values to
-the R package, so cross-language fixtures compare directly. `extent`
-uses the same ordering as R's `extent = c(xmin, xmax, ymin, ymax)`,
-while `shape=(nrow, ncol)` remains the numpy transpose of R's
-`dimension = c(ncol, nrow)`.
+Tables use 0-BASED row/col with row 0 at the top and an exclusive
+`col_end` (a run covers `[col_start, col_end)`); geometry k gets id = k.
+The R package's shim adds 1 to row/col/col_start/id, so its tables are
+1-based and inclusive -- the same coverage values, a different index
+base. `extent` uses the same ordering as R's
+`extent = c(xmin, xmax, ymin, ymax)`, while `shape=(nrow, ncol)` is the
+numpy transpose of R's `dimension = c(ncol, nrow)`.
 
 Non-fatal problems (unparseable WKB, GeometryCollection input) are
 raised as Python warnings and the offending geometry is skipped.

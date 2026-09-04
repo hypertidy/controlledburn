@@ -4,8 +4,11 @@
 // Licensed under Apache License 2.0
 
 #include "controlledburn/wkb.hpp"
+#include "controlledburn/burn.hpp"
 
+#include <cmath>
 #include <cstring>
+#include <limits>
 #include <string>
 
 namespace controlledburn {
@@ -224,6 +227,38 @@ Geometry parse_wkb(const uint8_t* data, size_t size) {
                             std::to_string(t.base) +
                             " (curved types must be linearised upstream)");
     }
+}
+
+BBox bbox_wkb(const std::vector<WKBSpan>& wkb) {
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    BBox b{inf, inf, -inf, -inf, false};
+
+    auto expand = [&](const CoordSeq& seq) {
+        for (const Coord& c : seq) {
+            if (!std::isfinite(c.x) || !std::isfinite(c.y)) continue;
+            if (c.x < b.xmin) b.xmin = c.x;
+            if (c.y < b.ymin) b.ymin = c.y;
+            if (c.x > b.xmax) b.xmax = c.x;
+            if (c.y > b.ymax) b.ymax = c.y;
+            b.valid = true;
+        }
+    };
+
+    for (const WKBSpan& span : wkb) {
+        if (!span.data || span.size == 0) continue;
+        Geometry g;
+        try {
+            g = parse_wkb(span.data, span.size);
+        } catch (const WKBParseError&) {
+            continue;  // best-effort envelope: skip what we can't parse
+        }
+        for (const CoordSeq& s : g.points) expand(s);
+        for (const CoordSeq& s : g.lines)  expand(s);
+        for (const Polygon& p : g.polygons)
+            for (const CoordSeq& ring : p.rings) expand(ring);
+    }
+
+    return b;
 }
 
 } // namespace controlledburn

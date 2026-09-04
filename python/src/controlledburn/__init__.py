@@ -15,7 +15,7 @@ import numpy as np
 from . import _core
 
 __all__ = ["burn", "materialize", "as_wkb_list", "resolve_grid", "BurnResult"]
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 _RUNS_DTYPE = np.dtype(
     [("row", "i4"), ("col_start", "i4"), ("col_end", "i4"), ("id", "i4")]
@@ -156,10 +156,12 @@ def resolve_grid(
 class BurnResult:
     """Sparse rasterization output: the four-table contract.
 
-    Tables are numpy structured arrays. Row/col indices are 1-BASED with
-    row 1 at the TOP of the grid -- identical values to the R package,
-    so cross-language fixtures compare directly. ``pandas.DataFrame(r.runs)``
-    works as-is.
+    Tables are numpy structured arrays. Row/col indices are 0-BASED with
+    row 0 at the TOP of the grid; ``col_end`` is exclusive (a run covers
+    the half-open range ``[col_start, col_end)``) and geometry k gets
+    ``id = k``. ``pandas.DataFrame(r.runs)`` works as-is. (The R package's
+    shim adds 1 to row/col/col_start/id, so its tables are 1-based and
+    inclusive.)
 
     runs   : interior RLE          (row, col_start, col_end, id)
     edges  : polygon boundary cells (row, col, fraction, id), fraction in [0, 1]
@@ -185,7 +187,7 @@ class BurnResult:
             grid = "grid unknown"
             total = None
         interior = int(
-            (self.runs["col_end"] - self.runs["col_start"] + 1).sum()
+            (self.runs["col_end"] - self.runs["col_start"]).sum()
         ) if len(self.runs) else 0
         touched = interior + len(self.edges) + len(self.lines) + len(self.points)
         ids = np.unique(np.concatenate([
@@ -211,7 +213,7 @@ class BurnResult:
         The sparse analogue of a raster crop and the Python counterpart
         of the R package's ``crop_burn()``: filter and clip the four
         tables (runs, edges, lines, points) to a sub-window, re-basing
-        row/col indices to 1 and snapping the window outward to whole
+        row/col indices to 0 and snapping the window outward to whole
         cells. No dense allocation -- just structured-array filtering.
 
         Chains with :meth:`materialize` to cut tiles from a single burn::
@@ -230,7 +232,7 @@ class BurnResult:
         -------
         BurnResult
             A result covering only the target window, with row/col
-            indices re-based to 1 and ``extent``/``shape`` updated to
+            indices re-based to 0 and ``extent``/``shape`` updated to
             the snapped window. A window that does not overlap the grid
             warns and returns empty tables with ``shape == (0, 0)``.
         """
@@ -246,16 +248,16 @@ class BurnResult:
         dx = (xmax - xmin) / ncol
         dy = (ymax - ymin) / nrow
 
-        # 1-based inclusive row/col limits, snapped outward. The eps
-        # nudge avoids floor/ceil flips when the target aligns exactly
+        # 0-based half-open row/col limits [lo, hi), snapped outward. The
+        # eps nudge avoids floor/ceil flips when the target aligns exactly
         # with a cell boundary.
         eps = 1e-8
-        col_lo = max(1, int(np.floor((txmin - xmin) / dx + eps)) + 1)
+        col_lo = max(0, int(np.floor((txmin - xmin) / dx + eps)))
         col_hi = min(ncol, int(np.ceil((txmax - xmin) / dx - eps)))
+        row_lo = max(0, int(np.floor((ymax - tymax) / dy + eps)))
         row_hi = min(nrow, int(np.ceil((ymax - tymin) / dy - eps)))
-        row_lo = max(1, int(np.floor((ymax - tymax) / dy + eps)) + 1)
 
-        if col_lo > col_hi or row_lo > row_hi:
+        if col_lo >= col_hi or row_lo >= row_hi:
             warnings.warn("target extent does not overlap the grid",
                           stacklevel=2)
             return BurnResult(
@@ -268,32 +270,32 @@ class BurnResult:
             )
 
         new_extent = (
-            xmin + (col_lo - 1) * dx,
+            xmin + col_lo * dx,
             xmin + col_hi * dx,
             ymax - row_hi * dy,
-            ymax - (row_lo - 1) * dy,
+            ymax - row_lo * dy,
         )
-        new_shape = (row_hi - row_lo + 1, col_hi - col_lo + 1)
+        new_shape = (row_hi - row_lo, col_hi - col_lo)
 
         def crop_single(a):
             if len(a) == 0:
                 return a.copy()
-            keep = ((a["row"] >= row_lo) & (a["row"] <= row_hi) &
-                    (a["col"] >= col_lo) & (a["col"] <= col_hi))
+            keep = ((a["row"] >= row_lo) & (a["row"] < row_hi) &
+                    (a["col"] >= col_lo) & (a["col"] < col_hi))
             out = a[keep].copy()
-            out["row"] -= row_lo - 1
-            out["col"] -= col_lo - 1
+            out["row"] -= row_lo
+            out["col"] -= col_lo
             return out
 
         def crop_runs(a):
             if len(a) == 0:
                 return a.copy()
-            keep = ((a["row"] >= row_lo) & (a["row"] <= row_hi) &
-                    (a["col_end"] >= col_lo) & (a["col_start"] <= col_hi))
+            keep = ((a["row"] >= row_lo) & (a["row"] < row_hi) &
+                    (a["col_end"] > col_lo) & (a["col_start"] < col_hi))
             out = a[keep].copy()
-            out["row"] -= row_lo - 1
-            out["col_start"] = np.maximum(out["col_start"], col_lo) - (col_lo - 1)
-            out["col_end"] = np.minimum(out["col_end"], col_hi) - (col_lo - 1)
+            out["row"] -= row_lo
+            out["col_start"] = np.maximum(out["col_start"], col_lo) - col_lo
+            out["col_end"] = np.minimum(out["col_end"], col_hi) - col_lo
             return out
 
         return BurnResult(
@@ -418,10 +420,10 @@ def materialize(
 ) -> np.ndarray:
     """Materialize a BurnResult into a dense 2D array.
 
-    Row 1 of the tables maps to array row 0 (top of grid).
+    Indices are 0-based: row 0 of the tables is array row 0 (top of grid).
 
     This is the fasterize-style POLYGON consumer of the sparse tables:
-    ``values[k - 1]`` is burned for geometry id k (default: the id
+    ``values[k]`` is burned for geometry id k (default: the id
     itself), combined per-pixel by ``fn``, with ``edge_policy``
     controlling boundary cells.
 
@@ -441,7 +443,7 @@ def materialize(
     shape : (nrow, ncol), optional
         Defaults to ``result.shape``.
     values : sequence of float, optional
-        Per-geometry burn value; entry for id k is ``values[k - 1]``.
+        Per-geometry burn value; entry for id k is ``values[k]``.
         Defaults to burning the id itself.
     fn : str
         Per-pixel reduction when several records touch the same cell:

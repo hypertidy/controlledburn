@@ -62,7 +62,7 @@ def test_arrow_nulls_consume_an_id():
     ws = wkbs(TWO)
     r = cb.burn(pa.array([ws[0], None, ws[1]], type=pa.binary()), **G10)
     ids = {int(i) for i in np.unique(np.concatenate([r.runs["id"], r.edges["id"]]))}
-    assert ids == {1, 3}          # the None consumed id 2
+    assert ids == {0, 2}          # the None consumed id 1
 
 
 def test_arrow_chunked_stream_offsets_ids():
@@ -71,7 +71,7 @@ def test_arrow_chunked_stream_offsets_ids():
     ca = pa.chunked_array([[ws[0]], [ws[1]]], type=pa.binary())
     r = cb.burn(ca, **G10)
     ids = {int(i) for i in np.unique(np.concatenate([r.runs["id"], r.edges["id"]]))}
-    assert ids == {1, 2}
+    assert ids == {0, 1}
     assert np.array_equal(r.runs, ref.runs)
 
 

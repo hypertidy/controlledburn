@@ -4,7 +4,11 @@
 // Line    -> lines (length-in-cell, CRS units).
 // Point   -> points (no measure column; implicit 1).
 //
-// All row/col indices are 1-based to match the R package contract.
+// All row/col indices are 0-based; row 0 is the top row. `col_end` is
+// exclusive: a run covers the half-open column range [col_start, col_end).
+// Geometry k (0-based) is emitted with id = k. Bindings that want another
+// convention add their own offset (the R package's cpp11 shim adds 1 to
+// row/col/col_start/id to restore its 1-based, inclusive contract).
 // Schemas are type-pure: each table's measure column (or absence
 // thereof) means exactly one thing.
 //
@@ -20,7 +24,7 @@
 
 namespace controlledburn {
 
-// A single interior run: fully-covered cells [col_start, col_end] on `row`.
+// A single interior run: fully-covered cells [col_start, col_end) on `row`.
 struct GridRun {
     int32_t row;
     int32_t col_start;
@@ -61,7 +65,7 @@ struct BurnResult {
 
     // Non-fatal problems encountered per input geometry (parse failures,
     // skipped GeometryCollections, ...). Bindings surface these as
-    // warnings; index is the 1-based position in the input.
+    // warnings; index is the 0-based position in the input.
     struct Note {
         int32_t geom_index;
         std::string message;

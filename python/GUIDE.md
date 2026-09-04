@@ -89,16 +89,17 @@ For this box:
 
 ```
 r.runs
-array([(3, 4, 6, 1), (4, 4, 6, 1), (5, 4, 6, 1)],
+array([(2, 3, 6, 0), (3, 3, 6, 0), (4, 3, 6, 0)],
       dtype=[('row','<i4'), ('col_start','<i4'), ('col_end','<i4'), ('id','<i4')])
 
 r.edges[:5]
-array([(2, 3, 0.25, 1), (2, 4, 0.5, 1), (2, 5, 0.5, 1),
-       (2, 6, 0.5, 1), (2, 7, 0.25, 1)],
+array([(1, 2, 0.25, 0), (1, 3, 0.5, 0), (1, 4, 0.5, 0),
+       (1, 5, 0.5, 0), (1, 6, 0.25, 0)],
       dtype=[('row','<i4'), ('col','<i4'), ('fraction','<f4'), ('id','<i4')])
 ```
 
-Three runs of three fully covered cells each, plus sixteen boundary cells.
+Three runs of three fully covered cells each (`col_end - col_start` = 3,
+since `col_end` is exclusive), plus sixteen boundary cells.
 Add it up: 9 full cells plus 4 quarters plus 12 halves is 16 cell-areas,
 and each cell is 1 x 1, so 16.0 square units. The box is 4 x 4. The
 coverage is exact, not sampled.
@@ -122,13 +123,18 @@ Plus `r.extent` and `r.shape`, echoing what you passed in.
 
 Three rules that hold everywhere:
 
-- **Indices are 1-based.** `row` 1 is the first row, `col` 1 is the first
-  column. This is a deliberate cross-language contract, not an oversight.
-  Subtract 1 to index a numpy array.
-- **Row 1 is the top of the grid**, at `ymax`. Same orientation as a
+- **Indices are 0-based**, and `col_end` is exclusive: a run covers the
+  half-open range `[col_start, col_end)`, so `col_end - col_start` is its
+  length and `buf[row, col_start:col_end]` is the slice -- index numpy
+  directly, no `- 1`.
+- **Row 0 is the top of the grid**, at `ymax`. Same orientation as a
   raster, opposite to a matplotlib default axis.
-- **`id` is the 1-based position of the geometry in your input.** Geometry
-  `k` (0-based) gets `id = k + 1`.
+- **`id` is the 0-based position of the geometry in your input.** Geometry
+  `k` gets `id = k`.
+
+(The R package's shim adds 1 to `row`/`col`/`col_start`/`id`, so R tables
+are 1-based with an inclusive `col_end` -- the same coverage values, a
+different index base.)
 
 The separation between tables is the point. A coverage fraction is
 dimensionless, a line length is in CRS units, and a point has no measure
@@ -432,7 +438,7 @@ def covered_area(r):
     xmin, xmax, ymin, ymax = r.extent
     nrow, ncol = r.shape
     cell = ((xmax - xmin) / ncol) * ((ymax - ymin) / nrow)
-    full = (r.runs["col_end"] - r.runs["col_start"] + 1).sum()
+    full = (r.runs["col_end"] - r.runs["col_start"]).sum()
     return cell * (full + r.edges["fraction"].sum(dtype="f8"))
 ```
 
@@ -522,13 +528,13 @@ r = cb.burn([shapely.to_wkb(p) for p in pts],
             extent=(0, 10, 0, 10), shape=(10, 10))
 
 r.points
-# array([(1, 1, 1), (10, 10, 2)],
+# array([(0, 0, 0), (9, 9, 1)],
 #       dtype=[('row','<i4'), ('col','<i4'), ('id','<i4')])
 ```
 
 The third point falls outside the grid and is dropped silently. Note the
-orientation: `(0.5, 9.5)` is near the top-left corner and lands in row 1,
-column 1.
+orientation: `(0.5, 9.5)` is near the top-left corner and lands in row 0,
+column 0.
 
 Repeated points in the same cell produce repeated records, one per input
 geometry, so counting is just a group-by on `(row, col)`.
@@ -560,8 +566,9 @@ cb.materialize(
 )
 ```
 
-`values[k - 1]` is the value burned for geometry `id = k`. The default
-burns the id itself, which is how you get a zone raster.
+`values[k]` is the value burned for geometry `id = k`. The default
+burns the id itself, which is how you get a zone raster (note ids start
+at 0).
 
 `fn` decides what happens when several geometries hit the same pixel.
 `edge_policy` decides what happens on boundary cells:
@@ -605,15 +612,15 @@ def materialize_all(r, shape=None, background=0.0):
     out = np.full((nrow, ncol), float(background), dtype="f8")
 
     for run in r.runs:
-        out[run["row"] - 1, run["col_start"] - 1:run["col_end"]] += 1.0
+        out[run["row"], run["col_start"]:run["col_end"]] += 1.0
     if len(r.edges):
-        np.add.at(out, (r.edges["row"] - 1, r.edges["col"] - 1),
+        np.add.at(out, (r.edges["row"], r.edges["col"]),
                   r.edges["fraction"].astype("f8"))
     if len(r.lines):
-        np.add.at(out, (r.lines["row"] - 1, r.lines["col"] - 1),
+        np.add.at(out, (r.lines["row"], r.lines["col"]),
                   r.lines["length"].astype("f8"))
     if len(r.points):
-        np.add.at(out, (r.points["row"] - 1, r.points["col"] - 1), 1.0)
+        np.add.at(out, (r.points["row"], r.points["col"]), 1.0)
     return out
 ```
 
@@ -729,7 +736,7 @@ with rasterio.open("out.tif", "w", driver="GTiff",
     dst.write(m.astype("float32"), 1)
 ```
 
-The `-` on the y term and the `ymax` origin are what encode "row 1 is the
+The `-` on the y term and the `ymax` origin are what encode "row 0 is the
 top". Because controlledburn already emits top-down rows, a materialized
 array drops into a raster with no flipping.
 
@@ -737,11 +744,11 @@ array drops into a raster with no flipping.
 
 ```python
 def cell_centers(row, col, extent, shape):
-    """1-based (row, col) to (x, y) cell centre coordinates."""
+    """0-based (row, col) to (x, y) cell centre coordinates."""
     xmin, xmax, ymin, ymax = extent
     nrow, ncol = shape
-    x = xmin + (np.asarray(col) - 0.5) * (xmax - xmin) / ncol
-    y = ymax - (np.asarray(row) - 0.5) * (ymax - ymin) / nrow
+    x = xmin + (np.asarray(col) + 0.5) * (xmax - xmin) / ncol
+    y = ymax - (np.asarray(row) + 0.5) * (ymax - ymin) / nrow
     return x, y
 ```
 
@@ -774,10 +781,10 @@ Expanding runs to one row per cell, when you want a long table:
 
 ```python
 runs = r.runs
-n = runs["col_end"] - runs["col_start"] + 1
+n = runs["col_end"] - runs["col_start"]
 long = pd.DataFrame({
     "row": np.repeat(runs["row"], n),
-    "col": np.concatenate([np.arange(a, b + 1)
+    "col": np.concatenate([np.arange(a, b)
                            for a, b in zip(runs["col_start"], runs["col_end"])]),
     "id":  np.repeat(runs["id"], n),
 })
@@ -788,7 +795,7 @@ job coverage mode exists for:
 
 ```python
 edges = pd.DataFrame(r.edges)
-edges["value"] = raster[edges["row"] - 1, edges["col"] - 1]
+edges["value"] = raster[edges["row"], edges["col"]]
 weighted = (edges.groupby("id")
                  .apply(lambda d: np.average(d["value"], weights=d["fraction"])))
 ```
@@ -806,20 +813,20 @@ def to_coo(r, kind="polygon"):
     if kind == "polygon":
         runs = r.runs
         if len(runs):
-            n = runs["col_end"] - runs["col_start"] + 1
-            rows.append(np.repeat(runs["row"], n) - 1)
-            cols.append(np.concatenate([np.arange(a, b + 1) for a, b in
-                        zip(runs["col_start"], runs["col_end"])]) - 1)
+            n = runs["col_end"] - runs["col_start"]
+            rows.append(np.repeat(runs["row"], n))
+            cols.append(np.concatenate([np.arange(a, b) for a, b in
+                        zip(runs["col_start"], runs["col_end"])]))
             vals.append(np.ones(n.sum()))
         if len(r.edges):
-            rows.append(r.edges["row"] - 1)
-            cols.append(r.edges["col"] - 1)
+            rows.append(r.edges["row"])
+            cols.append(r.edges["col"])
             vals.append(r.edges["fraction"].astype("f8"))
     elif kind == "line":
-        rows.append(r.lines["row"] - 1); cols.append(r.lines["col"] - 1)
+        rows.append(r.lines["row"]); cols.append(r.lines["col"])
         vals.append(r.lines["length"].astype("f8"))
     elif kind == "point":
-        rows.append(r.points["row"] - 1); cols.append(r.points["col"] - 1)
+        rows.append(r.points["row"]); cols.append(r.points["col"])
         vals.append(np.ones(len(r.points)))
     if not rows:
         return coo_array((nrow, ncol))
@@ -893,11 +900,12 @@ Things that will bite you, in rough order of likelihood.
 
 **1. `shape` is `(nrow, ncol)`.** Numpy order, not `(width, height)`.
 Silent when the grid is square.
+**2. Indices are 0-based, `col_end` exclusive.** Index numpy directly --
+`out[row, col_start:col_end]`, no `- 1` -- and a run is `col_end -
+col_start` cells wide. (R is 1-based with an inclusive `col_end`.)
 
-**2. Indices are 1-based.** `r.runs["row"] - 1` to index numpy. Forgetting
-this shifts everything up and left by one cell, which looks almost right.
-
-**3. Row 1 is the top.** If your picture is upside down, you flipped
+**3. Row 0 is the top.** If your picture is upside down, you flipped
+something that was already correct.cture is upside down, you flipped
 something that was already correct.
 
 **4. `cb.materialize()` silently ignores lines and points.** It handles
@@ -919,8 +927,7 @@ million runs this is unpleasant. Print a summary instead:
 
 ```python
 def summary(r):
-    nrow, ncol = r.shape
-    interior = int((r.runs["col_end"] - r.runs["col_start"] + 1).sum())
+    interior = int((r.runs["col_end"] - r.runs["col_start"]).sum())
     touched = interior + len(r.edges) + len(r.lines) + len(r.points)
     ids = np.unique(np.concatenate([r.runs["id"], r.edges["id"],
                                     r.lines["id"], r.points["id"]]))
@@ -949,10 +956,11 @@ out. controlledburn does no geodesy.
 
 **9. `edge_policy="threshold"` is not fasterize parity.** For true
 cell-for-cell fasterize agreement use `mode="approx"` at burn time.
-
-**10. Independent versions.** The Python package (`0.3.0`) is versioned
-separately from the R package (`0.2.0`); they share the same C++ core, so
-numeric output matches regardless of the package version numbers. See
+**10. Independent versions and index base.** The Python package (`0.4.0`)
+is versioned separately from the R package (`0.2.0`). They share the same
+C++ core; the *coverage values* match, but Python is 0-based with an
+exclusive `col_end` while R is 1-based inclusive. See
+`python/CHANGELOG.md` for the Python history.age version numbers. See
 `python/CHANGELOG.md` for the Python history.
 
 ---
@@ -966,7 +974,8 @@ numeric output matches regardless of the package version numbers. See
 | Dimensions | `c(ncol, nrow)` | `(nrow, ncol)` |
 | Mode | `mode = "coverage" \| "approx"` | `mode="coverage" \| "approx"` |
 | Interior | `r$runs` | `r.runs` |
-| Boundary | `r$edges` (`$fraction`) | `r.edges` (`["fraction"]`) |
+| Grid echo | `r$extent`, `r$dimension` | `r.extent`, `r.shape` |
+| Index base | 1-based, `col_end` inclusive | 0-based, `col_end` exclusive | |
 | Lines | `r$lines` (`$length`) | `r.lines` (`["length"]`) |
 | Points | `r$points` | `r.points` |
 | Grid echo | `r$extent`, `r$dimension` | `r.extent`, `r.shape` |
@@ -976,9 +985,11 @@ numeric output matches regardless of the package version numbers. See
 | From bbox | `burn(x)` | `resolve_grid()` recipe above |
 | By resolution | `burn(x, resolution = 0.5)` | `resolve_grid()` recipe above |
 | Input types | geos, sfc, wk_wkb, blob, raw list | WKB bytes, shapely, geopandas |
-| Arrow / GeoArrow | `wk` + `nanoarrow` | `cb.burn(pa_wkb_array)` (`controlledburn[arrow]`) |
-| Cell to xy | `vaster` package | `cell_centers()` recipe above |
-
+The coverage fractions, lengths and orientation are identical between the
+two; only the index base differs (R 1-based inclusive, Python 0-based
+exclusive). The shared fixtures in `fixtures/` are read by the C++, R and
+Python test suites, keyed on records and areas rather than raw indices, to
+keep the numbers in step.
 Indices, orientation and all numeric values are identical between the two.
 The shared fixtures in `fixtures/` are read by the C++, R and Python test
 suites precisely to keep it that way.

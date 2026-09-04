@@ -34,17 +34,17 @@ def test_crop_overlap_shape_and_extent():
     assert sub.extent == (3.0, 7.0, 5.0, 9.0)
 
 
-def test_crop_rebases_indices_to_one():
+def test_crop_rebases_indices_to_zero():
     r = cb.burn([wkb(BOX)], **G10)
     sub = r.crop((3, 7, 5, 9))
     nrow, ncol = sub.shape
     if len(sub.runs):
-        assert sub.runs["row"].min() >= 1 and sub.runs["row"].max() <= nrow
-        assert sub.runs["col_start"].min() >= 1
+        assert sub.runs["row"].min() >= 0 and sub.runs["row"].max() < nrow
+        assert sub.runs["col_start"].min() >= 0
         assert sub.runs["col_end"].max() <= ncol
     if len(sub.edges):
-        assert sub.edges["row"].min() >= 1 and sub.edges["row"].max() <= nrow
-        assert sub.edges["col"].min() >= 1 and sub.edges["col"].max() <= ncol
+        assert sub.edges["row"].min() >= 0 and sub.edges["row"].max() < nrow
+        assert sub.edges["col"].min() >= 0 and sub.edges["col"].max() < ncol
 
 
 # ---- crop().materialize() equals slicing the full dense array --------
@@ -52,7 +52,7 @@ def test_crop_rebases_indices_to_one():
 def test_crop_matches_full_slice():
     r = cb.burn([wkb(BOX)], **G10)
     full = dense(r)
-    # window x in [3, 7], y in [5, 9] -> rows 2..5, cols 4..7 (1-based)
+    # window x in [3, 7], y in [5, 9] -> rows 1..4, cols 3..6 (0-based)
     sub = dense(r.crop((3, 7, 5, 9)))
     np.testing.assert_allclose(sub, full[1:5, 3:7])
 
@@ -94,14 +94,14 @@ def test_crop_window_larger_than_grid_clamps():
 # ---- run clipping and re-basing on a full-grid polygon --------------
 
 def test_crop_clips_and_rebases_runs():
-    # a polygon covering the whole grid: every row is one run, col 1..10
+    # a polygon covering the whole grid: every row is one run, col 0..9
     r = cb.burn([wkb(shapely.box(0, 0, 10, 10))], **G10)
     assert len(r.edges) == 0            # grid-aligned -> pure interior
     sub = r.crop((3, 7, 3, 7))
     assert sub.shape == (4, 4)
-    assert sub.runs["col_start"].min() >= 1
+    assert sub.runs["col_start"].min() >= 0
     assert sub.runs["col_end"].max() <= 4
-    assert sub.runs["row"].min() >= 1 and sub.runs["row"].max() <= 4
+    assert sub.runs["row"].min() >= 0 and sub.runs["row"].max() < 4
     np.testing.assert_allclose(dense(sub), dense(r)[3:7, 3:7])
 
 
@@ -127,8 +127,8 @@ def test_crop_line_table_cropped_and_rebased():
     assert sub.shape == (4, 4)
     assert len(sub.lines) > 0
     assert len(sub.lines) <= len(r.lines)
-    assert sub.lines["row"].min() >= 1 and sub.lines["row"].max() <= 4
-    assert sub.lines["col"].min() >= 1 and sub.lines["col"].max() <= 4
+    assert sub.lines["row"].min() >= 0 and sub.lines["row"].max() < 4
+    assert sub.lines["col"].min() >= 0 and sub.lines["col"].max() < 4
 
 
 def test_crop_point_table_cropped_and_rebased():
@@ -137,8 +137,8 @@ def test_crop_point_table_cropped_and_rebased():
     sub = r.crop((4, 8, 4, 8))
     # only the (5.5, 5.5) point falls inside the window
     assert len(sub.points) == 1
-    assert sub.points["row"].min() >= 1 and sub.points["row"].max() <= 4
-    assert sub.points["col"].min() >= 1 and sub.points["col"].max() <= 4
+    assert sub.points["row"].min() >= 0 and sub.points["row"].max() < 4
+    assert sub.points["col"].min() >= 0 and sub.points["col"].max() < 4
 
 
 # ---- argument validation -------------------------------------------

@@ -39,7 +39,7 @@ static double covered_area(const BurnResult& r, const GridSpec& gs) {
     double cell = gs.dx() * gs.dy();
     double total = 0.0;
     for (const auto& run : r.runs) {
-        total += cell * (run.col_end - run.col_start + 1);
+        total += cell * (run.col_end - run.col_start);
     }
     for (const auto& e : r.edges) {
         total += cell * e.fraction;
@@ -66,7 +66,7 @@ static void test_aligned_rectangle() {
     CHECK(r.edges.empty());
     CHECK(!r.runs.empty());
     CHECK_NEAR(covered_area(r, gs), 16.0, 1e-9);
-    for (const auto& run : r.runs) CHECK(run.id == 1);
+    for (const auto& run : r.runs) CHECK(run.id == 0);
 }
 
 // Half-cell offset rectangle: edge cells with fraction 0.5 / 0.25.
@@ -123,7 +123,7 @@ static void test_multipolygon() {
 
     BurnResult r = burn({g}, gs);
     CHECK_NEAR(covered_area(r, gs), 13.0, 1e-6);
-    for (const auto& run : r.runs) CHECK(run.id == 1); // one geometry, one id
+    for (const auto& run : r.runs) CHECK(run.id == 0); // one geometry, one id
 }
 
 // Polygon larger than the grid: every cell fully covered.
@@ -169,14 +169,14 @@ static void test_points() {
     GridSpec gs{0, 0, 10, 10, 10, 10};
     Geometry g;
     g.kind = GeomKind::MultiPoint;
-    g.points.push_back({{0.5, 9.5}});   // top-left cell: row 1, col 1
-    g.points.push_back({{9.5, 0.5}});   // bottom-right cell: row 10, col 10
+    g.points.push_back({{0.5, 9.5}});   // top-left cell: row 0, col 0
+    g.points.push_back({{9.5, 0.5}});   // bottom-right cell: row 9, col 9
     g.points.push_back({{15.0, 5.0}});  // outside: dropped
 
     BurnResult r = burn({g}, gs);
     CHECK(r.points.size() == 2);
-    CHECK(r.points[0].row == 1 && r.points[0].col == 1);
-    CHECK(r.points[1].row == 10 && r.points[1].col == 10);
+    CHECK(r.points[0].row == 0 && r.points[0].col == 0);
+    CHECK(r.points[1].row == 9 && r.points[1].col == 9);
 }
 
 // Hand-encoded little-endian WKB POLYGON round trip through burn_wkb.

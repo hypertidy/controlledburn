@@ -20,7 +20,7 @@ def covered_area(r, extent, shape):
     # extent is (xmin, xmax, ymin, ymax), matching R's extent ordering
     nrow, ncol = shape
     cell = ((extent[1] - extent[0]) / ncol) * ((extent[3] - extent[2]) / nrow)
-    full = cell * (r.runs["col_end"] - r.runs["col_start"] + 1).sum()
+    full = cell * (r.runs["col_end"] - r.runs["col_start"]).sum()
     frac = cell * r.edges["fraction"].sum(dtype=np.float64)
     return full + frac
 
@@ -35,7 +35,7 @@ def test_aligned_rectangle():
     assert len(r.edges) == 0
     assert len(r.runs) > 0
     assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(16.0)
-    assert (r.runs["id"] == 1).all()
+    assert (r.runs["id"] == 0).all()
 
 
 def test_offset_rectangle():
@@ -68,7 +68,7 @@ def test_multipolygon_disjoint():
     g = shapely.MultiPolygon([shapely.box(1, 1, 3, 3), shapely.box(6, 6, 9, 9)])
     r = cb.burn([wkb(g)], **G10)
     assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(13.0)
-    assert (r.runs["id"] == 1).all()  # one geometry -> one id
+    assert (r.runs["id"] == 0).all()  # one geometry -> one id
 
 
 def test_beyond_extent():
@@ -93,16 +93,16 @@ def test_points_binning():
     pts = [shapely.Point(0.5, 9.5), shapely.Point(9.5, 0.5), shapely.Point(15, 5)]
     r = cb.burn([wkb(p) for p in pts], **G10)
     assert len(r.points) == 2  # out-of-extent point dropped
-    # 1-based, row 1 at top: matches the R package contract exactly
-    assert tuple(r.points[0]) == (1, 1, 1)
-    assert tuple(r.points[1]) == (10, 10, 2)
+    # 0-based, row 0 at top
+    assert tuple(r.points[0]) == (0, 0, 0)
+    assert tuple(r.points[1]) == (9, 9, 1)
 
 
 def test_ids_and_multiple_geometries():
     geoms = [shapely.box(2, 4, 6, 8), shapely.box(2.5, 4.5, 6.5, 8.5)]
     r = cb.burn([wkb(g) for g in geoms], **G10)
-    assert set(np.unique(r.runs["id"])) <= {1, 2}
-    assert set(np.unique(r.edges["id"])) == {2}  # only the offset box has edges
+    assert set(np.unique(r.runs["id"])) <= {0, 1}
+    assert set(np.unique(r.edges["id"])) == {1}  # only the offset box has edges
 
 
 def test_geometrycollection_warns_and_skips():
@@ -115,14 +115,14 @@ def test_geometrycollection_warns_and_skips():
 def test_bad_wkb_warns_and_skips():
     with pytest.warns(UserWarning, match="WKB"):
         r = cb.burn([b"\x01\x03\x00", wkb(shapely.box(2, 4, 6, 8))], **G10)
-    # second geometry still burned with id 2
-    assert (r.runs["id"] == 2).all()
+    # second geometry still burned with id 1
+    assert (r.runs["id"] == 1).all()
     assert covered_area(r, G10["extent"], G10["shape"]) == pytest.approx(16.0)
 
 
 def test_none_entries_skipped():
     r = cb.burn([None, wkb(shapely.box(2, 4, 6, 8))], **G10)
-    assert (r.runs["id"] == 2).all()
+    assert (r.runs["id"] == 1).all()
 
 
 def test_materialize_sum_and_overlap():
@@ -146,9 +146,9 @@ def test_materialize_fraction_conserves_area():
 def test_materialize_ids_default_and_background():
     g = shapely.box(2, 4, 6, 8)
     r = cb.burn([wkb(g)], **G10)
-    m = cb.materialize(r, background=0.0)
-    assert m.sum() == pytest.approx(16.0)  # id 1 burned into 16 cells
-    assert m.max() == 1.0
+    m = cb.materialize(r, background=-1.0)   # default burns the id, which is 0
+    assert (m[m > -1.0] == 0.0).all()        # single geometry has id 0
+    assert (m > -1.0).sum() == 16            # 16 cells touched
 
 
 def test_pandas_roundtrip():

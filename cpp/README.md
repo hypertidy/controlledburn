@@ -47,15 +47,19 @@ BurnResult r = burn(geometries, grid);
 // Or from WKB blobs (ISO and EWKB, Z/M skipped, both byte orders):
 BurnResult r = burn_wkb(wkb_spans, grid);
 
-// r.runs   -- interior RLE:      (row, col_start, col_end, id)
+// r.runs   -- interior RLE:      (row, col_start, col_end, id); col_end exclusive
 // r.edges  -- boundary cells:    (row, col, fraction, id), fraction in [0, 1]
 // r.lines  -- line cells:        (row, col, length, id), CRS units
 // r.points -- point cells:       (row, col, id)
 // r.notes  -- non-fatal problems (parse failures etc.), per input index
 ```
 
-All indices are 1-based, row 1 is the top row, matching the R package
-contract exactly. Geometry k (0-based input position) gets id k + 1.
+All indices are 0-based, row 0 is the top row, and `col_end` is
+exclusive: a run covers the half-open column range `[col_start, col_end)`.
+Geometry k (0-based input position) gets id = k. A binding that wants a
+different convention adds its own offset -- the R package's cpp11 shim
+adds 1 to row/col/col_start/id (leaving `col_end`) to restore its
+1-based, inclusive contract.
 
 `GeometryCollection` is rejected (mixed dimensions break weight
 semantics -- split upstream) and curved types must be linearised by the
