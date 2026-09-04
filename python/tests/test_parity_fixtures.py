@@ -77,3 +77,53 @@ def test_parity(fixture):
     if e["n_points"] != "NA":
         assert len(r.points) == int(e["n_points"]), \
             f"{case}: point count {len(r.points)} != {e['n_points']}"
+
+
+# The checks above (areas, counts, line length) pass under any consistent
+# index base. The tests below pin the *0-based, half-open, id = k* contract
+# on known fixtures, so a regression -- e.g. reintroducing the R shim's +1
+# in the core -- is caught as an exact table mismatch, not silently.
+
+_GEOMS = {g["case"]: g for g in
+          csv.DictReader(open(FIXTURES_DIR / "geometries.csv"))}
+
+
+def _burn_fixture(case, mode="coverage"):
+    g = _GEOMS[case]
+    wkb = shapely.to_wkb(shapely.from_wkt(g["wkt"]))
+    extent = (float(g["xmin"]), float(g["xmax"]),
+              float(g["ymin"]), float(g["ymax"]))
+    shape = (int(g["nrow"]), int(g["ncol"]))
+    return cb.burn([wkb], extent=extent, shape=shape, mode=mode)
+
+
+def test_runs_table_zero_based_coverage():
+    # beyond_extent: whole 5x5 grid covered -> one clean run per row,
+    # columns [0, ncol) exclusive. Pins row 0 = top, col_end exclusive,
+    # id = 0 for the single geometry.
+    r = _burn_fixture("beyond_extent")
+    expected = np.array(
+        [(0, 0, 5, 0), (1, 0, 5, 0), (2, 0, 5, 0), (3, 0, 5, 0), (4, 0, 5, 0)],
+        dtype=r.runs.dtype,
+    )
+    assert np.array_equal(r.runs, expected)
+    assert len(r.edges) == 0
+
+
+def test_runs_table_zero_based_approx():
+    # aligned_rect box x[2,6] y[4,8] on a 10x10 grid, approx mode -> clean
+    # per-row runs: rows 2..5 (0-based, row 0 at top), cols [2, 6) = 4 wide.
+    r = _burn_fixture("aligned_rect", mode="approx")
+    expected = np.array(
+        [(2, 2, 6, 0), (3, 2, 6, 0), (4, 2, 6, 0), (5, 2, 6, 0)],
+        dtype=r.runs.dtype,
+    )
+    assert np.array_equal(r.runs, expected)
+
+
+def test_points_table_zero_based():
+    # points_mixed is a single MULTIPOINT -> all points carry id 0; the
+    # off-grid point is dropped. (0, 0) is top-left, (9, 9) bottom-right.
+    r = _burn_fixture("points_mixed")
+    expected = np.array([(0, 0, 0), (9, 9, 0)], dtype=r.points.dtype)
+    assert np.array_equal(r.points, expected)
