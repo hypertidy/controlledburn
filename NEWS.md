@@ -12,6 +12,16 @@
   inherited from the exactextract traversal. Fix lives in
   `cpp/src/scanline.cpp` and is synced to `src/`.
 
+* Fixed: in coverage mode, an edge crossing a row's centre line exactly on
+  a column wall registered no winding delta in either adjacent cell, and the
+  row lost its interior runs from that column on. Pre-existing (the Falkland
+  Islands from Natural Earth 110m lose two cells at 0.5 degrees), but the
+  lattice snapping above puts many more crossings exactly on walls and made
+  it far more visible. The crossing test is now half-open at the row centre
+  in coverage mode as it already was in approx mode. Natural Earth 110m at
+  0.01 degree is now 0.035 square degrees short of the planar area, versus
+  0.50 before; no geometry gets worse.
+
 * `materialise_chunk()` gains a `target` argument: materialise only a
 sub-window of the burn grid, via `crop_burn()`, without allocating the full
 grid. The chunk is identical to the corresponding sub-matrix of the full
