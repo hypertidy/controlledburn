@@ -112,6 +112,14 @@ struct BoundaryCellRecord {
   float coverage;        // accumulated coverage fraction (signed)
   int winding_delta;     // accumulated winding contribution
 
+  // Exterior-ring-only winding contribution and whether the exterior ring
+  // traverses this cell at all. A cell traversed only by holes has no
+  // exterior fraction of its own; whether it is inside the exterior is
+  // decided by the exterior's winding alone, which is constant across such
+  // a cell. See the sweep.
+  int winding_delta_ext;
+  bool touched_exterior;
+
   // Approx mode only: winding delta from traversals whose y-midpoint
   // crossing is to the LEFT of the cell center x. Used to compute the
   // winding number at the cell center for center-rule classification.
@@ -447,13 +455,14 @@ static void walk_ring(
       for (auto& rec : row_vec) {
         if (rec.col == full_col) return rec;
       }
-      row_vec.push_back({full_col, 0.0f, 0, 0});
+      row_vec.push_back({full_col, 0.0f, 0, 0, 0, false});
       return row_vec.back();
     };
 
     if (frac != 0.0f) {
       BoundaryCellRecord& rec = find_or_create();
       rec.coverage += coverage_factor * frac;
+      if (is_exterior) rec.touched_exterior = true;
     }
 
     // Winding deltas from traversals
@@ -485,6 +494,10 @@ static void walk_ring(
 
       BoundaryCellRecord& rec = find_or_create();
       rec.winding_delta += delta;
+      if (is_exterior) {
+        rec.winding_delta_ext += delta;
+        rec.touched_exterior = true;
+      }
 
       // Approx mode: classify whether this crossing is left of cell center.
       // Interpolate x at y_mid along the traversal path. Skip horizontal
@@ -616,12 +629,15 @@ static void process_polygon(
         merged.back().coverage += rec.coverage;
         merged.back().winding_delta += rec.winding_delta;
         merged.back().winding_delta_left += rec.winding_delta_left;
+        merged.back().winding_delta_ext += rec.winding_delta_ext;
+        merged.back().touched_exterior = merged.back().touched_exterior || rec.touched_exterior;
       } else {
         merged.push_back(rec);
       }
     }
 
     int winding = 0;
+    int winding_ext = 0;
     int prev_col = -2;
     int full_row = static_cast<int>(row_off + sr);
 
@@ -639,6 +655,15 @@ static void process_polygon(
 
       if (mode == BurnMode::Coverage) {
         float w = mc.coverage;
+        // A cell traversed only by hole rings carries a negative hole
+        // fraction and no exterior fraction. If the exterior's winding
+        // says the cell is inside the exterior, the cell is covered except
+        // for the hole: 1 + coverage. Previously such cells got nothing
+        // (w <= 0), so every polygon with a hole lost the whole ring of
+        // cells along the hole boundary.
+        if (!mc.touched_exterior && winding_ext != 0) {
+          w += 1.0f;
+        }
         if (w > tol && w < (1.0f - tol)) {
           all_edges.push_back({full_row, mc.col, w, poly_id});
         } else if (w >= (1.0f - tol)) {
@@ -655,6 +680,7 @@ static void process_polygon(
       }
 
       winding += mc.winding_delta;
+      winding_ext += mc.winding_delta_ext;
       prev_col = mc.col;
     }
   }

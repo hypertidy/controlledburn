@@ -29,6 +29,14 @@
   comes from the edge's own endpoints. Found by the property-based suite in
   controlledburn-rs.
 
+* Fixed: in coverage mode, cells traversed only by a hole ring were emitted
+  with no coverage at all, so every polygon with a hole lost the ring of
+  cells along the hole boundary (South Africa with the Lesotho hole was 6.4
+  square degrees short at 1 degree). Such a cell now gets 1 minus the hole
+  fraction when the exterior ring's winding places it inside the exterior.
+  With this, Natural Earth 110m burns to its planar area within float
+  precision at 1, 0.1 and 0.01 degree.
+
 * `materialise_chunk()` gains a `target` argument: materialise only a
 sub-window of the burn grid, via `crop_burn()`, without allocating the full
 grid. The chunk is identical to the corresponding sub-matrix of the full

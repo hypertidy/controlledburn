@@ -48,3 +48,25 @@ test_that("approx: a vertex on a row centre line does not fill the row to the gr
   expect_true(all(r$runs$col_end <= 2L))
   expect_equal(nrow(r$runs), 2L)
 })
+
+test_that("cells on a hole boundary keep the covered part outside the hole", {
+  ## A cell traversed only by a hole ring carried a negative hole fraction
+  ## and no exterior fraction, so the sweep emitted nothing for it: every
+  ## polygon with a hole lost the whole ring of cells along the hole
+  ## boundary (South Africa / Lesotho at 1 degree was 6.4 sq deg short).
+  outer <- "(0.5 0.5, 9.5 0.5, 9.5 9.5, 0.5 9.5, 0.5 0.5)"
+  hole  <- "(3.3 3.3, 6.7 3.3, 6.7 6.7, 3.3 6.7, 3.3 3.3)"
+  g <- wk::as_wkb(wk::wkt(sprintf("POLYGON (%s, %s)", outer, hole)))
+  truth <- 81 - 3.4^2
+  for (n in c(10L, 20L, 50L, 100L)) {
+    r <- burn(g, extent = c(0, 10, 0, 10), dimension = c(n, n))
+    a <- (sum(r$runs$col_end - r$runs$col_start + 1) + sum(r$edges$fraction)) * (10 / n)^2
+    expect_equal(a, truth, tolerance = 1e-6, label = sprintf("ncol %d", n))
+  }
+  ## hole boundary cell at 10 columns: cell (3,3)-(4,4) is covered except the
+  ## hole's corner 0.7 x 0.7 of it
+  r <- burn(g, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  e <- r$edges[r$edges$row == 7 & r$edges$col == 4, ]
+  expect_equal(nrow(e), 1L)
+  expect_equal(e$fraction, 1 - 0.49, tolerance = 1e-6)
+})
