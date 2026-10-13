@@ -5,14 +5,14 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sparse Polygon Rasterization with Exact Coverage Fractions • controlledburn</title>
+<title>Sparse Geometry Rasterization with Exact Coverage Fractions • controlledburn</title>
 <!-- jquery --><script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js" integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script><!-- Bootstrap --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/css/bootstrap.min.css" integrity="sha256-bZLfwXAP04zRMK2BjiO8iu9pf4FbLqX6zitd+tIvLhE=" crossorigin="anonymous">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.4.1/js/bootstrap.min.js" integrity="sha256-nuL8/2cJ5NDSSwnKD8VqreErSWHtnEP9E7AySL+1ev4=" crossorigin="anonymous"></script><!-- bootstrap-toc --><link rel="stylesheet" href="bootstrap-toc.css">
 <script src="bootstrap-toc.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
 <!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- pkgdown --><link href="pkgdown.css" rel="stylesheet">
-<script src="pkgdown.js"></script><meta property="og:title" content="Sparse Polygon Rasterization with Exact Coverage Fractions">
-<meta property="og:description" content="Rasterize polygons without materializing any pixel values. Computes exact coverage fractions for polygon-grid intersections and returns results in a sparse two-table format: run-length encoded interior cells and individually weighted boundary cells. The scanline algorithm is O(perimeter) in both time and memory. Uses the exactextract algorithm by Daniel Baston, vendored from the exactextractr package. Derived from the fasterize package by Noam Ross.">
+<script src="pkgdown.js"></script><meta property="og:title" content="Sparse Geometry Rasterization with Exact Coverage Fractions">
+<meta property="og:description" content="Rasterize polygon, line, and point geometry without materializing any pixel values. For polygons it computes exact coverage fractions for polygon-grid intersections, returning sparse tables: run-length encoded interior cells and individually weighted boundary cells. The scanline algorithm is O(perimeter) in both time and memory, using the scan line fill attributed to Wylie et al. (1967) &lt;doi:10.1145/1465611.1465619&gt;. Exact coverage fractions use the exactextract algorithm by Daniel Baston, vendored from the exactextractr package &lt;doi:10.32614/CRAN.package.exactextractr&gt;. Derived from the fasterize package by Noam Ross.">
 <!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
 <script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
 <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
@@ -291,7 +291,7 @@
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">g</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2560L</span>, <span class="fl">1280L</span><span class="op">)</span>, mode <span class="op">=</span> <span class="st">"approx"</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    user  system elapsed </span></span>
-<span><span class="co">#&gt;   0.442   0.008   0.449</span></span>
+<span><span class="co">#&gt;   0.456   0.008   0.464</span></span>
 <span><span class="va">r</span></span>
 <span><span class="co">#&gt; &lt;controlledburn&gt; 2560 x 1280 grid, 205 geometries</span></span>
 <span><span class="co">#&gt;   runs:   25232 (1123628 interior cells)</span></span>
@@ -301,7 +301,7 @@
 <div class="section level2">
 <h2 id="history">History<a class="anchor" aria-label="anchor" href="#history"></a>
 </h2>
-<p>controlledburn was derived from <a href="https://github.com/ecohealthalliance/fasterize" class="external-link">fasterize</a> by Noam Ross (EcoHealth Alliance). The exact coverage fraction algorithm is from Daniel Baston’s <a href="https://github.com/isciences/exactextract" class="external-link">exactextract</a> C++ library, vendored as 9 GEOS-free analytical geometry files.</p>
+<p>controlledburn was derived from <a href="https://github.com/hypertidy/fasterize" class="external-link">fasterize</a> by Noam Ross (EcoHealth Alliance). The exact coverage fraction algorithm is from Daniel Baston’s <a href="https://github.com/isciences/exactextract" class="external-link">exactextract</a> C++ library, vendored as 9 GEOS-free analytical geometry files.</p>
 <p>The development history: fasterize’s scanline algorithm → sparse run-length output → exactextract integration for exact coverage fractions → native WKB parser and ring walker replacing GEOS → unified polygon/line/point rasterization → dual-mode engine (coverage + approx) → lightweight approx sweep → GEOS dependency removed entirely.</p>
 <p>See <code><a href="articles/architecture.html">vignette("architecture")</a></code> for the full story, <a href="NEWS.html">NEWS</a> for the version history, and <code>inst/docs-design/</code> for design records.</p>
 <p>In 2017, the “cell-abstraction mode” request in fasterize (<a href="https://github.com/hypertidy/fasterize/issues/11" class="external-link uri">https://github.com/hypertidy/fasterize/issues/11</a>) asked for the scanline algorithm to return its natural product directly: cell and polygon-ID pairs, rather than burning values into a dense matrix. The motivations were relational: overlapping polygons are recorded rather than resolved (one cell, many features), empty pixels are never created, and the (cell, id) table plugs straight into tidy per-cell, per-feature, and per-layer summaries. For very large grids the dense matrix is not just wasteful, it is the thing that makes the task impossible.</p>
@@ -317,14 +317,8 @@
 <li>
 <a href="https://github.com/hypertidy/silicate" class="external-link">silicate</a> — the primitives-first geometry stance this package follows (segments and vertices as first-class objects).</li>
 <li>
-<a href="https://github.com/hypertidy/polymer2" class="external-link">polymer2</a> — sparse geometry overlay; consumes the <code>(row, col, fraction, id)</code> schema this package emits for polygons.</li>
-<li>
-<a href="https://github.com/isciences/exactextractr" class="external-link">exactextractr</a> — raster extraction with polygon weights; the source of the exactextract C++ algorithm vendored here.</li>
+<a href="https://github.com/isciences/exactextractr" class="external-link">exactextractr</a> — ## Code of Conduct</li>
 </ul>
-</div>
-<div class="section level2">
-<h2 id="code-of-conduct">Code of Conduct<a class="anchor" aria-label="anchor" href="#code-of-conduct"></a>
-</h2>
 <p>Please note that the controlledburn project is released with a <a href="https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html" class="external-link">Contributor Code of Conduct</a>. By contributing to this project, you agree to abide by its terms.</p>
 </div>
 </div>
@@ -372,7 +366,7 @@
 <div class="dev-status">
 <h2 data-toc-skip>Dev status</h2>
 <ul class="list-unstyled">
-<li><a href="https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check-check.yaml" class="external-link"><img src="https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
+<li><a href="https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml/badge.svg" alt="R-CMD-check"></a></li>
 </ul>
 </div>
 

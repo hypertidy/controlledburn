@@ -84,7 +84,21 @@ lines and points.</p>
 <dd><p>ignored</p></dd>
 
 </dl></div>
+    <div id="value">
+    <h2>Value</h2>
+    <p>This function always errors; it never returns a value. Call
+<code><a href="burn.html">burn()</a></code> instead.</p>
+    </div>
 
+    <div id="ref-examples">
+    <h2>Examples</h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># burn_sparse() is deprecated and errors; use burn() instead</span></span></span>
+<span class="r-in"><span><span class="kw"><a href="https://rdrr.io/r/base/try.html" class="external-link">try</a></span><span class="op">(</span><span class="fu">burn_sparse</span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>burn_sparse() has been removed. Use burn() instead (identical output for polygons, plus line and point support).</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Error in burn_sparse() : </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   burn_sparse() is no longer available. Use burn().</span>
+</code></pre></div>
+    </div>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
     <nav id="toc" data-toggle="toc" class="sticky-top"><h2 data-toc-skip>Contents</h2>
