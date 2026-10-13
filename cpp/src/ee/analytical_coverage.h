@@ -126,11 +126,21 @@ inline double analytical_covered_fraction(
         }
     }
 
-    // Sort by CW distance from exit (nearest first)
-    std::sort(in_arc, in_arc + n_in_arc,
-        [](const TaggedCorner& a, const TaggedCorner& b) {
-            return a.dist < b.dist;
-        });
+    // Sort by CW distance from exit (nearest first). At most 4 elements;
+    // a plain insertion sort rather than std::sort, which GCC 12+ flags
+    // with a spurious -Warray-bounds on this fixed-size array (the
+    // unrolled library insertion sort indexes past the bound in a branch
+    // it cannot prove dead). The ordering is identical: corner distances
+    // are distinct.
+    for (int i = 1; i < n_in_arc; i++) {
+        TaggedCorner key = in_arc[i];
+        int j = i - 1;
+        while (j >= 0 && in_arc[j].dist > key.dist) {
+            in_arc[j + 1] = in_arc[j];
+            j--;
+        }
+        in_arc[j + 1] = key;
+    }
 
     // Build the left-hand polygon: traversal path + CW corners + close
     std::vector<Coordinate> polygon;
