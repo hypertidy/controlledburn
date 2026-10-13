@@ -22,6 +22,13 @@
   0.01 degree is now 0.035 square degrees short of the planar area, versus
   0.50 before; no geometry gets worse.
 
+* Fixed: in approx mode, a vertex sitting on a row's centre line (as a user
+  computes it, one ulp from the same line recomputed from the extent) could
+  flip the sign of that edge's intercept, after which the row filled from
+  the polygon to the right edge of the grid. The crossing direction now
+  comes from the edge's own endpoints. Found by the property-based suite in
+  controlledburn-rs.
+
 * `materialise_chunk()` gains a `target` argument: materialise only a
 sub-window of the burn grid, via `crop_burn()`, without allocating the full
 grid. The chunk is identical to the corresponding sub-matrix of the full

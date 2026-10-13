@@ -739,7 +739,14 @@ static void process_polygon_approx(
         double t = (y_mid - y0) * inv_dy_edge;
         double x_int = x0 + t * (x1 - x0);
 
-        int delta = (y0 >= y_mid) ? -1 : +1;
+        // Crossing direction from the edge's own endpoints, not from y0
+        // against the recomputed y_mid: the row-range test above admits an
+        // edge whose top endpoint is on the centre line (within 1e-10), but
+        // that endpoint can sit an ulp below y_mid as recomputed from ymax
+        // and dy, and (y0 >= y_mid) then tags a downward edge as upward. Its
+        // intercept gets the wrong sign, the winding never returns to zero,
+        // and the row fills to the grid edge.
+        int delta = (y1 < y0) ? -1 : +1;
         delta *= wf;
 
         row_intercepts[static_cast<size_t>(r - row_lo)].push_back(

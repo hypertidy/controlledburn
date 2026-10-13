@@ -34,3 +34,17 @@ test_that("a row-centre crossing on a column wall keeps its winding", {
     expect_equal(a, 2.12875, tolerance = 1e-6, label = sprintf("ncol %d", n))
   }
 })
+
+test_that("approx: a vertex on a row centre line does not fill the row to the grid edge", {
+  ## Found by the controlledburn-rs property suite. The middle vertex sits on
+  ## the centre line of row 24 as a user would compute it (ymax - 24.5 / 3),
+  ## one ulp below the same line recomputed from the extent-derived dy. The
+  ## row-range test admitted the downward edge starting there; the sign test
+  ## (y0 >= y_mid) called it upward; the two intercepts then had the same
+  ## sign and the row filled from the polygon to the right edge of the grid.
+  wkt <- "POLYGON ((-179.89654756364214 -88.83333333333334, -180.94076559960791 -92.3680897750401, -179.6 -88.518152273978, -179.89654756364214 -88.83333333333334))"
+  g <- wk::as_wkb(wk::wkt(wkt))
+  r <- burn(g, extent = c(-180, -175, -90, -80.66666666666667), dimension = c(15L, 28L), mode = "approx")
+  expect_true(all(r$runs$col_end <= 2L))
+  expect_equal(nrow(r$runs), 2L)
+})
