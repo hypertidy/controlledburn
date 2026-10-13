@@ -25,6 +25,7 @@
 #include <map>
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
 #include <utility>
 
 #include "ee/grid.h"
@@ -144,6 +145,42 @@ using CellMap = std::map<CellKey, CellRecord>;
 //           (the line genuinely starts inside the cell with no prior edge).
 //
 // Replicates the core loop from raster_cell_intersection.cpp::process_line.
+// Snap vertices that lie within a tiny tolerance of a cell edge exactly
+// onto that edge, using the same arithmetic grid_cell() uses to place the
+// edges. A vertex parsed from input (0.3) and an edge computed from the
+// grid (3 * 0.1 = 0.30000000000000004) can differ by a few ulp; left
+// unsnapped, such a vertex is classified OUTSIDE the cell it visually sits
+// on the corner of, Box::crossing() extrapolates past the segment end, and
+// the walk leaves the grid and never returns (or, if it does, exits a cell
+// through the wrong side at a corner and left_hand_area() over-counts).
+// Tolerance is relative to the cell size; only degenerate near-boundary
+// vertices move, by less than 1e-9 of a cell.
+static void snap_to_lattice(
+    std::vector<Coordinate>& coords,
+    const exactextract::Grid<exactextract::infinite_extent>& grid
+) {
+  const double dx = grid.dx(), dy = grid.dy();
+  if (!(dx > 0.0) || !(dy > 0.0)) return;
+  const double x0 = grid.xmin(), x1 = grid.xmax();
+  const double y0 = grid.ymin(), y1 = grid.ymax();
+  // infinite_extent grids carry one padding row/col on each side
+  const double ncol = static_cast<double>(grid.cols()) - 2.0;
+  const double nrow = static_cast<double>(grid.rows()) - 2.0;
+  const double tol_x = dx * 1e-9, tol_y = dy * 1e-9;
+  for (auto& c : coords) {
+    double kx = std::round((c.x - x0) / dx);
+    if (kx >= 0.0 && kx <= ncol) {
+      double bx = (kx == ncol) ? x1 : x0 + kx * dx;
+      if (std::fabs(c.x - bx) <= tol_x) c.x = bx;
+    }
+    double ky = std::round((y1 - c.y) / dy);
+    if (ky >= 0.0 && ky <= nrow) {
+      double by = (ky == nrow) ? y0 : y1 - ky * dy;
+      if (std::fabs(c.y - by) <= tol_y) c.y = by;
+    }
+  }
+}
+
 static CellMap walk_polyline(
     std::vector<Coordinate> coords,
     const exactextract::Grid<exactextract::infinite_extent>& grid,
@@ -151,6 +188,8 @@ static CellMap walk_polyline(
 ) {
   CellMap cells;
   if (coords.empty()) return cells;
+  snap_to_lattice(coords, grid);
+  const size_t n_input = coords.size();
 
   auto get_or_create = [&](size_t r, size_t c) -> CellRecord& {
     auto key = std::make_pair(r, c);
@@ -199,17 +238,44 @@ static CellMap walk_polyline(
       } else {
         // Outside -- compute exit crossing using Box::crossing()
         // Use prev_original for robustness (same as Cell::take)
-        Crossing x = prev_original ?
-        box.crossing(*prev_original, *next) :
-        box.crossing(trav.coords.back(), *next);
+        const Coordinate& from = prev_original ? *prev_original : trav.coords.back();
+        Crossing x = box.crossing(from, *next);
+        Coordinate exit_c = x.coord();
+        Side exit_s = x.side();
 
-        trav.coords.push_back(x.coord());
-        trav.exit_side = x.side();
+        // Rounding guard. A vertex can sit a few ulp outside this cell when
+        // the cell edge (computed from the grid origin and resolution) and
+        // the vertex (parsed from input) round differently, e.g. a vertex at
+        // 0.3 against an edge at 3 * 0.1. point_location() then says OUTSIDE
+        // and Box::crossing() extrapolates the line past the end of the
+        // segment to find an "exit", after which the walk follows the
+        // extended line off the grid and never returns. If the crossing is
+        // beyond the segment end, clamp the target onto the box boundary and
+        // exit there instead.
+        {
+          double dx_n = next->x - from.x, dy_n = next->y - from.y;
+          double dx_x = exit_c.x - from.x, dy_x = exit_c.y - from.y;
+          double d_next = dx_n * dx_n + dy_n * dy_n;
+          double d_exit = dx_x * dx_x + dy_x * dy_x;
+          if (!std::isfinite(exit_c.x) || !std::isfinite(exit_c.y) ||
+              d_exit > d_next * (1.0 + 1e-9)) {
+            exit_c = Coordinate(std::min(std::max(next->x, box.xmin), box.xmax),
+                                std::min(std::max(next->y, box.ymin), box.ymax));
+            // prefer the side the target actually overshoots
+            if (next->x < box.xmin)      exit_s = Side::LEFT;
+            else if (next->x > box.xmax) exit_s = Side::RIGHT;
+            else if (next->y < box.ymin) exit_s = Side::BOTTOM;
+            else                         exit_s = Side::TOP;
+          }
+        }
+
+        trav.coords.push_back(exit_c);
+        trav.exit_side = exit_s;
 
         // If exit coord differs from the target coord, use it as
         // the entry point for the next cell
-        if (x.coord() != *next) {
-          exit_coord_buf = x.coord();
+        if (exit_c != *next) {
+          exit_coord_buf = exit_c;
           last_exit = &exit_coord_buf;
         }
         break;
@@ -233,6 +299,11 @@ static CellMap walk_polyline(
     // the second pass. For open polylines, leave the partial traversal as
     // is; the consumer accepts entry_side==NONE as valid for line input.
     if (incomplete && closed) {
+      // A closed ring is reprocessed at most once per starting cell; if the
+      // coordinate list keeps growing the walk is not converging.
+      if (coords.size() > 4 * n_input + 64) {
+        throw std::runtime_error("ring walk did not converge (vertex on cell boundary?)");
+      }
       for (const auto& c : trav.coords) {
         coords.push_back(c);
       }

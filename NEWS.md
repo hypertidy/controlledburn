@@ -1,5 +1,17 @@
 # controlledburn dev
 
+* Fixed: in coverage mode, a vertex lying a few ulp off a cell edge (e.g. a
+  vertex at 0.3 on a grid with resolution 0.1, where the edge is computed as
+  3 * 0.1 = 0.30000000000000004) sent the cell walker off the grid along the
+  extrapolated edge until memory was exhausted; where it did return, a
+  degenerate corner exit made `left_hand_area()` over-count the cell.
+  Vertices within 1e-9 of a cell (relative to resolution) of an edge are now
+  snapped onto it before the walk; a crossing computed beyond a segment's end
+  is clamped to the cell; and a non-converging ring walk throws a clear error
+  instead of `bad_alloc`. The same input crashes exactextractr, so this is
+  inherited from the exactextract traversal. Fix lives in
+  `cpp/src/scanline.cpp` and is synced to `src/`.
+
 * `materialise_chunk()` gains a `target` argument: materialise only a
 sub-window of the burn grid, via `crop_burn()`, without allocating the full
 grid. The chunk is identical to the corresponding sub-matrix of the full
