@@ -1,4 +1,4 @@
-# controlledburn dev
+# controlledburn 0.3.0
 
 * Fixed: in coverage mode, a vertex lying a few ulp off a cell edge (e.g. a
   vertex at 0.3 on a grid with resolution 0.1, where the edge is computed as
