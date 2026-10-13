@@ -18,3 +18,33 @@ test_that("vertex a few ulp off a cell edge does not derail the coverage walk", 
     expect_equal(sum(materialise_chunk(r)) * 0.01, as.numeric(cs[[2]]), tolerance = 1e-6)
   }
 })
+
+test_that("a row-centre crossing on a column wall keeps its winding", {
+  ## Falkland Islands from Natural Earth 110m, shifted so every vertex sits
+  ## on a 0.05 multiple. At 20 columns (res 0.5) the first edge crosses the
+  ## row centre y = 1.25 at x = 1.0, exactly on a column wall; with a strict
+  ## crossing test neither adjacent cell registered it and the row lost two
+  ## interior cells. Exact at every resolution now.
+  wkt <- "POLYGON ((0.8 1.15, 2.0 1.75, 2.85 1.5, 3.45 1.9, 4.25 1.45, 3.95 1.1, 2.6 0.8, 2.15 1.15, 1.3 0.7, 0.8 1.15))"
+  g <- wk::as_wkb(wk::wkt(wkt))
+  for (n in c(20L, 100L, 200L, 1000L)) {
+    r <- burn(g, extent = c(0, 10, 0, 10), dimension = c(n, n))
+    cell <- (10 / n)^2
+    a <- (sum(r$runs$col_end - r$runs$col_start + 1) + sum(r$edges$fraction)) * cell
+    expect_equal(a, 2.12875, tolerance = 1e-6, label = sprintf("ncol %d", n))
+  }
+})
+
+test_that("approx: a vertex on a row centre line does not fill the row to the grid edge", {
+  ## Found by the controlledburn-rs property suite. The middle vertex sits on
+  ## the centre line of row 24 as a user would compute it (ymax - 24.5 / 3),
+  ## one ulp below the same line recomputed from the extent-derived dy. The
+  ## row-range test admitted the downward edge starting there; the sign test
+  ## (y0 >= y_mid) called it upward; the two intercepts then had the same
+  ## sign and the row filled from the polygon to the right edge of the grid.
+  wkt <- "POLYGON ((-179.89654756364214 -88.83333333333334, -180.94076559960791 -92.3680897750401, -179.6 -88.518152273978, -179.89654756364214 -88.83333333333334))"
+  g <- wk::as_wkb(wk::wkt(wkt))
+  r <- burn(g, extent = c(-180, -175, -90, -80.66666666666667), dimension = c(15L, 28L), mode = "approx")
+  expect_true(all(r$runs$col_end <= 2L))
+  expect_equal(nrow(r$runs), 2L)
+})

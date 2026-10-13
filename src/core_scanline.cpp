@@ -467,20 +467,17 @@ static void walk_ring(
       double exit_y  = t->coords.back().y;
       double y_mid = (cr.box.ymin + cr.box.ymax) / 2.0;
 
-      // Approx mode uses a half-open interval: an edge starting exactly
-      // at y_mid counts as crossing. This picks up horizontal boundary
-      // rows that the strict check misses (polygon edges at cell center
-      // y-coordinates). Coverage mode retains the strict check — its
-      // exact fractions handle boundary cells without winding, and
-      // adding winding would double-count.
-      bool crosses;
-      if (mode == BurnMode::Approx) {
-        crosses = (entry_y >= y_mid && exit_y < y_mid) ||
-                  (entry_y < y_mid && exit_y >= y_mid);
-      } else {
-        crosses = (entry_y > y_mid && exit_y < y_mid) ||
-                  (entry_y < y_mid && exit_y > y_mid);
-      }
+      // Half-open at the row centre in both modes: a point exactly on
+      // y_mid counts as above it. A traversal that ends on the centre line
+      // (an edge crossing it on a column wall) and the next one that starts
+      // there then register the crossing exactly once, in one cell. With a
+      // strict test on both sides in coverage mode neither did, and the row
+      // lost its winding from that column on (interior runs vanished); this
+      // is common once vertices sit on the lattice. Coverage runs are only
+      // filled in the gaps between boundary cells, so a delta on a boundary
+      // cell cannot double-count against its edge fraction.
+      bool crosses = (entry_y >= y_mid && exit_y < y_mid) ||
+                     (entry_y < y_mid && exit_y >= y_mid);
       if (!crosses) continue;
 
       int delta = (entry_y >= y_mid) ? -1 : +1; // downward = -1, upward = +1
@@ -742,7 +739,14 @@ static void process_polygon_approx(
         double t = (y_mid - y0) * inv_dy_edge;
         double x_int = x0 + t * (x1 - x0);
 
-        int delta = (y0 >= y_mid) ? -1 : +1;
+        // Crossing direction from the edge's own endpoints, not from y0
+        // against the recomputed y_mid: the row-range test above admits an
+        // edge whose top endpoint is on the centre line (within 1e-10), but
+        // that endpoint can sit an ulp below y_mid as recomputed from ymax
+        // and dy, and (y0 >= y_mid) then tags a downward edge as upward. Its
+        // intercept gets the wrong sign, the winding never returns to zero,
+        // and the row fills to the grid edge.
+        int delta = (y1 < y0) ? -1 : +1;
         delta *= wf;
 
         row_intercepts[static_cast<size_t>(r - row_lo)].push_back(
