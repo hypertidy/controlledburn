@@ -45,9 +45,22 @@ print.controlledburn <- function(x, ...) {
 #' Materialise a controlledburn sparse result into a dense matrix
 #'
 #' Converts the sparse run/edge/line tables from [burn()] into a dense
-#' matrix.
+#' matrix. With `target`, only the cells inside a sub-window of the
+#' burn grid are materialised: the sparse tables are first filtered and
+#' re-indexed by [crop_burn()] and only the sub-window is allocated, so
+#' a chunk of a very large burn grid can be realised without ever
+#' allocating the full grid.
+#'
+#' The sub-window is snapped outward to the burn grid's cell boundaries
+#' (see [crop_burn()]), so the returned matrix covers at least `target`.
+#' Use `crop_burn(x, target)` to recover the snapped grid's `extent` and
+#' `dimension` (for plotting with `rasterImage()`, say). The
+#' materialised chunk is identical to the corresponding sub-matrix of the
+#' full materialisation.
 #'
 #' @param x A `controlledburn` object returned by [burn()].
+#' @param target optional numeric `c(xmin, xmax, ymin, ymax)`; when given,
+#'   materialise only this sub-window of the burn grid.
 #' @param fun character, the pixel function:
 #'   \describe{
 #'     \item{`"sum"`}{(default) Polygon runs contribute 1, edges
@@ -58,11 +71,27 @@ print.controlledburn <- function(x, ...) {
 #'       etc.) into each cell. When geometries overlap, the last id
 #'       wins. Background is `NA`.}
 #'   }
-#' @return A numeric matrix with dimensions `nrow × ncol`.
+#' @return A numeric matrix with dimensions `nrow x ncol` of the burn
+#'   grid, or of the snapped `target` window.
 #' @export
-materialise_chunk <- function(x, fun = c("sum", "id")) {
+#' @examples
+#' if (requireNamespace("geos", quietly = TRUE)) {
+#'   poly <- geos::as_geos_geometry("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
+#'   r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(100L, 100L))
+#'   full <- materialise_chunk(r)
+#'   chunk <- materialise_chunk(r, target = c(2, 5, 3, 7))
+#'   dim(chunk)
+#'   crop_burn(r, c(2, 5, 3, 7))$extent
+#' }
+materialise_chunk <- function(x, fun = c("sum", "id"), target = NULL) {
   stopifnot(inherits(x, "controlledburn"))
   fun <- match.arg(fun)
+  if (!is.null(target)) {
+    x <- crop_burn(x, target)
+    if (any(x$dimension < 1L)) {
+      stop("target extent does not overlap the burn grid")
+    }
+  }
   ext <- x$extent
   dim <- x$dimension
   ncol_full <- dim[1]

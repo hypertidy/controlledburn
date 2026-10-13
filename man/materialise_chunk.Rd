@@ -5,9 +5,9 @@
 \alias{materialize_chunk}
 \title{Materialise a controlledburn sparse result into a dense matrix}
 \usage{
-materialise_chunk(x, fun = c("sum", "id"))
+materialise_chunk(x, fun = c("sum", "id"), target = NULL)
 
-materialize_chunk(x, fun = c("sum", "id"))
+materialize_chunk(x, fun = c("sum", "id"), target = NULL)
 }
 \arguments{
 \item{x}{A \code{controlledburn} object returned by \code{\link[=burn]{burn()}}.}
@@ -22,11 +22,37 @@ overlapping geometries. Background is 0.}
 etc.) into each cell. When geometries overlap, the last id
 wins. Background is \code{NA}.}
 }}
+
+\item{target}{optional numeric \code{c(xmin, xmax, ymin, ymax)}; when given,
+materialise only this sub-window of the burn grid.}
 }
 \value{
-A numeric matrix with dimensions \verb{nrow × ncol}.
+A numeric matrix with dimensions \verb{nrow x ncol} of the burn
+grid, or of the snapped \code{target} window.
 }
 \description{
 Converts the sparse run/edge/line tables from \code{\link[=burn]{burn()}} into a dense
-matrix.
+matrix. With \code{target}, only the cells inside a sub-window of the
+burn grid are materialised: the sparse tables are first filtered and
+re-indexed by \code{\link[=crop_burn]{crop_burn()}} and only the sub-window is allocated, so
+a chunk of a very large burn grid can be realised without ever
+allocating the full grid.
+}
+\details{
+The sub-window is snapped outward to the burn grid's cell boundaries
+(see \code{\link[=crop_burn]{crop_burn()}}), so the returned matrix covers at least \code{target}.
+Use \code{crop_burn(x, target)} to recover the snapped grid's \code{extent} and
+\code{dimension} (for plotting with \code{rasterImage()}, say). The
+materialised chunk is identical to the corresponding sub-matrix of the
+full materialisation.
+}
+\examples{
+if (requireNamespace("geos", quietly = TRUE)) {
+  poly <- geos::as_geos_geometry("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(100L, 100L))
+  full <- materialise_chunk(r)
+  chunk <- materialise_chunk(r, target = c(2, 5, 3, 7))
+  dim(chunk)
+  crop_burn(r, c(2, 5, 3, 7))$extent
+}
 }

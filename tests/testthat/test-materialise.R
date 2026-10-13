@@ -50,3 +50,59 @@ test_that("print.controlledburn works", {
   r <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3, 3))
   expect_output(print(r), "controlledburn")
 })
+
+## ---- target: chunked materialisation ----
+
+.wk_poly <- function(wkt) wk::as_wkb(wk::wkt(wkt))
+
+test_that("materialise_chunk(target) equals the sub-matrix of the full materialisation", {
+  poly <- .wk_poly(c("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))",
+                     "POLYGON ((0.35 0.35, 4.75 0.35, 2.55 6.25, 0.35 0.35))"))
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(100L, 100L))
+  for (fun in c("sum", "id")) {
+    full <- materialise_chunk(r, fun = fun)
+    target <- c(2.04, 5.13, 3.3, 7.01)
+    chunk <- materialise_chunk(r, fun = fun, target = target)
+    sub <- crop_burn(r, target)
+    expect_equal(dim(chunk), rev(sub$dimension))
+    ## snapped outward: covers at least the target
+    expect_true(sub$extent[1] <= target[1] && sub$extent[2] >= target[2])
+    expect_true(sub$extent[3] <= target[3] && sub$extent[4] >= target[4])
+    ## index of the window within the full grid (0-based offsets)
+    col0 <- round((sub$extent[1] - r$extent[1]) / 0.1)
+    row0 <- round((r$extent[4] - sub$extent[4]) / 0.1)
+    expect_equal(chunk,
+                 full[row0 + seq_len(sub$dimension[2]), col0 + seq_len(sub$dimension[1])])
+  }
+})
+
+test_that("materialise_chunk(target) on an exact cell boundary does not drift", {
+  poly <- .wk_poly("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(100L, 100L))
+  full <- materialise_chunk(r)
+  chunk <- materialise_chunk(r, target = c(2, 5, 3, 7))
+  expect_equal(dim(chunk), c(40L, 30L))
+  expect_equal(chunk, full[31:70, 21:50])
+})
+
+test_that("materialise_chunk(target) covering the whole grid equals the full materialisation", {
+  poly <- .wk_poly("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(100L, 100L))
+  expect_equal(materialise_chunk(r, target = r$extent), materialise_chunk(r))
+  expect_equal(materialise_chunk(r, target = c(-5, 15, -5, 15)), materialise_chunk(r))
+})
+
+test_that("materialise_chunk(target) outside the grid errors", {
+  poly <- .wk_poly("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(100L, 100L))
+  expect_error(suppressWarnings(materialise_chunk(r, target = c(20, 30, 20, 30))),
+               "does not overlap")
+})
+
+test_that("materialise_chunk(target) with lines and points", {
+  geom <- .wk_poly(c("LINESTRING (0.5 0.5, 9.5 9.5)", "POINT (3.33 6.66)"))
+  r <- burn(geom, extent = c(0, 10, 0, 10), dimension = c(50L, 50L))
+  full <- materialise_chunk(r)
+  chunk <- materialise_chunk(r, target = c(3, 4, 6, 7))
+  expect_equal(chunk, full[16:20, 16:20])
+})

@@ -1,5 +1,10 @@
 # controlledburn dev
 
+* `materialise_chunk()` gains a `target` argument: materialise only a
+sub-window of the burn grid, via `crop_burn()`, without allocating the full
+grid. The chunk is identical to the corresponding sub-matrix of the full
+materialisation.
+
 * Fixed python tests. 
 
 * Internal: the vendored C++ core now emits 0-based indices with an
