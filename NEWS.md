@@ -5,8 +5,6 @@ sub-window of the burn grid, via `crop_burn()`, without allocating the full
 grid. The chunk is identical to the corresponding sub-matrix of the full
 materialisation.
 
-* Fixed python tests. 
-
 * Internal: the vendored C++ core now emits 0-based indices with an
   exclusive `col_end` and `id = k` (aligning with controlledburn-rs and
   every non-R consumer). The cpp11 shim (`src/scanline_shim.cpp`) adds 1

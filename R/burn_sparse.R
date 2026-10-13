@@ -6,6 +6,11 @@
 #' lines and points.
 #'
 #' @param ... ignored
+#' @return This function always errors; it never returns a value. Call
+#'   [burn()] instead.
+#' @examples
+#' # burn_sparse() is deprecated and errors; use burn() instead
+#' try(burn_sparse())
 #' @export
 burn_sparse <- function(...) {
   .Deprecated("burn", msg = paste(

@@ -31,3 +31,12 @@ Interior runs are matched by row equality plus column interval
 containment; edges, lines, and points by exact (row, col) match.
 Cost is O(points + hits), independent of grid dimension.
 }
+\examples{
+if (requireNamespace("geos", quietly = TRUE)) {
+  library(geos)
+  poly <- as_geos_geometry("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0))")
+  r <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  # value at three cell centres (fun = "id": geometry id, else NA)
+  extract_burn(r, cbind(c(1.5, 5.5, 8.5), c(1.5, 5.5, 8.5)), fun = "id")
+}
+}

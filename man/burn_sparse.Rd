@@ -9,8 +9,16 @@ burn_sparse(...)
 \arguments{
 \item{...}{ignored}
 }
+\value{
+This function always errors; it never returns a value. Call
+\code{\link[=burn]{burn()}} instead.
+}
 \description{
 \code{burn_sparse()} has been removed. Use \code{\link[=burn]{burn()}} instead, which
 produces identical output for polygon input and also supports
 lines and points.
+}
+\examples{
+# burn_sparse() is deprecated and errors; use burn() instead
+try(burn_sparse())
 }

@@ -4,9 +4,9 @@
 \name{controlledburn-package}
 \alias{controlledburn}
 \alias{controlledburn-package}
-\title{controlledburn: Sparse Polygon Rasterization with Exact Coverage Fractions}
+\title{controlledburn: Sparse Geometry Rasterization with Exact Coverage Fractions}
 \description{
-Rasterize polygons without materializing any pixel values. Computes exact coverage fractions for polygon-grid intersections and returns results in a sparse two-table format: run-length encoded interior cells and individually weighted boundary cells. The scanline algorithm is O(perimeter) in both time and memory. Uses the exactextract algorithm by Daniel Baston, vendored from the 'exactextractr' package. Derived from the 'fasterize' package by Noam Ross.
+Rasterize polygon, line, and point geometry without materializing any pixel values. For polygons it computes exact coverage fractions for polygon-grid intersections, returning sparse tables: run-length encoded interior cells and individually weighted boundary cells. The scanline algorithm is O(perimeter) in both time and memory, using the scan line fill attributed to Wylie et al. (1967) \doi{10.1145/1465611.1465619}. Exact coverage fractions use the 'exactextract' algorithm by Daniel Baston, vendored from the 'exactextractr' package \doi{10.32614/CRAN.package.exactextractr}. Derived from the 'fasterize' package by Noam Ross.
 }
 \seealso{
 Useful links:

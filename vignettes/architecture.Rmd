@@ -17,7 +17,7 @@ knitr::opts_chunk$set(
 ## Origins: fasterize
 
 controlledburn began as a fork of
-[fasterize](https://github.com/ecohealthalliance/fasterize) by Noam
+[fasterize](https://github.com/hypertidy/fasterize) by Noam
 Ross and EcoHealth Alliance. fasterize was a fast polygon rasterizer
 for R: given a set of polygons and a raster template, it produced a
 materialised raster using a scanline algorithm based on Wylie et al.

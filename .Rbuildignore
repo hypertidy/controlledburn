@@ -13,7 +13,6 @@
 ^\.claude$
 ^cpp$
 ^tools$
-^build$
 ^python$
 ^fixtures$
 ^.benchmarks$
@@ -21,3 +20,7 @@
 ^.pytest_cache$
 ^.*\.Rcheck$
 ^\.posit/assistant$
+^cache$
+^cran-comments\.md$
+^vignettes/.*\.html$
+^controlledburnindexingissue\.md$

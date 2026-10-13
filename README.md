@@ -5,7 +5,7 @@
 
 <!-- badges: start -->
 
-[![R-CMD-check](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check-check.yaml/badge.svg)](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check-check.yaml)
+[![R-CMD-check](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/hypertidy/controlledburn/actions/workflows/R-CMD-check.yaml)
 <!-- badges: end -->
 
 Rasterize geometry without materializing any pixel values.
@@ -211,7 +211,7 @@ g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
 
 system.time(r <- burn(g, dimension = c(2560L, 1280L), mode = "approx"))
 #>    user  system elapsed 
-#>   0.442   0.008   0.449
+#>   0.456   0.008   0.464
 r
 #> <controlledburn> 2560 x 1280 grid, 205 geometries
 #>   runs:   25232 (1123628 interior cells)
@@ -222,7 +222,7 @@ r
 ## History
 
 controlledburn was derived from
-[fasterize](https://github.com/ecohealthalliance/fasterize) by Noam Ross
+[fasterize](https://github.com/hypertidy/fasterize) by Noam Ross
 (EcoHealth Alliance). The exact coverage fraction algorithm is from
 Daniel Baston’s
 [exactextract](https://github.com/isciences/exactextract) C++ library,
@@ -275,14 +275,8 @@ fasterize issue. The closest implementation is now in GEOS with
 - [silicate](https://github.com/hypertidy/silicate) — the
   primitives-first geometry stance this package follows (segments and
   vertices as first-class objects).
-- [polymer2](https://github.com/hypertidy/polymer2) — sparse geometry
-  overlay; consumes the `(row, col, fraction, id)` schema this package
-  emits for polygons.
-- [exactextractr](https://github.com/isciences/exactextractr) — raster
-  extraction with polygon weights; the source of the exactextract C++
-  algorithm vendored here.
-
-## Code of Conduct
+- [exactextractr](https://github.com/isciences/exactextractr) — \## Code
+  of Conduct
 
 Please note that the controlledburn project is released with a
 [Contributor Code of
