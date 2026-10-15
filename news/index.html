@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.2.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
       </span>
     </div>
 
@@ -63,6 +63,14 @@
       <small>Source: <a href="https://github.com/hypertidy/controlledburn/blob/main/NEWS.md" class="external-link"><code>NEWS.md</code></a></small>
     </div>
 
+    <div class="section level2">
+<h2 class="page-header" data-toc-text="0.3.0" id="controlledburn-030">controlledburn 0.3.0<a class="anchor" aria-label="anchor" href="#controlledburn-030"></a></h2>
+<ul><li><p>Fixed: in coverage mode, a vertex lying a few ulp off a cell edge (e.g. a vertex at 0.3 on a grid with resolution 0.1, where the edge is computed as 3 * 0.1 = 0.30000000000000004) sent the cell walker off the grid along the extrapolated edge until memory was exhausted; where it did return, a degenerate corner exit made <code>left_hand_area()</code> over-count the cell. Vertices within 1e-9 of a cell (relative to resolution) of an edge are now snapped onto it before the walk; a crossing computed beyond a segment’s end is clamped to the cell; and a non-converging ring walk throws a clear error instead of <code>bad_alloc</code>. The same input crashes exactextractr, so this is inherited from the exactextract traversal. Fix lives in <code>cpp/src/scanline.cpp</code> and is synced to <code>src/</code>.</p></li>
+<li><p>Fixed: in coverage mode, an edge crossing a row’s centre line exactly on a column wall registered no winding delta in either adjacent cell, and the row lost its interior runs from that column on. Pre-existing (the Falkland Islands from Natural Earth 110m lose two cells at 0.5 degrees), but the lattice snapping above puts many more crossings exactly on walls and made it far more visible. The crossing test is now half-open at the row centre in coverage mode as it already was in approx mode. Natural Earth 110m at 0.01 degree is now 0.035 square degrees short of the planar area, versus 0.50 before; no geometry gets worse.</p></li>
+<li><p>Fixed: in approx mode, a vertex sitting on a row’s centre line (as a user computes it, one ulp from the same line recomputed from the extent) could flip the sign of that edge’s intercept, after which the row filled from the polygon to the right edge of the grid. The crossing direction now comes from the edge’s own endpoints. Found by the property-based suite in controlledburn-rs.</p></li>
+<li><p><code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code> gains a <code>target</code> argument: materialise only a sub-window of the burn grid, via <code><a href="../reference/crop_burn.html">crop_burn()</a></code>, without allocating the full grid. The chunk is identical to the corresponding sub-matrix of the full materialisation.</p></li>
+<li><p>Internal: the vendored C++ core now emits 0-based indices with an exclusive <code>col_end</code> and <code>id = k</code> (aligning with controlledburn-rs and every non-R consumer). The cpp11 shim (<code>src/scanline_shim.cpp</code>) adds 1 to row/col/col_start/id to restore the package’s 1-based, inclusive contract, so R output is unchanged.</p></li>
+</ul></div>
     <div class="section level2">
 <h2 class="page-header" data-toc-text="0.2.0" id="controlledburn-020">controlledburn 0.2.0<a class="anchor" aria-label="anchor" href="#controlledburn-020"></a></h2>
 <div class="section level3">
