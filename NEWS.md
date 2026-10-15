@@ -1,4 +1,4 @@
-# controlledburn (development version)
+# controlledburn 0.3.1
 
 * Fixed: `materialise_chunk(fun = "sum")` assigned 1 to interior run cells
   instead of adding 1, so where polygon interiors overlapped the sum
