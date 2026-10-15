@@ -97,7 +97,8 @@ allocating the full grid.</p>
 <dd><p>(default) Polygon runs contribute 1, edges
 contribute their coverage fraction, lines contribute length,
 points contribute 1. Values accumulate additively across
-overlapping geometries. Background is 0.</p></dd>
+overlapping geometries. Background is 0. Mixed geometry kinds
+are summed as-is, although the measures have different units.</p></dd>
 
 <dt><code>"id"</code></dt>
 <dd><p>Write the geometry id (<code>$runs$id</code>, <code>$edges$id</code>,
