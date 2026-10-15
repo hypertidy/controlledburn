@@ -275,10 +275,22 @@ fasterize issue. The closest implementation is now in GEOS with
 - [silicate](https://github.com/hypertidy/silicate) — the
   primitives-first geometry stance this package follows (segments and
   vertices as first-class objects).
-- [exactextractr](https://github.com/isciences/exactextractr) — \## Code
-  of Conduct
+- [exactextractr](https://github.com/isciences/exactextractr) —
+  exact coverage-fraction zonal statistics in R; the source of the
+  vendored exactextract algorithm.
+
+## License
+
+Apache License 2.0 (see [LICENSE.md](LICENSE.md)). The package vendors
+part of the [exactextract](https://github.com/isciences/exactextract) C++
+library (Apache-2.0, ISciences, LLC) and its scanline logic derives from
+[fasterize](https://github.com/ecohealthalliance/fasterize) (MIT,
+EcoHealth Alliance); details in [inst/COPYRIGHTS](inst/COPYRIGHTS).
+
+## Code of Conduct
 
 Please note that the controlledburn project is released with a
 [Contributor Code of
 Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html).
 By contributing to this project, you agree to abide by its terms.
+

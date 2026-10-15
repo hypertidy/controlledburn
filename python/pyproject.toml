@@ -1,5 +1,5 @@
 [build-system]
-requires = ["scikit-build-core>=0.10", "pybind11>=2.12"]
+requires = ["scikit-build-core>=0.11", "pybind11>=2.12"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -8,7 +8,12 @@ version = "0.4.0"
 description = "Scanline polygon/line/point rasterization with exact coverage fractions, sparse output"
 readme = "README.md"
 requires-python = ">=3.9"
-license = {text = "Apache-2.0"}
+# PEP 639. The wheel compiles in vendored exactextract (Apache-2.0) and
+# fasterize-derived scanline code (MIT); see LICENSES/COPYRIGHTS.
+# LICENSE and LICENSES/ are copies kept in sync by tools/sync-core.sh
+# (license files must live inside the python/ project tree).
+license = "Apache-2.0 AND MIT"
+license-files = ["LICENSE", "LICENSES/*"]
 authors = [{name = "Michael Sumner", email = "mdsumner@gmail.com"}]
 dependencies = ["numpy>=1.24"]
 
@@ -19,6 +24,6 @@ arrow = ["nanoarrow>=0.5"]
 test = ["pytest", "shapely>=2.0", "pyarrow>=14", "nanoarrow>=0.5"]
 
 [tool.scikit-build]
-minimum-version = "0.10"
+minimum-version = "0.11"
 build-dir = "build/{wheel_tag}"
 wheel.packages = ["src/controlledburn"]

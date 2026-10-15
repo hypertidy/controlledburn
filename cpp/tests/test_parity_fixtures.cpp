@@ -1,6 +1,9 @@
 // test_parity_fixtures.cpp -- cross-language parity tests driven by shared
 // CSV fixtures in fixtures/. Identical fixtures are read by R and Python
 // test suites so any regression is caught across all three surfaces.
+//
+// Copyright (c) 2025 Michael Sumner
+// Licensed under Apache License 2.0
 
 #include "controlledburn/controlledburn.hpp"
 

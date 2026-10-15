@@ -1,10 +1,73 @@
-This package includes code from the exactextract library.
+controlledburn copyright and licensing
+======================================
 
-Files: src/exactextract/*
-Copyright: 2018-2022 ISciences, LLC
-License: Apache-2.0
-Source: https://github.com/isciences/exactextract
-Notes: Subset of the exactextract C++ library (algorithm core only),
-  vendored for computing exact raster cell coverage fractions.
-  Excludes GDAL I/O, CLI, statistics framework, and processing pipeline.
-  The same code is vendored in the exactextractr R package on CRAN.
+controlledburn as a whole is licensed under the Apache License,
+Version 2.0. The full text is in LICENSE.md in the source repository
+and at https://www.apache.org/licenses/LICENSE-2.0
+
+Copyright (c) 2022-2026 Michael Sumner and controlledburn contributors
+
+The package includes or derives from the third-party code listed below,
+which remains under its original copyright and license.
+
+
+1. exactextract
+---------------
+
+Files (R package):  src/exactextract/*
+Files (C++ core):   cpp/src/ee/*  (except cpp/src/ee/analytical_coverage.h)
+Copyright:          2018-2023 ISciences, LLC (Daniel Baston)
+License:            Apache-2.0
+Source:             https://github.com/isciences/exactextract
+
+Subset of the exactextract C++ library (algorithm core only), vendored
+for computing exact raster cell coverage fractions. Excludes GDAL I/O,
+CLI, statistics framework and processing pipeline; the C++ core under
+cpp/ additionally excludes the GEOS-coupled files. Each vendored file is
+an unmodified copy of an upstream exactextract source file, matching the
+snapshot vendored by the exactextractr R package on CRAN. The original
+copyright headers are retained in every file. exactextract ships no
+NOTICE file.
+
+src/analytical_coverage.h and cpp/src/ee/analytical_coverage.h are not
+part of exactextract; they are original controlledburn code (Apache-2.0,
+Michael Sumner).
+
+
+2. fasterize
+------------
+
+Files:      cpp/src/scanline.cpp (synced to src/core_scanline.cpp),
+            cpp/include/controlledburn/materialize.hpp (synced to
+            inst/include/controlledburn/materialize.hpp)
+Copyright:  2017 EcoHealth Alliance
+License:    MIT
+Source:     https://github.com/ecohealthalliance/fasterize
+
+The scanline edge-walking logic was originally derived from the
+fasterize package (Noam Ross, EcoHealth Alliance), and the pixel
+reduction functions in materialize.hpp mirror fasterize's. The MIT
+license text for that code follows.
+
+  MIT License
+
+  Copyright (c) 2017 EcoHealth Alliance
+
+  Permission is hereby granted, free of charge, to any person obtaining a
+  copy of this software and associated documentation files (the
+  "Software"), to deal in the Software without restriction, including
+  without limitation the rights to use, copy, modify, merge, publish,
+  distribute, sublicense, and/or sell copies of the Software, and to
+  permit persons to whom the Software is furnished to do so, subject to
+  the following conditions:
+
+  The above copyright notice and this permission notice shall be included
+  in all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+  OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+  MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+  CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+  TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

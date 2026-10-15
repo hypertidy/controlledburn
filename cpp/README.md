@@ -33,6 +33,14 @@ shoelace with CCW positive; `polygon_signed_area` in
 `ee/analytical_coverage.h` uses the opposite convention internal to the
 coverage math.
 
+## License
+
+Apache License 2.0 (see [../LICENSE.md](../LICENSE.md)). The files under
+`src/ee/` (except `analytical_coverage.h`) are unmodified exactextract
+sources, Apache-2.0, copyright ISciences, LLC; the scanline walker and
+`materialize.hpp` derive from fasterize (MIT, copyright EcoHealth
+Alliance). See [../inst/COPYRIGHTS](../inst/COPYRIGHTS).
+
 ## API
 
 ```cpp

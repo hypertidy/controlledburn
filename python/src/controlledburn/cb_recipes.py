@@ -18,6 +18,9 @@ Usage:
 
 Requires numpy. shapely is needed only for geometry coercion and for
 deriving extent from geometry; the rest works on WKB bytes alone.
+
+Copyright (c) 2025 Michael Sumner
+Licensed under Apache License 2.0
 """
 
 from __future__ import annotations

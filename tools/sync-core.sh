@@ -34,6 +34,13 @@ sed -e 's|#include "ee/analytical_coverage.h"|#include "analytical_coverage.h"|'
 
 cp cpp/src/wkb.cpp src/core_wkb.cpp
 
+# License artefacts for the Python package: PEP 639 license-files must
+# live inside the python/ project tree, so they are copies of the root
+# LICENSE.md and inst/COPYRIGHTS.
+mkdir -p python/LICENSES
+cp LICENSE.md python/LICENSE
+cp inst/COPYRIGHTS python/LICENSES/COPYRIGHTS
+
 # Enforce analytical_coverage.h parity (modulo the include-path lines)
 a=$(sed 's|#include "exactextract/|#include "|' src/analytical_coverage.h)
 b=$(cat cpp/src/ee/analytical_coverage.h)
@@ -42,4 +49,4 @@ if [ "$a" != "$b" ]; then
   exit 1
 fi
 
-echo "core synced: inst/include/controlledburn/, src/core_scanline.cpp, src/core_wkb.cpp"
+echo "core synced: inst/include/controlledburn/, src/core_scanline.cpp, src/core_wkb.cpp, python/LICENSE, python/LICENSES/"
