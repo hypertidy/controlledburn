@@ -211,7 +211,7 @@ g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
 
 system.time(r <- burn(g, dimension = c(2560L, 1280L), mode = "approx"))
 #>    user  system elapsed 
-#>   0.456   0.008   0.464
+#>   0.425   0.012   0.437
 r
 #> <controlledburn> 2560 x 1280 grid, 205 geometries
 #>   runs:   25232 (1123628 interior cells)
@@ -237,36 +237,18 @@ polygon/line/point rasterization → dual-mode engine (coverage + approx)
 See `vignette("architecture")` for the full story, [NEWS](NEWS.md) for
 the version history, and `inst/docs-design/` for design records.
 
-In 2017, the “cell-abstraction mode” request in fasterize
-(<https://github.com/hypertidy/fasterize/issues/11>) asked for the
-scanline algorithm to return its natural product directly: cell and
-polygon-ID pairs, rather than burning values into a dense matrix. The
-motivations were relational: overlapping polygons are recorded rather
-than resolved (one cell, many features), empty pixels are never created,
-and the (cell, id) table plugs straight into tidy per-cell, per-feature,
-and per-layer summaries. For very large grids the dense matrix is not
-just wasteful, it is the thing that makes the task impossible.
-
-In 2019, Thomas Knudsen proposed the same core representation from a
-completely different direction, in a PROJ discussion about
-area-of-interest lookup for coordinate transformations
-(<https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992>).
-Rather than storing area-of-use polygons as vertices and doing
-point-in-polygon tests, rasterize each polygon onto a global grid and
-run-length encode each row. Most rows are all zeros; the rest are a
-handful of runs. His scheme adds further compression on top: identical
-rows (even non-adjacent ones) share a single stored representation via a
-row-start index, all-zero rows are special-cased, and a bounding box
-trims the stored region. Resolution is just a parameter - grow the grid
-and the RLE keeps the representation growth under control.
-
-The fasterize issue is about the *relational* payoff of sparse
-rasterization, the PROJ comment is about the *compression* payoff of the
-same structure as a storage and lookup format. controlledburn’s output
-sits at the meeting point: the runs table is Knudsen’s row encoding, and
-expanding runs to cells gives the classified cell/ID table from the
-fasterize issue. The closest implementation is now in GEOS with
-[GEOSSubdiveByGrid](https://github.com/libgeos/geos/releases/tag/3.15.0beta3).
+The same idea has independent roots. The 2017 “cell-abstraction mode”
+request in fasterize
+([\#11](https://github.com/hypertidy/fasterize/issues/11)) asked the
+scanline sweep to return `(cell, id)` pairs rather than burn values into
+a dense matrix — the *relational* payoff of sparse rasterization. In
+2019 Thomas Knudsen independently proposed run-length encoding
+rasterized polygons for coordinate-transform area-of-interest lookup in
+PROJ
+([\#1461](https://github.com/OSGeo/PROJ/issues/1461#issuecomment-491501992))
+— the *compression* payoff. controlledburn’s output sits at the meeting
+point. The closest implementation now lives in GEOS as
+[GEOSSubdivideByGrid](https://github.com/libgeos/geos/releases/tag/3.15.0beta3).
 
 ## See also
 
@@ -275,17 +257,19 @@ fasterize issue. The closest implementation is now in GEOS with
 - [silicate](https://github.com/hypertidy/silicate) — the
   primitives-first geometry stance this package follows (segments and
   vertices as first-class objects).
-- [exactextractr](https://github.com/isciences/exactextractr) —
-  exact coverage-fraction zonal statistics in R; the source of the
-  vendored exactextract algorithm.
+- [exactextractr](https://github.com/isciences/exactextractr) — exact
+  coverage-fraction zonal statistics in R; the source of the vendored
+  exactextract algorithm.
 
 ## License
 
-Apache License 2.0 (see [LICENSE.md](LICENSE.md)). The package vendors
-part of the [exactextract](https://github.com/isciences/exactextract) C++
-library (Apache-2.0, ISciences, LLC) and its scanline logic derives from
-[fasterize](https://github.com/ecohealthalliance/fasterize) (MIT,
-EcoHealth Alliance); details in [inst/COPYRIGHTS](inst/COPYRIGHTS).
+Apache License 2.0 (see
+[LICENSE.md](https://github.com/hypertidy/controlledburn/blob/main/LICENSE.md)).
+The package vendors part of the
+[exactextract](https://github.com/isciences/exactextract) C++ library
+(Apache-2.0, ISciences, LLC) and its scanline logic derives from
+[fasterize](https://github.com/hypertidy/fasterize) (MIT, EcoHealth
+Alliance); details in [inst/COPYRIGHTS](inst/COPYRIGHTS).
 
 ## Code of Conduct
 
@@ -293,4 +277,3 @@ Please note that the controlledburn project is released with a
 [Contributor Code of
 Conduct](https://contributor-covenant.org/version/2/1/CODE_OF_CONDUCT.html).
 By contributing to this project, you agree to abide by its terms.
-

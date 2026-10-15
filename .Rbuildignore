@@ -25,3 +25,5 @@
 ^vignettes/.*\.html$
 ^controlledburnindexingissue\.md$
 ^scratch$
+^CRAN-SUBMISSION$
+^.posit$
