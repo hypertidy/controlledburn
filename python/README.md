@@ -77,6 +77,15 @@ PyPI would need the core vendored into this tree first (a sync step
 like the R side's tools/sync-core.sh) -- deliberately deferred until a
 first release.
 
+## License
+
+Apache License 2.0 (see [LICENSE](LICENSE)). Wheels compile in a
+vendored subset of [exactextract](https://github.com/isciences/exactextract)
+(Apache-2.0, ISciences, LLC) and scanline logic derived from
+[fasterize](https://github.com/ecohealthalliance/fasterize) (MIT,
+EcoHealth Alliance), hence the `Apache-2.0 AND MIT` license expression;
+details in [LICENSES/COPYRIGHTS](LICENSES/COPYRIGHTS).
+
 ## Test
 
 ```sh

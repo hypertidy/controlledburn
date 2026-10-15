@@ -25,7 +25,8 @@ Description: Rasterize polygon, line, and point geometry without
     'exactextract' algorithm by Daniel Baston, vendored from the
     'exactextractr' package <doi:10.32614/CRAN.package.exactextractr>.
     Derived from the 'fasterize' package by Noam Ross.
-License: Apache License (>= 2)
+License: Apache License (== 2.0)
+Copyright: See file COPYRIGHTS
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 LinkingTo:
