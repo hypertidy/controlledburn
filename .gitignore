@@ -16,3 +16,4 @@ build/
 *.tar.gz
 README.html
 .posit/assistant
+scratch/
