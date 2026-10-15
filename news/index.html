@@ -17,7 +17,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">controlledburn</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.3.1</span>
       </span>
     </div>
 
@@ -36,9 +36,6 @@
     </li>
     <li>
       <a href="../articles/architecture.html">Architecture: how controlledburn developed</a>
-    </li>
-    <li>
-      <a href="../articles/controlledburn-journey.html">controlledburn-journey</a>
     </li>
   </ul></li>
 <li>
@@ -64,7 +61,7 @@
     </div>
 
     <div class="section level2">
-<h2 class="page-header" data-toc-text="development version" id="controlledburn-development-version">controlledburn (development version)<a class="anchor" aria-label="anchor" href="#controlledburn-development-version"></a></h2>
+<h2 class="page-header" data-toc-text="0.3.1" id="controlledburn-031">controlledburn 0.3.1<a class="anchor" aria-label="anchor" href="#controlledburn-031"></a></h2>
 <ul><li><p>Fixed: <code>materialise_chunk(fun = "sum")</code> assigned 1 to interior run cells instead of adding 1, so where polygon interiors overlapped the sum undercounted (and disagreed with <code>extract_burn(fun = "sum")</code>, which documents that it reproduces <code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code>). Interiors now accumulate like edges, lines and points.</p></li>
 <li><p>Fixed: a non-finite extent (<code>Inf</code>, or a span that overflows double precision) reached the core with an infinite cell size and crashed R with a C stack overflow. <code><a href="../reference/burn.html">burn()</a></code> now errors, and the core’s own grid validation rejects non-finite bounds for every binding.</p></li>
 <li><p><code><a href="../reference/burn.html">?burn</a></code> no longer says that <code><a href="../reference/materialise_chunk.html">materialise_chunk()</a></code> refuses mixed geometry kinds or refers to an <code>id =</code> filter it doesn’t have. It sums whatever it is given; <code>extract_burn(fun = "sum")</code> is the one that refuses mixed kinds.</p></li>
