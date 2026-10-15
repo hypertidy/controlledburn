@@ -145,3 +145,25 @@ def test_geoarrow_pyarrow_wkb_extension_matches():
     ga = pytest.importorskip("geoarrow.pyarrow")
     gawkb = ga.wkb().wrap_array(pa.array(wkbs(TWO), type=pa.binary()))
     _same(cb.burn(wkbs(TWO), **G10), cb.burn(gawkb, **G10))
+
+
+# ---- sliced arrays (non-zero Arrow offset) ----------------------------
+
+@pytest.mark.parametrize("typ", [pa.binary(), pa.large_binary()])
+def test_arrow_sliced_array_matches_wkb_list(typ):
+    # A slice keeps its parent's buffers plus an offset; offsets and the
+    # validity bitmap must be read from that offset.
+    geoms = [shapely.box(0, 0, 1, 1), None, shapely.box(2, 2, 6, 6),
+             shapely.box(4, 4, 8, 8), None, shapely.box(9, 9, 10, 10)]
+    ws = [None if g is None else shapely.to_wkb(g) for g in geoms]
+    arr = pa.array(ws, type=typ)
+    for start, length in [(1, 3), (2, 2), (3, 3), (0, 6)]:
+        _same(cb.burn(ws[start:start + length], **G10),
+              cb.burn(arr.slice(start, length), **G10))
+
+
+def test_arrow_sliced_chunked_ids_follow_slice():
+    ws = wkbs([shapely.box(0, 0, 1, 1), shapely.box(2, 2, 6, 6),
+               shapely.box(4, 4, 8, 8)])
+    ca = pa.chunked_array([pa.array(ws), pa.array(ws)]).slice(2, 3)
+    _same(cb.burn(ws[2:] + ws[:2], **G10), cb.burn(ca, **G10))

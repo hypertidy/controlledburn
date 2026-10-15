@@ -14,9 +14,10 @@
 #' kinds are present. Each table's measure column means exactly one
 #' thing — polygon `$edges$fraction` is dimensionless, `$lines$length`
 #' is in CRS units, points have no measure — so combining them in a
-#' single materialized matrix would silently mix units.
-#' [materialize_chunk()] therefore refuses mixed-kind input; filter to
-#' one kind via `id =` first, or run separate burns for each kind.
+#' single materialized matrix would silently mix units: run separate
+#' burns for each kind before [materialize_chunk()] (which sums whatever
+#' it is given) or [extract_burn()] with `fun = "sum"` (which refuses
+#' mixed kinds).
 #'
 #' GeometryCollection input warns and is skipped. Curved types
 #' (CircularString, CompoundCurve, etc.) must be linearised by the

@@ -17,7 +17,8 @@ materialize_chunk(x, fun = c("sum", "id"), target = NULL)
 \item{\code{"sum"}}{(default) Polygon runs contribute 1, edges
 contribute their coverage fraction, lines contribute length,
 points contribute 1. Values accumulate additively across
-overlapping geometries. Background is 0.}
+overlapping geometries. Background is 0. Mixed geometry kinds
+are summed as-is, although the measures have different units.}
 \item{\code{"id"}}{Write the geometry id (\verb{$runs$id}, \verb{$edges$id},
 etc.) into each cell. When geometries overlap, the last id
 wins. Background is \code{NA}.}

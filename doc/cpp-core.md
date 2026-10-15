@@ -60,13 +60,14 @@ Lines and points are unaffected by mode.
 
 ### Python bindings (`python/`)
 
-pybind11 + scikit-build-core. `burn()` takes WKB bytes (shapely
-`to_wkb` works directly), returns numpy structured arrays;
-`materialize()` returns dense 2D arrays. Python-native argument
-conventions (`bounds` rasterio-style, `shape` numpy-style); identical
-1-based table values to R. `mode` parameter supports both
-`"coverage"` and `"approx"`. 33 pytest cases pass (including 6
-approx mode tests).
+pybind11 + scikit-build-core. `burn()` takes WKB bytes, shapely
+geometries, geopandas objects or Arrow WKB arrays, and returns numpy
+structured arrays; `materialize()` returns dense 2D arrays. Extent is
+`(xmin, xmax, ymin, ymax)` as in R; `shape` is numpy-style
+`(nrow, ncol)`. Tables are 0-based with an exclusive `col_end` (the
+core's own convention); R's shim converts to 1-based inclusive. Coverage
+values are identical across the two. `mode` supports both `"coverage"`
+and `"approx"`.
 
 Install: `pip install git+https://github.com/hypertidy/controlledburn#subdirectory=python`
 

@@ -11,6 +11,7 @@
   extent <- as.double(extent)
   stopifnot(
     length(extent) == 4,
+    all(is.finite(extent)),
     extent[2] > extent[1],  # xmax > xmin
     extent[4] > extent[3]   # ymax > ymin
   )

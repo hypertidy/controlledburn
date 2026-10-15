@@ -27,6 +27,7 @@ _LINES_DTYPE = np.dtype(
     [("row", "i4"), ("col", "i4"), ("length", "f4"), ("id", "i4")]
 )
 _POINTS_DTYPE = np.dtype([("row", "i4"), ("col", "i4"), ("id", "i4")])
+_INT32_MAX = 2**31 - 1
 
 
 def _structured(cols: dict, dtype: np.dtype) -> np.ndarray:
@@ -99,8 +100,8 @@ def resolve_grid(
 ):
     """Fill in ``extent`` and ``shape`` the way the R package does.
 
-    ``extent`` defaults to the bounding box of ``geoms`` (requires
-    shapely). ``shape`` defaults to a grid of at most ``size`` cells
+    ``extent`` defaults to the bounding box of ``geoms``, from the C++
+    core's WKB envelope scan (no shapely needed). ``shape`` defaults to a grid of at most ``size`` cells
     along the longer axis, preserving aspect ratio. ``resolution``
     (scalar or ``(dx, dy)``) computes ``shape`` from the extent and is
     mutually exclusive with ``shape``.
@@ -110,21 +111,20 @@ def resolve_grid(
     ordering) and shape as ``(nrow, ncol)``.
     """
     if extent is None:
-        try:
-            import shapely
-        except ImportError:
-            raise ImportError(
-                "deriving extent from geometry requires shapely; "
+        bb = _core.bbox_wkb(as_wkb_list(geoms))
+        if bb is None:
+            raise ValueError(
+                "cannot derive extent from geometry: no finite coordinates; "
                 "pass extent=(xmin, xmax, ymin, ymax) explicitly"
-            ) from None
-        wkb = [w for w in as_wkb_list(geoms) if w is not None]
-        if not wkb:
-            raise ValueError("cannot derive extent from empty geometry input")
-        b = np.atleast_2d(shapely.bounds(shapely.from_wkb(wkb)))
-        extent = (float(np.nanmin(b[:, 0])), float(np.nanmax(b[:, 2])),
-                  float(np.nanmin(b[:, 1])), float(np.nanmax(b[:, 3])))
+            )
+        bxmin, bymin, bxmax, bymax = bb
+        extent = (bxmin, bxmax, bymin, bymax)
 
+    if len(extent) != 4:
+        raise ValueError("extent must be (xmin, xmax, ymin, ymax)")
     xmin, xmax, ymin, ymax = (float(v) for v in extent)
+    if not all(np.isfinite((xmin, xmax, ymin, ymax))):
+        raise ValueError("invalid extent: bounds must be finite")
     if not (xmax > xmin and ymax > ymin):
         raise ValueError(
             "invalid extent: xmax must be > xmin, ymax must be > ymin"
@@ -145,9 +145,16 @@ def resolve_grid(
         m = max(w, h)
         shape = (int(np.ceil(size * h / m)), int(np.ceil(size * w / m)))
 
+    if len(shape) != 2:
+        raise ValueError("shape must be (nrow, ncol)")
     nrow, ncol = int(shape[0]), int(shape[1])
     if nrow <= 0 or ncol <= 0:
         raise ValueError("ncol and nrow must be positive")
+    if nrow > _INT32_MAX or ncol > _INT32_MAX:
+        raise ValueError(
+            f"ncol and nrow must each be at most {_INT32_MAX} "
+            "(the core indexes cells with int32)"
+        )
 
     return (xmin, xmax, ymin, ymax), (nrow, ncol)
 
@@ -349,12 +356,13 @@ def burn(
         GeoDataFrame, or a sequence mixing WKB, shapely and ``None``.
         See :func:`as_wkb_list`. WKB may be ISO WKB or EWKB, either
         byte order; Z/M ordinates are skipped. Geometry k (0-based
-        position) is assigned id k + 1 in the output tables. ``None``
-        entries are skipped.
+        position) is assigned id k in the output tables. ``None``
+        entries are skipped but still consume an id.
     extent : (xmin, xmax, ymin, ymax), optional
         Grid extent, matching the R package's
         ``extent = c(xmin, xmax, ymin, ymax)`` ordering. Defaults to the
-        bounding box of the input geometry (requires shapely).
+        bounding box of the input geometry (computed by the core from
+        the WKB; shapely is not required).
     shape : (nrow, ncol), optional
         Grid dimensions, numpy-style ordering. Defaults to a grid of at
         most 256 cells along the longer axis of the extent, preserving
@@ -554,18 +562,18 @@ def _arrow_chunks(x):
                 "encoding?). Convert to WKB first."
             )
         valid_b, off_b, data_b = bufs
+        # A sliced array keeps its parent's buffers and records where it
+        # starts; offsets stay absolute positions in the data buffer.
+        start = int(chunk.offset)
         off = np.asarray(off_b)
         if off.dtype not in (np.int32, np.int64):
             raise NotImplementedError(
                 "Arrow input must be (large_)binary or geoarrow.wkb WKB "
                 f"(int32/int64 offsets); got offset dtype {off.dtype}."
             )
-        offsets = np.ascontiguousarray(off, dtype=np.int64)
-        if offsets.shape[0] != n + 1:
-            raise ValueError(
-                "unexpected offsets length; sliced arrays with a non-zero "
-                "offset are not supported yet"
-            )
+        if off.shape[0] < start + n + 1:
+            raise ValueError("Arrow offsets buffer is shorter than the array")
+        offsets = np.ascontiguousarray(off[start:start + n + 1], dtype=np.int64)
         data = np.asarray(data_b)
         if data.dtype != np.uint8:
             data = data.view(np.uint8)
@@ -574,7 +582,7 @@ def _arrow_chunks(x):
         if vb.size:
             valid = np.unpackbits(
                 vb.astype(np.uint8, copy=False), bitorder="little"
-            )[:n].astype(np.uint8)
+            )[start:start + n].astype(np.uint8)
         yield data, offsets, valid, n
 
 

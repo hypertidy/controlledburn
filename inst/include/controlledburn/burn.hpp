@@ -11,6 +11,7 @@
 #define CONTROLLEDBURN_BURN_HPP
 
 #include <vector>
+#include <cmath>
 #include <cstdint>
 #include <stdexcept>
 
@@ -36,7 +37,7 @@ enum class BurnMode {
 };
 
 // Regular grid specification. Cell size is derived: dx = (xmax-xmin)/ncol.
-// Row 1 is the TOP row (ymax edge), matching raster convention.
+// Row 0 is the TOP row (ymax edge), matching raster convention.
 struct GridSpec {
     double xmin, ymin, xmax, ymax;
     int32_t ncol, nrow;
@@ -47,14 +48,24 @@ struct GridSpec {
     void validate() const {
         if (ncol <= 0 || nrow <= 0)
             throw std::invalid_argument("ncol and nrow must be positive");
-        if (xmax <= xmin || ymax <= ymin)
+        // Non-finite bounds (or a span that overflows to inf) give a
+        // non-finite cell size, and the walker then indexes far outside
+        // the grid. The comparisons are written so NaN fails them.
+        if (!std::isfinite(xmin) || !std::isfinite(xmax) ||
+            !std::isfinite(ymin) || !std::isfinite(ymax))
+            throw std::invalid_argument("invalid extent: bounds must be finite");
+        if (!(xmax > xmin) || !(ymax > ymin))
             throw std::invalid_argument(
                 "invalid extent: xmax must be > xmin, ymax must be > ymin");
+        if (!std::isfinite(dx()) || !std::isfinite(dy()))
+            throw std::invalid_argument(
+                "invalid extent: extent span overflows double precision");
     }
 };
 
 // Burn a set of geometries onto the grid. Geometry k (0-based) is
-// assigned id k + 1 in the output tables.
+// assigned id k in the output tables; row/col are 0-based with row 0 at
+// the top, and runs cover the half-open range [col_start, col_end).
 //
 // Empty geometries are skipped silently; unsupported inputs are skipped
 // with a note in BurnResult::notes. Throws std::invalid_argument for an
