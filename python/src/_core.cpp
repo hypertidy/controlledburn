@@ -12,6 +12,7 @@
 #include <pybind11/stl.h>
 
 #include <cstring>
+#include <string>
 #include <vector>
 
 #include "controlledburn/controlledburn.hpp"
@@ -73,6 +74,49 @@ py::dict assemble_result(const cb::BurnResult& res) {
     return out;
 }
 
+// Build non-owning WKBSpans over a sequence of bytes-like objects (None
+// entries become null spans, which the core skips). `keep` holds the
+// buffer views and must outlive the spans. A buffer must be C-contiguous;
+// its byte length is size * itemsize, so any contiguous buffer of WKB
+// bytes works whatever its element type.
+void build_list_spans(py::sequence wkb_list,
+                      std::vector<py::buffer_info>& keep,
+                      std::vector<cb::WKBSpan>& spans) {
+    const size_t n = py::len(wkb_list);
+    keep.clear();
+    spans.clear();
+    keep.reserve(n);
+    spans.reserve(n);
+    size_t i = 0;
+    for (py::handle h : wkb_list) {
+        if (h.is_none()) {
+            spans.push_back({nullptr, 0});
+            i++;
+            continue;
+        }
+        if (!PyObject_CheckBuffer(h.ptr())) {
+            throw py::type_error(
+                "WKB entry " + std::to_string(i) + " is " +
+                std::string(py::str(py::type::of(h).attr("__name__"))) +
+                ", expected bytes-like or None");
+        }
+        py::buffer buf = py::reinterpret_borrow<py::buffer>(h);
+        keep.push_back(buf.request());
+        const py::buffer_info& info = keep.back();
+        bool contiguous = info.ndim <= 1 &&
+            (info.ndim == 0 || info.size <= 1 || info.strides[0] == info.itemsize);
+        if (!contiguous) {
+            throw py::value_error(
+                "WKB entry " + std::to_string(i) + " is not a contiguous buffer");
+        }
+        spans.push_back({
+            static_cast<const uint8_t*>(info.ptr),
+            static_cast<size_t>(info.size) * static_cast<size_t>(info.itemsize)
+        });
+        i++;
+    }
+}
+
 // burn_wkb over a list of bytes-like objects. Returns a dict of dicts of
 // column arrays plus the notes list; the Python wrapper assembles
 // structured arrays and issues warnings.
@@ -84,26 +128,9 @@ py::dict py_burn_wkb(py::sequence wkb_list,
 
     cb::BurnMode burn_mode = parse_mode(mode);
 
-    // Hold buffer views for the duration of the call; WKBSpan is
-    // non-owning.
     std::vector<py::buffer_info> keep;
     std::vector<cb::WKBSpan> spans;
-    keep.reserve(py::len(wkb_list));
-    spans.reserve(py::len(wkb_list));
-
-    for (py::handle h : wkb_list) {
-        if (h.is_none()) {
-            spans.push_back({nullptr, 0});
-            continue;
-        }
-        py::buffer buf = py::reinterpret_borrow<py::buffer>(h);
-        keep.push_back(buf.request());
-        const py::buffer_info& info = keep.back();
-        spans.push_back({
-            static_cast<const uint8_t*>(info.ptr),
-            static_cast<size_t>(info.size)
-        });
-    }
+    build_list_spans(wkb_list, keep, spans);
 
     cb::BurnResult res;
     {
@@ -208,6 +235,24 @@ py::object py_bbox_wkb_arrow(
     return py::make_tuple(bb.xmin, bb.ymin, bb.xmax, bb.ymax);
 }
 
+// Envelope (bounding box) of a sequence of WKB blobs via the core's WKB
+// scan. Returns (xmin, ymin, xmax, ymax), or None when no finite
+// coordinate is found. The list-input counterpart of bbox_wkb_arrow, so
+// deriving a default extent needs no geometry library on either path.
+py::object py_bbox_wkb(py::sequence wkb_list) {
+    std::vector<py::buffer_info> keep;
+    std::vector<cb::WKBSpan> spans;
+    build_list_spans(wkb_list, keep, spans);
+
+    cb::BBox bb;
+    {
+        py::gil_scoped_release release;
+        bb = cb::bbox_wkb(spans);
+    }
+    if (!bb.valid) return py::none();
+    return py::make_tuple(bb.xmin, bb.ymin, bb.xmax, bb.ymax);
+}
+
 // Materialize runs/edges column arrays into a (nrow, ncol) float64 array.
 py::array_t<double> py_materialize(
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> runs_row,
@@ -224,6 +269,17 @@ py::array_t<double> py_materialize(
     const std::string& edge_policy,
     double threshold,
     double background) {
+
+    if (runs_col_start.size() != runs_row.size() ||
+        runs_col_end.size() != runs_row.size() ||
+        runs_id.size() != runs_row.size()) {
+        throw py::value_error("materialize: runs columns differ in length");
+    }
+    if (edges_col.size() != edges_row.size() ||
+        edges_fraction.size() != edges_row.size() ||
+        edges_id.size() != edges_row.size()) {
+        throw py::value_error("materialize: edges columns differ in length");
+    }
 
     cb::BurnResult res;
     auto rr = runs_row.unchecked<1>();
@@ -283,6 +339,7 @@ PYBIND11_MODULE(_core, m) {
           py::arg("xmin"), py::arg("ymin"), py::arg("xmax"), py::arg("ymax"),
           py::arg("ncol"), py::arg("nrow"),
           py::arg("mode") = "coverage");
+    m.def("bbox_wkb", &py_bbox_wkb, py::arg("wkb_list"));
     m.def("bbox_wkb_arrow", &py_bbox_wkb_arrow,
           py::arg("values"), py::arg("offsets"), py::arg("valid"));
     m.def("materialize", &py_materialize,

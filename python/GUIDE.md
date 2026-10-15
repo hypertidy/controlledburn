@@ -187,46 +187,24 @@ cb.burn(wkb, extent=(0, 10, 0, 10), shape=(0, 10))
 
 ### Deriving a grid from the geometry
 
-The R package lets you skip both arguments, or give a `resolution`
-instead of a dimension. Python does not do this yet (see
-[Sharp edges](#sharp-edges)), but it is a few lines:
+As in the R package, both arguments can be skipped, or a `resolution`
+given instead of a shape. When `extent` is omitted it comes from a
+WKB-envelope scan in the C++ core, so no shapely is needed for it on any
+input path. `cb.resolve_grid()` shows what `burn()` will use:
 
 ```python
-import numpy as np
-import shapely
-
-def resolve_grid(geoms, extent=None, shape=None, resolution=None, size=256):
-    """Mirror of the R package's grid parameter resolution."""
-    if extent is None:
-        g = as_wkb_list(geoms)                 # see the next section
-        b = np.atleast_2d(shapely.bounds(shapely.from_wkb(g)))
-        extent = (float(np.nanmin(b[:, 0])), float(np.nanmax(b[:, 2])),
-                  float(np.nanmin(b[:, 1])), float(np.nanmax(b[:, 3])))
-    xmin, xmax, ymin, ymax = (float(v) for v in extent)
-
-    if shape is not None and resolution is not None:
-        raise ValueError("specify 'shape' or 'resolution', not both")
-
-    if resolution is not None:
-        res = np.broadcast_to(np.asarray(resolution, float), (2,))
-        shape = (int(np.ceil((ymax - ymin) / res[1])),
-                 int(np.ceil((xmax - xmin) / res[0])))
-
-    if shape is None:
-        w, h = xmax - xmin, ymax - ymin
-        m = max(w, h)
-        shape = (int(np.ceil(size * h / m)), int(np.ceil(size * w / m)))
-
-    return extent, (int(shape[0]), int(shape[1]))
-```
-
-```python
-resolve_grid(shapely.box(2.5, 4.5, 6.5, 8.5))
+cb.resolve_grid(shapely.box(2.5, 4.5, 6.5, 8.5))
 # ((2.5, 6.5, 4.5, 8.5), (256, 256))
 
-resolve_grid(shapely.box(2.5, 4.5, 6.5, 8.5), resolution=0.5)
+cb.resolve_grid(shapely.box(2.5, 4.5, 6.5, 8.5), resolution=0.5)
 # ((2.5, 6.5, 4.5, 8.5), (8, 8))
+
+r = cb.burn(shapely.box(2.5, 4.5, 6.5, 8.5), resolution=0.5)
 ```
+
+`shape` is computed as `ceil(extent / resolution)` and the extent is not
+grown to fit, so when the resolution does not divide the extent the cell
+size is a little smaller than asked for -- the same rule as R.
 
 The default fits at most 256 cells along the longer axis and preserves
 aspect ratio, which is the same rule the R package uses.
@@ -600,10 +578,12 @@ np.nansum(cb.materialize(r, values=[1.0], fn="sum", edge_policy="fraction"))
 
 ### Materializing lines and points
 
-`cb.materialize()` currently **ignores `lines` and `points` and returns an
-all-background array** for line or point input. It does not warn. This is
-a known gap (see [Sharp edges](#sharp-edges)). Until it is fixed, use
-numpy directly:
+`cb.materialize()` handles polygon output only. For line or point input
+it raises `NotImplementedError`, and for mixed kinds `ValueError`: what a
+dense line or point raster should mean is still open
+([#13](https://github.com/hypertidy/controlledburn/issues/13)). The
+sparse tables are the product; a dense sum like R's `materialise_chunk()`
+is a few lines of numpy:
 
 ```python
 def materialize_all(r, shape=None, background=0.0):
@@ -628,8 +608,8 @@ def materialize_all(r, shape=None, background=0.0):
 line = shapely.LineString([(0.5, 0.5), (9.5, 7.5)])
 r = cb.burn([shapely.to_wkb(line)], extent=(0, 10, 0, 10), shape=(10, 10))
 
-cb.materialize(r, background=0.0).sum()   # 0.0   <- silently empty
-materialize_all(r).sum()                  # 11.4018, the line length
+cb.materialize(r)            # NotImplementedError: ... line input ...
+materialize_all(r).sum()     # 11.4018, the line length
 ```
 
 **Do not run `materialize_all` on mixed-kind input** unless you mean it.
@@ -899,69 +879,36 @@ gives real parallelism across chunks of geometry.
 Things that will bite you, in rough order of likelihood.
 
 **1. `shape` is `(nrow, ncol)`.** Numpy order, not `(width, height)`.
-Silent when the grid is square.
+Silent when the grid is square. (R's `dimension` is `c(ncol, nrow)`.)
+
 **2. Indices are 0-based, `col_end` exclusive.** Index numpy directly --
 `out[row, col_start:col_end]`, no `- 1` -- and a run is `col_end -
 col_start` cells wide. (R is 1-based with an inclusive `col_end`.)
 
 **3. Row 0 is the top.** If your picture is upside down, you flipped
-something that was already correct.cture is upside down, you flipped
 something that was already correct.
 
-**4. `cb.materialize()` silently ignores lines and points.** It handles
-`runs` and `edges` only. Burning a LineString and calling `materialize()`
-returns an all-background array with no warning. Use `materialize_all()`
-above. This is the single most likely way to get a wrong answer quietly.
+**4. `cb.materialize(fn="sum")` sums the burn value, not coverage.** With
+no `values` the burn value is the geometry id, and the default
+`edge_policy="threshold"` drops boundary cells below 0.5. For R's
+`materialise_chunk(fun = "sum")` (coverage, area-conserving) pass
+`values=[1.0] * n, edge_policy="fraction", background=0.0`.
 
-**5. `extent` and `shape` are mandatory.** No geometry-derived default, no
-`resolution=`. Use `resolve_grid()` above.
+**5. `cb.materialize()` is polygon-only.** Line and point input raise
+rather than returning an empty array; see
+[Materializing lines and points](#materializing-lines-and-points).
 
-**6. `burn()` needs WKB, not shapely objects.** Passing a shapely geometry
-gives `TypeError: a bytes-like object is required, not 'Polygon'`. Passing
-a single bare `bytes` object instead of a list gives the genuinely
-confusing `TypeError: a bytes-like object is required, not 'int'`, because
-iterating bytes yields integers. Use `as_wkb_list()` above.
-
-**7. `repr(BurnResult)` prints every table in full.** In a notebook with a
-million runs this is unpleasant. Print a summary instead:
-
-```python
-def summary(r):
-    interior = int((r.runs["col_end"] - r.runs["col_start"]).sum())
-    touched = interior + len(r.edges) + len(r.lines) + len(r.points)
-    ids = np.unique(np.concatenate([r.runs["id"], r.edges["id"],
-                                    r.lines["id"], r.points["id"]]))
-    lines = [f"<BurnResult> {ncol} x {nrow} grid, {len(ids)} geometries",
-             f"  runs:   {len(r.runs)} ({interior} interior cells)",
-             f"  edges:  {len(r.edges)} polygon boundary cells"]
-    if len(r.lines):
-        lines.append(f"  lines:  {len(r.lines)} cells")
-    if len(r.points):
-        lines.append(f"  points: {len(r.points)} cells")
-    lines.append(f"  sparsity: {100 * (1 - touched / (nrow * ncol)):.1f}% empty")
-    return "\n".join(lines)
-```
-
-```
-<BurnResult> 10 x 10 grid, 3 geometries
-  runs:   3 (9 interior cells)
-  edges:  16 polygon boundary cells
-  lines:  16 cells
-  points: 1 cells
-  sparsity: 58.0% empty
-```
-
-**8. Measures are in CRS units.** Degrees in, square degrees and degrees
+**6. Measures are in CRS units.** Degrees in, square degrees and degrees
 out. controlledburn does no geodesy.
 
-**9. `edge_policy="threshold"` is not fasterize parity.** For true
+**7. `edge_policy="threshold"` is not fasterize parity.** For true
 cell-for-cell fasterize agreement use `mode="approx"` at burn time.
-**10. Independent versions and index base.** The Python package (`0.4.0`)
-is versioned separately from the R package (`0.2.0`). They share the same
-C++ core; the *coverage values* match, but Python is 0-based with an
-exclusive `col_end` while R is 1-based inclusive. See
-`python/CHANGELOG.md` for the Python history.age version numbers. See
-`python/CHANGELOG.md` for the Python history.
+
+**8. Independent versions and index base.** The Python package is
+versioned separately from the R package. They share the same C++ core;
+the *coverage values* match, but Python is 0-based with an exclusive
+`col_end` while R is 1-based inclusive. See `python/CHANGELOG.md` for the
+Python history.
 
 ---
 

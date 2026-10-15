@@ -1,3 +1,25 @@
+# controlledburn (development version)
+
+* Fixed: `materialise_chunk(fun = "sum")` assigned 1 to interior run cells
+  instead of adding 1, so where polygon interiors overlapped the sum
+  undercounted (and disagreed with `extract_burn(fun = "sum")`, which
+  documents that it reproduces `materialise_chunk()`). Interiors now
+  accumulate like edges, lines and points.
+
+* Fixed: a non-finite extent (`Inf`, or a span that overflows double
+  precision) reached the core with an infinite cell size and crashed R
+  with a C stack overflow. `burn()` now errors, and the core's own grid
+  validation rejects non-finite bounds for every binding.
+
+* `?burn` no longer says that `materialise_chunk()` refuses mixed geometry
+  kinds or refers to an `id =` filter it doesn't have. It sums whatever it
+  is given; `extract_burn(fun = "sum")` is the one that refuses mixed
+  kinds.
+
+* The row-centre crossing fix below (#19) is now also part of the shared
+  parity fixtures (`fixtures/`), so the C++, R and Python suites all check
+  it.
+
 # controlledburn 0.3.0
 
 * Fixed: in coverage mode, a vertex lying a few ulp off a cell edge (e.g. a

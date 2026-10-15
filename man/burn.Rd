@@ -88,9 +88,10 @@ and lines) is permitted and produces tables populated for whichever
 kinds are present. Each table's measure column means exactly one
 thing — polygon \verb{$edges$fraction} is dimensionless, \verb{$lines$length}
 is in CRS units, points have no measure — so combining them in a
-single materialized matrix would silently mix units.
-\code{\link[=materialize_chunk]{materialize_chunk()}} therefore refuses mixed-kind input; filter to
-one kind via \verb{id =} first, or run separate burns for each kind.
+single materialized matrix would silently mix units: run separate
+burns for each kind before \code{\link[=materialize_chunk]{materialize_chunk()}} (which sums whatever
+it is given) or \code{\link[=extract_burn]{extract_burn()}} with \code{fun = "sum"} (which refuses
+mixed kinds).
 
 GeometryCollection input warns and is skipped. Curved types
 (CircularString, CompoundCurve, etc.) must be linearised by the

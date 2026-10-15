@@ -48,3 +48,13 @@ test_that("burn_sparse is deprecated", {
     "POLYGON ((0.5 0.5, 2.5 0.5, 2.5 2.5, 0.5 2.5, 0.5 0.5))")
   expect_error(burn_sparse(poly), "no longer available")
 })
+
+test_that("non-finite extent is rejected", {
+  g <- wk::as_wkb("POLYGON ((1 1, 3 1, 3 3, 1 3, 1 1))")
+  ## Inf used to reach the core with an infinite cell size and crash
+  expect_error(burn(g, extent = c(0, Inf, 0, 4), dimension = c(4L, 4L)))
+  expect_error(burn(g, extent = c(-Inf, 4, 0, 4), dimension = c(4L, 4L)))
+  expect_error(burn(g, extent = c(0, 4, NA, 4), dimension = c(4L, 4L)))
+  expect_error(burn(g, extent = c(-1e308, 1e308, 0, 4), dimension = c(4L, 4L)),
+               "overflow")
+})

@@ -71,7 +71,8 @@ print.controlledburn <- function(x, ...) {
 #'     \item{`"sum"`}{(default) Polygon runs contribute 1, edges
 #'       contribute their coverage fraction, lines contribute length,
 #'       points contribute 1. Values accumulate additively across
-#'       overlapping geometries. Background is 0.}
+#'       overlapping geometries. Background is 0. Mixed geometry kinds
+#'       are summed as-is, although the measures have different units.}
 #'     \item{`"id"`}{Write the geometry id (`$runs$id`, `$edges$id`,
 #'       etc.) into each cell. When geometries overlap, the last id
 #'       wins. Background is `NA`.}
@@ -140,7 +141,7 @@ materialise_chunk <- function(x, fun = c("sum", "id"), target = NULL) {
         r <- x$runs$row[i]
         cs <- x$runs$col_start[i]
         ce <- x$runs$col_end[i]
-        mat[r, cs:ce] <- 1
+        mat[r, cs:ce] <- mat[r, cs:ce] + 1
       }
     }
 

@@ -12,6 +12,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <limits>
+#include <stdexcept>
 #include <vector>
 
 using namespace controlledburn;
@@ -387,6 +389,80 @@ static void test_degenerate() {
     CHECK_NEAR(covered_area(r3, gs), 0.04, 1e-6);
 }
 
+// ---- Regression tests (lattice snap #16, wall crossings #19, grid validation) ----
+
+// Vertices a few ulp off a cell edge (0.3 parsed vs 3 * 0.1 computed) are
+// snapped onto the lattice before the coverage walk. Before the fix the walk
+// left the grid and ran until bad_alloc. Area must be exact.
+static void test_lattice_snap() {
+    GridSpec gs{0, 0, 10, 10, 100, 100};
+    auto tri = [](Coord a, Coord b, Coord c) {
+        return std::fabs((b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y)) / 2.0;
+    };
+    struct Case { std::vector<Coord> ring; double area; };
+    std::vector<Case> cases = {
+        {{{0.3, 0.3}, {4.7, 0.3}, {2.5, 6.2}, {0.3, 0.3}}, tri({0.3, 0.3}, {4.7, 0.3}, {2.5, 6.2})},
+        {{{4.7, 0.3}, {2.5, 6.2}, {0.3, 0.3}, {4.7, 0.3}}, tri({0.3, 0.3}, {4.7, 0.3}, {2.5, 6.2})},
+        {{{0.3, 0.3}, {4.7, 0.3}, {2.5, 6.25}, {0.3, 0.3}}, tri({0.3, 0.3}, {4.7, 0.3}, {2.5, 6.25})},
+    };
+    for (const auto& c : cases) {
+        BurnResult r = burn({make_polygon({c.ring})}, gs);
+        CHECK(r.notes.empty());
+        CHECK(!r.runs.empty());
+        CHECK_NEAR(covered_area(r, gs), c.area, 1e-6);
+    }
+}
+
+// Coverage mode: an edge crossing a row centre exactly on a column wall must
+// register its winding once. With a strict test on both sides the row lost
+// its interior runs from that column on (Natural Earth 110m Falklands,
+// shifted onto a 0.05 lattice; at 20 columns the first edge crosses
+// y = 1.25 at x = 1.0). Shoelace area is 2.12875 at every resolution.
+static void test_wall_crossing_winding() {
+    Geometry g = make_polygon({{{0.8, 1.15}, {2.0, 1.75}, {2.85, 1.5}, {3.45, 1.9},
+                                {4.25, 1.45}, {3.95, 1.1}, {2.6, 0.8}, {2.15, 1.15},
+                                {1.3, 0.7}, {0.8, 1.15}}});
+    for (int n : {20, 100, 200, 1000}) {
+        GridSpec gs{0, 0, 10, 10, n, n};
+        BurnResult r = burn({g}, gs);
+        CHECK_NEAR(covered_area(r, gs), 2.12875, 1e-5);
+    }
+}
+
+// Approx mode: a vertex on a row centre line as a user computes it sits an
+// ulp below the line recomputed from the extent. The intercept sign must
+// come from the edge's endpoints, or the winding never returns to zero and
+// the row fills to the right edge of the grid.
+static void test_approx_centre_line_vertex() {
+    GridSpec gs{-180, -90, -175, -80.66666666666667, 15, 28};
+    Geometry g = make_polygon({{{-179.89654756364214, -88.83333333333334},
+                                {-180.94076559960791, -92.3680897750401},
+                                {-179.6, -88.518152273978},
+                                {-179.89654756364214, -88.83333333333334}}});
+    BurnResult r = burn({g}, gs, BurnMode::Approx);
+    CHECK(r.runs.size() == 2);
+    for (const auto& run : r.runs) CHECK(run.col_end <= 2);
+}
+
+// Non-finite or overflowing extents are rejected up front (they used to
+// reach the walker with an infinite cell size and crash).
+static void test_grid_validation() {
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    std::vector<GridSpec> bad = {
+        {0, 0, inf, 4, 4, 4}, {-inf, 0, 4, 4, 4, 4}, {0, 0, 4, inf, 4, 4},
+        {0, 0, nan, 4, 4, 4}, {0, nan, 4, 4, 4, 4},
+        {-1e308, 0, 1e308, 4, 4, 4},              // span overflows to inf
+        {4, 0, 0, 4, 4, 4}, {0, 0, 4, 4, 0, 4},
+    };
+    Geometry g = make_polygon({{{1, 1}, {3, 1}, {3, 3}, {1, 3}, {1, 1}}});
+    for (const auto& gs : bad) {
+        bool threw = false;
+        try { burn({g}, gs); } catch (const std::invalid_argument&) { threw = true; }
+        CHECK(threw);
+    }
+}
+
 int main() {
     test_aligned_rectangle();
     test_offset_rectangle();
@@ -407,6 +483,11 @@ int main() {
     test_approx_beyond_extent();
     test_approx_hole();
     test_approx_line_unchanged();
+
+    test_lattice_snap();
+    test_wall_crossing_winding();
+    test_approx_centre_line_vertex();
+    test_grid_validation();
 
     if (failures == 0) {
         std::printf("all tests passed\n");

@@ -106,3 +106,24 @@ test_that("materialise_chunk(target) with lines and points", {
   chunk <- materialise_chunk(r, target = c(3, 4, 6, 7))
   expect_equal(chunk, full[16:20, 16:20])
 })
+
+test_that("materialise_chunk sum accumulates overlapping interiors", {
+  ## Interior runs used to be assigned 1 rather than added, so where two
+  ## polygons' interiors overlapped the sum undercounted, and disagreed with
+  ## extract_burn(fun = "sum"). No geos needed.
+  g <- wk::as_wkb(wk::wkt(c(
+    "POLYGON ((0 0, 6 0, 6 6, 0 6, 0 0))",
+    "POLYGON ((4 4, 10 4, 10 10, 4 10, 4 4))",
+    "POLYGON ((3.5 3.5, 7.5 3.5, 7.5 7.5, 3.5 7.5, 3.5 3.5))"
+  )))
+  r <- burn(g, extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  m <- materialise_chunk(r)
+  expect_equal(sum(m), 36 + 36 + 16, tolerance = 1e-6)
+  ## cell x 4-5, y 5-6 is inside all three
+  expect_equal(m[5, 5], 3)
+  ## extract_burn reproduces materialise_chunk at every cell centre
+  xy <- expand.grid(x = seq(0.5, 9.5), y = seq(9.5, 0.5))
+  rc <- cbind(rep(1:10, each = 10), rep(1:10, times = 10))
+  expect_equal(extract_burn(r, xy, "sum"), m[rc], tolerance = 1e-6)
+})
+
