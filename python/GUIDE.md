@@ -402,6 +402,12 @@ Choose `coverage` when the fraction is the answer -- area-weighted
 zonal statistics, fractional land cover, anything that has to conserve
 area. Choose `approx` when you want a mask and you want it now.
 
+To see the two rules side by side on world countries and coastlines,
+in several projections, try
+[playproj: rasterize](https://hypertidy.github.io/playproj/rasterize.html) in the
+browser. Its storage section compares a dense mask, row runs and runs
+plus edge fractions (the tables `burn()` returns) in bytes and tiles.
+
 ---
 
 ## Polygons
@@ -953,3 +959,6 @@ suites precisely to keep it that way.
   Baston, the source of the coverage fraction algorithm.
 - [fasterize](https://github.com/ecohealthalliance/fasterize) by Noam
   Ross, the origin of the scanline approach.
+- [playproj: rasterize](https://hypertidy.github.io/playproj/rasterize.html), an
+  interactive comparison of the cell-centre rule and exact coverage,
+  and of what each costs to store.

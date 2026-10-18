@@ -253,7 +253,10 @@ area.
 
 The difference is only at the boundary. Both approaches agree on
 interior cells (fully inside) and exterior cells (fully outside). They
-disagree on the ~O(perimeter) boundary cells:
+disagree on the ~O(perimeter) boundary cells. (To compare the two
+rules interactively on world countries and coastlines, in several
+projections, see
+[playproj: rasterize](https://hypertidy.github.io/playproj/rasterize.html).)
 
 ```{r side-by-side, fig.width = 9, fig.height = 4.5, fig.cap = "The same polygon, two classification schemes. Left: cell-centre rule — every cell is in or out. Right: exact coverage — boundary cells (coral) carry a fractional weight. Interior cells (blue) are the same in both."}
 # Side-by-side
@@ -483,7 +486,10 @@ matrix where every cell has a value (or NA). This is O(area) in memory.
 controlledburn produces **sparse output**: only the non-empty cells are
 recorded. Interior cells are run-length encoded (`$runs`), boundary
 cells have individual records (`$edges`). This is O(perimeter) in
-memory.
+memory. The storage section of
+[playproj: rasterize](https://hypertidy.github.io/playproj/rasterize.html) makes the same
+comparison in bytes and in tiles touched, for a dense mask, row runs,
+a bounding box of fractions, and runs plus edge fractions.
 
 ```{r resolution-scaling, fig.width = 9, fig.height = 3.5, fig.cap = "Resolution scaling: the same polygon at 8×7, 16×14, and 32×28 resolution. Interior cells (blue) grow as area (O(n²)); boundary cells (coral) grow as perimeter (O(n)). Sparse output stores only the blue runs and coral edges — the white cells cost nothing."}
 library(geos)
