@@ -238,3 +238,18 @@ def test_many_holes_cover_their_area():
     g = shapely.Polygon([(0, 0), (100, 0), (100, 100), (0, 100)], holes)
     r = cb.burn(g, extent=(0, 100, 0, 100), shape=(333, 333))
     assert covered_area(r) == pytest.approx(g.area, rel=1e-6)
+
+
+def test_wall_notch_cell_is_a_boundary_cell():
+    # Lattice-aligned notch from a raster-derived waterbody (DEA Waterbodies
+    # uid q9g5b3eyr_v1). Cell [4, 5] x [2, 3] has edges along both walls,
+    # crossing the row centre in opposite directions: zero coverage, zero
+    # net winding. It got no boundary record and was filled as interior.
+    g = shapely.Polygon([(4, 2), (2, 7), (6, 2), (5, 2), (5, 3), (3, 5.5), (4, 2.5)])
+    r = cb.burn(g, extent=(0, 10, 0, 10), shape=(10, 10))
+    assert covered_area(r) == pytest.approx(g.area, rel=1e-6)
+    m = r.materialize(fn="sum", values=[1.0], edge_policy="fraction", background=0.0)
+    for row in range(10):
+        for col in range(10):
+            cell = shapely.box(col, 9 - row, col + 1, 10 - row)
+            assert m[row, col] == pytest.approx(g.intersection(cell).area, abs=1e-6), (row, col)

@@ -492,6 +492,24 @@ static void test_hole_boundary_cells() {
     CHECK_NEAR(covered_area(burn({make_polygon(rings)}, g100), g100), area, 1e-3);
 }
 
+// A cell whose only edges lie along its two walls, one crossing the row
+// centre up and the other down, has zero coverage and zero net winding.
+// It must still count as a boundary cell: it used to get no record and was
+// filled as part of the interior run to its right (2.5 covered cells came
+// out as 3.5). The polygon is a lattice-aligned notch, from a raster-
+// derived waterbody (DEA Waterbodies uid q9g5b3eyr_v1).
+static void test_wall_notch_cell() {
+    GridSpec gs{0, 0, 10, 10, 10, 10};
+    Geometry g = make_polygon({{{4, 2}, {2, 7}, {6, 2}, {5, 2}, {5, 3},
+                                {3, 5.5}, {4, 2.5}, {4, 2}}});
+    BurnResult r = burn({g}, gs);
+    CHECK_NEAR(covered_area(r, gs), 2.5, 1e-5);
+    // the notch cell [4, 5] x [2, 3] is row 7, col 4: outside
+    for (const auto& run : r.runs) {
+        CHECK(!(run.row == 7 && run.col_start <= 4 && run.col_end > 4));
+    }
+}
+
 int main() {
     test_aligned_rectangle();
     test_offset_rectangle();
@@ -518,6 +536,7 @@ int main() {
     test_approx_centre_line_vertex();
     test_grid_validation();
     test_hole_boundary_cells();
+    test_wall_notch_cell();
 
     if (failures == 0) {
         std::printf("all tests passed\n");
