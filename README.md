@@ -21,6 +21,16 @@ Dependencies: `cpp11`, `wk`. No GEOS, no sf, no Armadillo.
 
 ## Installation
 
+Install the latest release from
+[r-universe](https://hypertidy.r-universe.dev/controlledburn) (binaries
+for Windows, macOS and Linux, no compiler needed):
+
+``` r
+install.packages('controlledburn', repos = c('https://hypertidy.r-universe.dev', 'https://cloud.r-project.org'))
+```
+
+Or the development version from GitHub:
+
 ``` r
 remotes::install_github("hypertidy/controlledburn")
 ```
