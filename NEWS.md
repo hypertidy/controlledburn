@@ -16,8 +16,9 @@
   half the grid's cell size) could be filled as interior. One edge crosses
   the row centre up and the other down, so the cell has zero coverage and
   zero net winding; it got no boundary record and the sweep filled it with
-  the winding from its left, one whole cell too many. The cell now always
-  gets a boundary record. Found on DEA Waterbodies on a 50 m grid (uid
+  the winding from its left, one whole cell too many. The cell now gets a
+  boundary record whenever the ring passes through it, from one point on
+  its boundary to another. Found on DEA Waterbodies on a 50 m grid (uid
   q9g5b3eyr_v1 was one cell over). Not specific to holes or self-touching
   rings; it was in 0.3.1 too.
 
