@@ -510,6 +510,33 @@ static void test_wall_notch_cell() {
     }
 }
 
+// A zero-width spike into a covered cell (found by the controlledburn-rs
+// property suite): the ring runs in through the top-left corner of cell
+// [4.8, 5.1] x [1.2, 1.5] to its centre and straight back out. That
+// traversal leaves where it entered and encloses nothing; the cell is
+// inside the polygon and must stay covered.
+static void test_spike_cell_stays_covered() {
+    GridSpec gs{0, 0, 6, 5.3999999999999995, 20, 18};
+    Geometry g = make_polygon({{{2.2955346720684804, -0.28831957426678434},
+                                {4.2871984006926445, -0.6968703145658899},
+                                {6.183801073287196, -1.4711665488619694},
+                                {5.24135385306532, 1.4474746273177665},
+                                {5.275730794077829, 1.5426958381891471},
+                                {5.824891418164306, 2.019485421020327},
+                                {5.151353853065319, 1.696766993828962},
+                                {3.5999999999999996, 2.6999999999999997},
+                                {4.95, 1.3499999999999996},
+                                {4.8, 1.4999999999999996},
+                                {2.2955346720684804, -0.28831957426678434}}});
+    BurnResult r = burn({g}, gs);
+    CHECK_NEAR(covered_area(r, gs), 3.026275470389206, 1e-5);
+    bool covered = false;
+    for (const auto& run : r.runs) {
+        if (run.row == 13 && run.col_start <= 16 && run.col_end > 16) covered = true;
+    }
+    CHECK(covered);
+}
+
 int main() {
     test_aligned_rectangle();
     test_offset_rectangle();
@@ -537,6 +564,7 @@ int main() {
     test_grid_validation();
     test_hole_boundary_cells();
     test_wall_notch_cell();
+    test_spike_cell_stays_covered();
 
     if (failures == 0) {
         std::printf("all tests passed\n");

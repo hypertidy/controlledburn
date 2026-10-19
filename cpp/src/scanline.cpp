@@ -454,32 +454,6 @@ static void walk_ring(
     // interior run and dropped the cell.
     auto& row_vec = row_data[sub_r];
 
-    // A coverage record goes in for every in-grid cell the ring runs
-    // through, even at zero coverage, so the sweep treats the cell as a
-    // boundary cell rather than filling it as part of an interior run.
-    // Edges lying along both walls of a cell (lattice-aligned input) can
-    // leave it with zero coverage and zero net winding: one crossing on
-    // each wall, cancelling. Without a record the sweep never saw the
-    // cell and filled it with the winding from its left. A traversal that
-    // only touches a corner (entry and exit a rounding error apart) has
-    // no extent, and its zero coverage says nothing about the cell: no
-    // record, the sweep fills it from the winding as before.
-    bool has_extent = false;
-    if (frac == 0.0f && in_grid_cols && mode == BurnMode::Coverage) {
-      const double tol_x = (cr.box.xmax - cr.box.xmin) * 1e-9;
-      const double tol_y = (cr.box.ymax - cr.box.ymin) * 1e-9;
-      for (auto* t : valid) {
-        const auto& tc = t->coords;
-        for (size_t i = 1; i < tc.size() && !has_extent; i++) {
-          has_extent = std::fabs(tc[i].x - tc[0].x) > tol_x ||
-                       std::fabs(tc[i].y - tc[0].y) > tol_y;
-        }
-        if (has_extent) break;
-      }
-    }
-    if (frac != 0.0f || has_extent) {
-      row_vec.push_back({full_col, coverage_factor * frac, 0, 0, ring});
-    }
     int visit_delta = 0;
     int visit_delta_left = 0;
 
@@ -537,6 +511,31 @@ static void walk_ring(
           visit_delta_left += delta;
         }
       }
+    }
+    // A cell with zero coverage still needs a record when the ring runs
+    // through it, from one point on its boundary to another: otherwise the
+    // sweep fills it with the winding from its left. Edges along both walls
+    // of a cell (lattice-aligned input) give zero coverage and zero net
+    // winding, one crossing on each wall cancelling, and the cell was
+    // filled as interior. A traversal that leaves where it entered
+    // (touching a corner, or a zero-width spike in and back out) encloses
+    // nothing, and its zero coverage says nothing about the cell: no
+    // record, the sweep fills it from the winding.
+    bool passes_through = false;
+    if (frac == 0.0f && in_grid_cols && mode == BurnMode::Coverage) {
+      const double tol_x = (cr.box.xmax - cr.box.xmin) * 1e-9;
+      const double tol_y = (cr.box.ymax - cr.box.ymin) * 1e-9;
+      for (auto* t : valid) {
+        const Coordinate& a = t->coords.front();
+        const Coordinate& b = t->coords.back();
+        if (std::fabs(a.x - b.x) > tol_x || std::fabs(a.y - b.y) > tol_y) {
+          passes_through = true;
+          break;
+        }
+      }
+    }
+    if (frac != 0.0f || passes_through) {
+      row_vec.push_back({full_col, coverage_factor * frac, 0, 0, ring});
     }
     if (visit_delta != 0 || visit_delta_left != 0) {
       row_vec.push_back({full_col, 0.0f, visit_delta, visit_delta_left, ring});

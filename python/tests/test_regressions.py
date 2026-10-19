@@ -253,3 +253,20 @@ def test_wall_notch_cell_is_a_boundary_cell():
         for col in range(10):
             cell = shapely.box(col, 9 - row, col + 1, 10 - row)
             assert m[row, col] == pytest.approx(g.intersection(cell).area, abs=1e-6), (row, col)
+
+
+def test_zero_width_spike_cell_stays_covered():
+    # Found by the controlledburn-rs property suite: the ring runs in
+    # through the top-left corner of cell [4.8, 5.1] x [1.2, 1.5] to its
+    # centre and straight back out, enclosing nothing. The cell is inside.
+    g = shapely.Polygon([
+        (2.2955346720684804, -0.28831957426678434), (4.2871984006926445, -0.6968703145658899),
+        (6.183801073287196, -1.4711665488619694), (5.24135385306532, 1.4474746273177665),
+        (5.275730794077829, 1.5426958381891471), (5.824891418164306, 2.019485421020327),
+        (5.151353853065319, 1.696766993828962), (3.5999999999999996, 2.6999999999999997),
+        (4.95, 1.3499999999999996), (4.8, 1.4999999999999996),
+    ])
+    r = cb.burn(g, extent=(0, 6, 0, 5.3999999999999995), shape=(18, 20))
+    m = r.materialize(fn="sum", values=[1.0], edge_policy="fraction", background=0.0)
+    assert m[13, 16] == pytest.approx(1.0)
+    assert covered_area(r) == pytest.approx(3.026275470389206, rel=1e-6)

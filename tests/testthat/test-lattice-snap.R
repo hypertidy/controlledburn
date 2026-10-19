@@ -63,3 +63,22 @@ test_that("a cell with edges only along its walls stays a boundary cell", {
   expect_false(any(r$runs$row == 8 & r$runs$col_start <= 5 & r$runs$col_end >= 5))
   expect_false(any(r$edges$row == 8 & r$edges$col == 5))
 })
+
+test_that("a zero-width spike into a covered cell keeps it covered", {
+  ## Found by the controlledburn-rs property suite: the ring runs in through
+  ## the top-left corner of cell [4.8, 5.1] x [1.2, 1.5] to its centre and
+  ## straight back out. That traversal leaves where it entered and encloses
+  ## nothing; the cell is inside the polygon and must stay covered.
+  wkt <- paste0(
+    "POLYGON ((2.2955346720684804 -0.28831957426678434, 4.2871984006926445 -0.6968703145658899, ",
+    "6.183801073287196 -1.4711665488619694, 5.24135385306532 1.4474746273177665, ",
+    "5.275730794077829 1.5426958381891471, 5.824891418164306 2.019485421020327, ",
+    "5.151353853065319 1.696766993828962, 3.5999999999999996 2.6999999999999997, ",
+    "4.95 1.3499999999999996, 4.8 1.4999999999999996, 2.2955346720684804 -0.28831957426678434))"
+  )
+  r <- burn(wk::as_wkb(wk::wkt(wkt)), extent = c(0, 6, 0, 5.3999999999999995), dimension = c(20L, 18L))
+  a <- (sum(r$runs$col_end - r$runs$col_start + 1) + sum(r$edges$fraction)) * 0.09
+  expect_equal(a, 3.026275470389206, tolerance = 1e-6)
+  ## the spike cell is row 14, col 17 (1-based): fully covered
+  expect_true(any(r$runs$row == 14 & r$runs$col_start <= 17 & r$runs$col_end >= 17))
+})
