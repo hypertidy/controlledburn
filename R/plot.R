@@ -146,8 +146,9 @@ plot.controlledburn <- function(x, what = c("auto", "exact", "overview"),
   mat <- rbind(c(2L, 0L, 0L),
                c(1L, 3L, 0L),
                c(0L, 0L, 0L))
-  graphics::layout(mat, widths = graphics::lcm(widths * 2.54),
-                   heights = graphics::lcm(heights * 2.54))
+  ## relative sizes, not lcm(): a recorded plot replayed on a device of
+  ## another size (knitr, pkgdown) then scales instead of failing
+  graphics::layout(mat, widths = widths, heights = heights)
   invisible(NULL)
 }
 
