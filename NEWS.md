@@ -11,6 +11,16 @@
   fix as hypertidy/controlledburn-rs#11; the C++ core and the Rust port
   now give bit-identical tables on 20,000 random valid polygons with holes.
 
+* Fixed: in coverage mode, a cell whose only polygon edges lie along its
+  two walls (lattice-aligned input, e.g. polygons traced from a raster at
+  half the grid's cell size) could be filled as interior. One edge crosses
+  the row centre up and the other down, so the cell has zero coverage and
+  zero net winding; it got no boundary record and the sweep filled it with
+  the winding from its left, one whole cell too many. The cell now always
+  gets a boundary record. Found on DEA Waterbodies on a 50 m grid (uid
+  q9g5b3eyr_v1 was one cell over). Not specific to holes or self-touching
+  rings; it was in 0.3.1 too.
+
 * The core no longer creates a boundary record for crossings that cancel
   within one cell visit. On self-intersecting rings such a record split an
   interior run and dropped the cell; valid polygons are unaffected.
