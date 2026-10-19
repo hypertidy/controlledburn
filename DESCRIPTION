@@ -32,7 +32,12 @@ Roxygen: list(markdown = TRUE)
 LinkingTo:
     cpp11
 Imports:
-    wk
+    graphics,
+    grDevices,
+    stats,
+    vaster,
+    wk,
+    ximage
 Suggests:
     geos,
     testthat (>= 3.0.0),
@@ -49,3 +54,4 @@ VignetteBuilder: knitr
 Config/roxygen2/version: 8.1.0
 Depends: 
     R (>= 3.5)
+RoxygenNote: 7.3.1
