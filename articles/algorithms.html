@@ -297,7 +297,10 @@ the polygon’s true geometric area.</p>
 </h2>
 <p>The difference is only at the boundary. Both approaches agree on
 interior cells (fully inside) and exterior cells (fully outside). They
-disagree on the ~O(perimeter) boundary cells:</p>
+disagree on the ~O(perimeter) boundary cells. (To compare the two rules
+interactively on world countries and coastlines, in several projections,
+see <a href="https://hypertidy.github.io/playproj/rasterize.html" class="external-link">playproj:
+rasterize</a>.)</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Side-by-side</span></span>
 <span><span class="va">centers</span><span class="op">$</span><span class="va">approx</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">centers</span><span class="op">$</span><span class="va">inside</span>, <span class="st">"in"</span>, <span class="st">"out"</span><span class="op">)</span></span>
@@ -567,7 +570,11 @@ memory.</p>
 <p>controlledburn produces <strong>sparse output</strong>: only the
 non-empty cells are recorded. Interior cells are run-length encoded
 (<code>$runs</code>), boundary cells have individual records
-(<code>$edges</code>). This is O(perimeter) in memory.</p>
+(<code>$edges</code>). This is O(perimeter) in memory. The storage
+section of <a href="https://hypertidy.github.io/playproj/rasterize.html" class="external-link">playproj:
+rasterize</a> makes the same comparison in bytes and in tiles touched,
+for a dense mask, row runs, a bounding box of fractions, and runs plus
+edge fractions.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://paleolimbot.github.io/geos/" class="external-link">geos</a></span><span class="op">)</span></span>
 <span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sprintf.html" class="external-link">sprintf</a></span><span class="op">(</span><span class="st">"POLYGON ((%s))"</span>,</span>
