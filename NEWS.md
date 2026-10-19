@@ -33,6 +33,14 @@
   hypertidy/controlledburn-rs#6). exactextractr gives the same wrong value
   for #25's cell.
 
+* Fixed: in coverage mode, a zero-width spike out of a cell and back (three
+  collinear vertices) could add a whole cell to that cell's coverage. The
+  exit and the next entry are the same point but can differ by an ulp,
+  and with the entry just behind the exit the area calculation went round
+  the whole cell. Traversal endpoints within 1e-9 of a cell of each other
+  are now made equal before the area is computed. Found by the
+  controlledburn-rs property suite.
+
 * The core no longer creates a boundary record for crossings that cancel
   within one cell visit. On self-intersecting rings such a record split an
   interior run and dropped the cell; valid polygons are unaffected.

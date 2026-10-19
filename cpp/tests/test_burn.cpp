@@ -590,6 +590,36 @@ static void test_corner_clip_traversal() {
     }
 }
 
+// A traversal's exit and the next one's entry, computed from two collinear
+// edges (a zero-width spike out of the cell and back), are the same point
+// but can differ by an ulp. With the entry just behind the exit, the area
+// chase went round the whole cell. Found by the controlledburn-rs property
+// suite; exact values from GEOS.
+static void test_spike_endpoints_snap() {
+    CoordSeq r1 = {{10.449999999999999, 1.3499999999999996}, {10.1, 0.29999999999999982},
+                   {10.800000000000001, 2.3999999999999995}, {13.447616999963875, 1.037844845134956},
+                   {15.411473092828203, 2.2720230998577735}, {11.15, 2.4078014931373346},
+                   {10.800000000000001, 2.4917171551219539}, {10.229283250618847, 2.4917171551219539},
+                   {3.0359419646823742, 4.3208089369106828}, {9.9390703882563258, 2.2720230998577735},
+                   {10.449999999999999, 1.3499999999999996}};
+    GridSpec g1{0.3, 0.3, 14.3, 7.999999999999999, 20, 11};
+    BurnResult b1 = burn({make_polygon({r1})}, g1);
+    CHECK_NEAR(cell_value(b1, 9, 14), 0.110934130223504, 1e-5);
+    CHECK_NEAR(covered_area(b1, g1), 4.207270145380377, 1e-5);
+
+    CoordSeq r2 = {{1000.1, -2000.5130338951737}, {1000.1819562805505, -2000.5770261925379},
+                   {1000.2234724980999, -2000.6086258946541}, {1000.2686486160532, -2000.5978003193729},
+                   {1000.3031415361594, -2000.5500000000002}, {1000.7, -2000.1000000000001},
+                   {1000.85, -1999.95}, {1000.25, -2000.5500000000002},
+                   {1000.2234724980999, -2000.3413741053462}, {999.56959736624071, -1999.7508032852861},
+                   {999.25351910076768, -1999.9946853427875}, {1000.1, -2000.5130338951737}};
+    GridSpec g2{1000.1, -2000.7, 1002.8000000000001, -1996.2, 9, 15};
+    BurnResult b2 = burn({make_polygon({r2})}, g2);
+    CHECK_NEAR(cell_value(b2, 13, 1), 0.05904615128845071, 1e-5);
+    CHECK_NEAR(cell_value(b2, 12, 2), 0.0, 1e-5);
+    CHECK_NEAR(covered_area(b2, g2), 0.05196731354220645, 1e-6);
+}
+
 int main() {
     test_aligned_rectangle();
     test_offset_rectangle();
@@ -619,6 +649,7 @@ int main() {
     test_wall_notch_cell();
     test_spike_cell_stays_covered();
     test_corner_clip_traversal();
+    test_spike_endpoints_snap();
 
     if (failures == 0) {
         std::printf("all tests passed\n");

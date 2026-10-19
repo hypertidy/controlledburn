@@ -25,6 +25,10 @@ across languages, though the index base differs (Python 0-based, R
   apart and counted as enclosing the cell. Covered in
   `tests/test_regressions.py` (cell by cell against shapely, every start
   vertex) and the shared `corner_clip` fixture (#25).
+- **A spike out of a cell and back added a whole cell (coverage mode).**
+  Exit and next entry an ulp apart sent the area calculation round the
+  whole cell; endpoints within 1e-9 of a cell are now made equal. Covered
+  in `tests/test_regressions.py`.
 These landed in the core through the R package (#16, #19) and apply to
 the Python package unchanged; they are now covered by Python tests too
 (`tests/test_regressions.py`).

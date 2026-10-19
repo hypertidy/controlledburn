@@ -337,6 +337,51 @@ static CellMap walk_polyline(
   return cells;
 }
 
+// Endpoints (first and last coordinates) of the valid traversals in one
+// cell, in order: traversal i has endpoints 2i (entry) and 2i + 1 (exit).
+static inline Coordinate& endpoint(std::vector<std::vector<Coordinate>>& c, size_t k) {
+  return (k % 2 == 0) ? c[k / 2].front() : c[k / 2].back();
+}
+static inline const Coordinate& endpoint(const std::vector<LightTraversal*>& v, size_t k) {
+  return (k % 2 == 0) ? v[k / 2]->coords.front() : v[k / 2]->coords.back();
+}
+static inline bool near_point(const Coordinate& a, const Coordinate& b, double tol_x, double tol_y) {
+  return std::fabs(a.x - b.x) <= tol_x && std::fabs(a.y - b.y) <= tol_y;
+}
+
+// True if two endpoints are within the tolerance but not equal.
+static bool endpoints_need_snap(const std::vector<LightTraversal*>& valid,
+                                double tol_x, double tol_y) {
+  const size_t n = 2 * valid.size();
+  for (size_t k = 1; k < n; k++) {
+    for (size_t j = 0; j < k; j++) {
+      const Coordinate& a = endpoint(valid, k);
+      const Coordinate& b = endpoint(valid, j);
+      if (a != b && near_point(a, b, tol_x, tol_y)) return true;
+    }
+  }
+  return false;
+}
+
+// Copies of the traversals with each endpoint set to the first earlier
+// endpoint within the tolerance.
+static std::vector<std::vector<Coordinate>> snap_endpoints(
+    const std::vector<LightTraversal*>& valid, double tol_x, double tol_y) {
+  std::vector<std::vector<Coordinate>> out;
+  out.reserve(valid.size());
+  for (auto* t : valid) out.push_back(t->coords);
+  const size_t n = 2 * out.size();
+  for (size_t k = 1; k < n; k++) {
+    for (size_t j = 0; j < k; j++) {
+      if (near_point(endpoint(out, k), endpoint(out, j), tol_x, tol_y)) {
+        endpoint(out, k) = endpoint(out, j);
+        break;
+      }
+    }
+  }
+  return out;
+}
+
 // Walk a polygon ring and emit boundary-cell records (coverage + winding).
 //
 // Thin wrapper around walk_polyline + polygon-specific post-processing:
@@ -429,20 +474,37 @@ static void walk_ring(
             && valid[0]->is_closed_ring()) {
         frac = static_cast<float>(
           controlledburn::closed_ring_covered_fraction(cr.box, valid[0]->coords));
-      } else if (valid.size() == 1) {
-        frac = static_cast<float>(
-          controlledburn::analytical_covered_fraction(
-            cr.box, valid[0]->coords,
-            valid[0]->entry_side, valid[0]->exit_side));
       } else {
-        std::vector<const std::vector<Coordinate>*> coord_lists;
-        for (auto* t : valid) {
-          coord_lists.push_back(&t->coords);
+        // Traversal endpoints a rounding error apart are the same boundary
+        // point: an exit and the next entry computed from two collinear
+        // edges (a zero-width spike out of the cell and back), or a
+        // traversal leaving where it entered. The area chase goes
+        // anticlockwise from each exit to the nearest entry, so an entry
+        // an ulp behind its exit sent it round the whole cell, adding the
+        // cell to its coverage. Such endpoints are made equal, on copies
+        // (the winding below reads the originals).
+        std::vector<std::vector<Coordinate>> snapped;
+        if (endpoints_need_snap(valid, tol_x, tol_y)) {
+          snapped = snap_endpoints(valid, tol_x, tol_y);
         }
-        double cell_area = cr.box.area();
-        if (cell_area > 0.0) {
+        auto coords_of = [&](size_t i) -> const std::vector<Coordinate>& {
+          return snapped.empty() ? valid[i]->coords : snapped[i];
+        };
+        if (valid.size() == 1) {
           frac = static_cast<float>(
-            exactextract::left_hand_area(cr.box, coord_lists) / cell_area);
+            controlledburn::analytical_covered_fraction(
+              cr.box, coords_of(0),
+              valid[0]->entry_side, valid[0]->exit_side));
+        } else {
+          std::vector<const std::vector<Coordinate>*> coord_lists;
+          for (size_t i = 0; i < valid.size(); i++) {
+            coord_lists.push_back(&coords_of(i));
+          }
+          double cell_area = cr.box.area();
+          if (cell_area > 0.0) {
+            frac = static_cast<float>(
+              exactextract::left_hand_area(cr.box, coord_lists) / cell_area);
+          }
         }
       }
     }

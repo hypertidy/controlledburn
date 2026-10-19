@@ -131,3 +131,36 @@ test_that("an edge clipping a cell corner does not add the whole cell", {
     expect_equal(cell_value(r, 4, 1), 0.338841372753266, tolerance = 1e-5)
   }
 })
+
+test_that("a spike out of a cell and back does not add the whole cell", {
+  ## A traversal's exit and the next one's entry, computed from two
+  ## collinear edges, are the same point but can differ by an ulp; with the
+  ## entry just behind the exit the area chase went round the whole cell.
+  ## Found by the controlledburn-rs property suite; exact values from GEOS.
+  cell_value <- function(r, row, col) {
+    sum(r$runs$row == row & r$runs$col_start <= col & r$runs$col_end >= col) +
+      sum(r$edges$fraction[r$edges$row == row & r$edges$col == col])
+  }
+  w1 <- paste0(
+    "POLYGON ((10.449999999999999 1.3499999999999996, 10.1 0.29999999999999982, ",
+    "10.800000000000001 2.3999999999999995, 13.447616999963875 1.037844845134956, ",
+    "15.411473092828203 2.2720230998577735, 11.15 2.4078014931373346, ",
+    "10.800000000000001 2.4917171551219539, 10.229283250618847 2.4917171551219539, ",
+    "3.0359419646823742 4.3208089369106828, 9.9390703882563258 2.2720230998577735, ",
+    "10.449999999999999 1.3499999999999996))"
+  )
+  r <- burn(wk::as_wkb(wk::wkt(w1)), extent = c(0.3, 14.3, 0.3, 7.999999999999999), dimension = c(20L, 11L))
+  expect_equal(cell_value(r, 10, 15), 0.110934130223504, tolerance = 1e-5)
+  w2 <- paste0(
+    "POLYGON ((1000.1 -2000.5130338951737, 1000.1819562805505 -2000.5770261925379, ",
+    "1000.2234724980999 -2000.6086258946541, 1000.2686486160532 -2000.5978003193729, ",
+    "1000.3031415361594 -2000.5500000000002, 1000.7 -2000.1000000000001, 1000.85 -1999.95, ",
+    "1000.25 -2000.5500000000002, 1000.2234724980999 -2000.3413741053462, ",
+    "999.56959736624071 -1999.7508032852861, 999.25351910076768 -1999.9946853427875, ",
+    "1000.1 -2000.5130338951737))"
+  )
+  r <- burn(wk::as_wkb(wk::wkt(w2)), extent = c(1000.1, 1002.8000000000001, -2000.7, -1996.2),
+            dimension = c(9L, 15L))
+  expect_equal(cell_value(r, 14, 2), 0.05904615128845071, tolerance = 1e-5)
+  expect_equal(cell_value(r, 13, 3), 0)
+})
