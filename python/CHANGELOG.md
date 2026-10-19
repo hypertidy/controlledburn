@@ -20,6 +20,11 @@ across languages, though the index base differs (Python 0-based, R
   coverage and zero net winding; it got no boundary record and was filled
   as part of the interior run, one whole cell too many. Covered in
   `tests/test_regressions.py` and the shared `wall_notch` fixture.
+- **An edge through a cell corner added a whole cell (coverage mode).**
+  The corner clip was recorded as a traversal with entry and exit an ulp
+  apart and counted as enclosing the cell. Covered in
+  `tests/test_regressions.py` (cell by cell against shapely, every start
+  vertex) and the shared `corner_clip` fixture (#25).
 These landed in the core through the R package (#16, #19) and apply to
 the Python package unchanged; they are now covered by Python tests too
 (`tests/test_regressions.py`).

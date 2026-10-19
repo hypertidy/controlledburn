@@ -79,9 +79,14 @@ struct LightTraversal {
       coords.front() == coords.back();
   }
 
-  bool multiple_unique_coordinates() const {
+  // True if some coordinate is more than a rounding error (tol_x, tol_y)
+  // from the first. A traversal that only clips a cell corner is recorded
+  // with entry and exit an ulp or two apart; exact comparison called that
+  // movement, and left_hand_area() then counted the whole cell.
+  bool has_extent(double tol_x, double tol_y) const {
     for (size_t i = 1; i < coords.size(); i++) {
-      if (coords[0] != coords[i]) return true;
+      if (std::fabs(coords[i].x - coords[0].x) > tol_x ||
+          std::fabs(coords[i].y - coords[0].y) > tol_y) return true;
     }
     return false;
   }
@@ -399,10 +404,14 @@ static void walk_ring(
       }
     }
 
-    // Filter to valid traversals (proper enter + exit, or closed ring)
+    // Filter to valid traversals (proper enter + exit with extent, or
+    // closed ring). Coordinates within 1e-9 of a cell of each other are the
+    // same point, as in snap_to_lattice().
+    const double tol_x = (cr.box.xmax - cr.box.xmin) * 1e-9;
+    const double tol_y = (cr.box.ymax - cr.box.ymin) * 1e-9;
     std::vector<LightTraversal*> valid;
     for (auto& t : cr.traversals) {
-      if (t.traversed() && t.multiple_unique_coordinates()) {
+      if (t.traversed() && t.has_extent(tol_x, tol_y)) {
         valid.push_back(&t);
       } else if (t.entry_side == Side::NONE && t.is_closed_ring()) {
         // Closed ring entirely within this cell
@@ -523,8 +532,6 @@ static void walk_ring(
     // record, the sweep fills it from the winding.
     bool passes_through = false;
     if (frac == 0.0f && in_grid_cols && mode == BurnMode::Coverage) {
-      const double tol_x = (cr.box.xmax - cr.box.xmin) * 1e-9;
-      const double tol_y = (cr.box.ymax - cr.box.ymin) * 1e-9;
       for (auto* t : valid) {
         const Coordinate& a = t->coords.front();
         const Coordinate& b = t->coords.back();

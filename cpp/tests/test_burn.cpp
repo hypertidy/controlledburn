@@ -537,6 +537,59 @@ static void test_spike_cell_stays_covered() {
     CHECK(covered);
 }
 
+// Coverage of one cell: interior runs over it plus its edge fractions.
+static double cell_value(const BurnResult& r, int row, int col) {
+    double v = 0.0;
+    for (const auto& run : r.runs) {
+        if (run.row == row && run.col_start <= col && col < run.col_end) v += 1.0;
+    }
+    for (const auto& e : r.edges) {
+        if (e.row == row && e.col == col) v += e.fraction;
+    }
+    return v;
+}
+
+// An edge that clips a cell corner is recorded as a traversal whose entry
+// and exit are an ulp or two apart. Compared exactly, it counted as
+// movement and left_hand_area() added the whole cell to that cell's
+// coverage (controlledburn#25, controlledburn-rs#6). Exact values are the
+// polygon's intersection with the cell (GEOS).
+static void test_corner_clip_traversal() {
+    // #25: the edge (12.6, 1.4) -> (13.65, 0.35) clips the top-right corner
+    // of cell (12, 18), which came out 1 instead of 0.0943.
+    CoordSeq r25 = {{13.49307281327689, 0.280951025273552}, {13.774064548591133, 0.1953615710514231},
+                    {14.150447247739818, 0.19536157105142304}, {14.454947247739819, 0.2945346261241548},
+                    {14.571255898165475, 0.455}, {14.454947247739819, 0.6154653738758452},
+                    {17.207761779641103, 4.932666216410308}, {12.6, 1.4000000000000004},
+                    {13.649999999999999, 0.34999999999999964}, {6.0614012054372814, 0.45500000000000046},
+                    {13.49307281327689, 0.280951025273552}};
+    GridSpec g25{0, 0, 20.299999999999997, 9.1, 29, 13};
+    BurnResult b25 = burn({make_polygon({r25})}, g25);
+    CHECK_NEAR(cell_value(b25, 12, 18), 0.09430835509369219, 1e-5);
+    CHECK_NEAR(covered_area(b25, g25), 6.157834037584925, 1e-5);
+
+    // controlledburn-rs#6: cell (4, 4) came out 0.739 instead of 0.455.
+    CoordSeq ro = {{2.9404541633227357, 6.235726447802992}, {7.140490483291759, -0.6880522184656641},
+                   {12.79922599805937, 6.649999999999999}, {13.222799970968294, 7.999704574445243},
+                   {12.79922599805937, 8.351528741555857}, {8.3, 10.399999999999999},
+                   {12.05, 6.649999999999999}, {2.9404541633227357, 6.235726447802992}};
+    GridSpec go{-1.7, 2.9, 35.8, 17.9, 15, 6};
+    CHECK_NEAR(cell_value(burn({make_polygon({ro})}, go), 4, 4), 0.4545231387355179, 1e-5);
+
+    // controlledburn-rs#6: cell (3, 0) came out 0.839 instead of 0.339, and
+    // the result depended on the ring's start vertex.
+    CoordSeq rr = {{0.22857142857142856, 0.657142857142857}, {0.3, 0.7285714285714284},
+                   {0.5385327833222915, 0.5669218770762636}, {0.3826046772369731, 0.8968780211084503},
+                   {0.44285714285714284, 0.9150607669103901}, {0.6141351860119378, 1.2110801232422874},
+                   {0.3, 0.9407750526246758}, {0.37142857142857144, 0.7999999999999999}};
+    GridSpec gr{0.3, 0.3, 1.0142857142857142, 1.157142857142857, 5, 6};
+    for (size_t k = 0; k < rr.size(); k++) {
+        CoordSeq ring(rr.begin() + k, rr.end());
+        ring.insert(ring.end(), rr.begin(), rr.begin() + k + 1);
+        CHECK_NEAR(cell_value(burn({make_polygon({ring})}, gr), 3, 0), 0.338841372753266, 1e-5);
+    }
+}
+
 int main() {
     test_aligned_rectangle();
     test_offset_rectangle();
@@ -565,6 +618,7 @@ int main() {
     test_hole_boundary_cells();
     test_wall_notch_cell();
     test_spike_cell_stays_covered();
+    test_corner_clip_traversal();
 
     if (failures == 0) {
         std::printf("all tests passed\n");

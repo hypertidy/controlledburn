@@ -82,3 +82,52 @@ test_that("a zero-width spike into a covered cell keeps it covered", {
   ## the spike cell is row 14, col 17 (1-based): fully covered
   expect_true(any(r$runs$row == 14 & r$runs$col_start <= 17 & r$runs$col_end >= 17))
 })
+
+test_that("an edge clipping a cell corner does not add the whole cell", {
+  ## The corner clip is recorded as a traversal with entry and exit an ulp
+  ## or two apart; compared exactly it counted as movement, and the cell
+  ## gained a whole cell of coverage (controlledburn#25,
+  ## controlledburn-rs#6). Exact values are the polygon's intersection with
+  ## the cell (GEOS).
+  cell_value <- function(r, row, col) {
+    sum(r$runs$row == row & r$runs$col_start <= col & r$runs$col_end >= col) +
+      sum(r$edges$fraction[r$edges$row == row & r$edges$col == col])
+  }
+  ## #25: cell (13, 19) came out 1 instead of 0.0943
+  w25 <- paste0(
+    "POLYGON ((13.49307281327689 0.280951025273552, 13.774064548591133 0.1953615710514231, ",
+    "14.150447247739818 0.19536157105142304, 14.454947247739819 0.2945346261241548, ",
+    "14.571255898165475 0.455, 14.454947247739819 0.6154653738758452, ",
+    "17.207761779641103 4.932666216410308, 12.6 1.4000000000000004, ",
+    "13.649999999999999 0.34999999999999964, 6.0614012054372814 0.45500000000000046, ",
+    "13.49307281327689 0.280951025273552))"
+  )
+  r <- burn(wk::as_wkb(wk::wkt(w25)), extent = c(0, 20.299999999999997, 0, 9.1), dimension = c(29L, 13L))
+  expect_equal(cell_value(r, 13, 19), 0.09430835509369219, tolerance = 1e-5)
+  expect_equal((sum(r$runs$col_end - r$runs$col_start + 1) + sum(r$edges$fraction)) * 0.49,
+               6.157834037584925, tolerance = 1e-6)
+
+  ## controlledburn-rs#6: cell (5, 5) came out 0.739 instead of 0.455
+  wo <- paste0(
+    "POLYGON ((2.9404541633227357 6.235726447802992, 7.140490483291759 -0.6880522184656641, ",
+    "12.79922599805937 6.649999999999999, 13.222799970968294 7.999704574445243, ",
+    "12.79922599805937 8.351528741555857, 8.3 10.399999999999999, 12.05 6.649999999999999, ",
+    "2.9404541633227357 6.235726447802992))"
+  )
+  r <- burn(wk::as_wkb(wk::wkt(wo)), extent = c(-1.7, 35.8, 2.9, 17.9), dimension = c(15L, 6L))
+  expect_equal(cell_value(r, 5, 5), 0.4545231387355179, tolerance = 1e-5)
+
+  ## controlledburn-rs#6: cell (4, 1) came out 0.839 instead of 0.339, and
+  ## depended on the ring's start vertex
+  x <- c(0.22857142857142856, 0.3, 0.5385327833222915, 0.3826046772369731, 0.44285714285714284,
+         0.6141351860119378, 0.3, 0.37142857142857144)
+  y <- c(0.657142857142857, 0.7285714285714284, 0.5669218770762636, 0.8968780211084503,
+         0.9150607669103901, 1.2110801232422874, 0.9407750526246758, 0.7999999999999999)
+  for (k in seq_along(x)) {
+    i <- c(k:length(x), seq_len(k - 1), k)
+    w <- sprintf("POLYGON ((%s))", paste(sprintf("%.17g %.17g", x[i], y[i]), collapse = ", "))
+    r <- burn(wk::as_wkb(wk::wkt(w)), extent = c(0.3, 1.0142857142857142, 0.3, 1.157142857142857),
+              dimension = c(5L, 6L))
+    expect_equal(cell_value(r, 4, 1), 0.338841372753266, tolerance = 1e-5)
+  }
+})

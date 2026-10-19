@@ -22,6 +22,17 @@
   q9g5b3eyr_v1 was one cell over). Not specific to holes or self-touching
   rings; it was in 0.3.1 too.
 
+* Fixed: in coverage mode, an edge passing exactly through a cell corner
+  could add a whole cell to that cell's coverage. The walker records the
+  corner clip as a traversal whose entry and exit are an ulp or two apart;
+  compared exactly, that counted as movement, and the area calculation
+  took it to enclose the cell. Coordinates within 1e-9 of a cell of each
+  other now count as the same point, as in the lattice snap (#16). The
+  result also no longer depends on which vertex the ring starts at.
+  Found by the controlledburn-rs property suite (#25,
+  hypertidy/controlledburn-rs#6). exactextractr gives the same wrong value
+  for #25's cell.
+
 * The core no longer creates a boundary record for crossings that cancel
   within one cell visit. On self-intersecting rings such a record split an
   interior run and dropped the cell; valid polygons are unaffected.

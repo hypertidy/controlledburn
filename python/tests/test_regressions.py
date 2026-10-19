@@ -270,3 +270,48 @@ def test_zero_width_spike_cell_stays_covered():
     m = r.materialize(fn="sum", values=[1.0], edge_policy="fraction", background=0.0)
     assert m[13, 16] == pytest.approx(1.0)
     assert covered_area(r) == pytest.approx(3.026275470389206, rel=1e-6)
+
+
+CORNER_CLIP_CASES = [
+    # controlledburn#25: cell (12, 18) came out 1 instead of 0.0943
+    ("POLYGON ((13.49307281327689 0.280951025273552, 13.774064548591133 0.1953615710514231, "
+     "14.150447247739818 0.19536157105142304, 14.454947247739819 0.2945346261241548, "
+     "14.571255898165475 0.455, 14.454947247739819 0.6154653738758452, "
+     "17.207761779641103 4.932666216410308, 12.6 1.4000000000000004, "
+     "13.649999999999999 0.34999999999999964, 6.0614012054372814 0.45500000000000046, "
+     "13.49307281327689 0.280951025273552))",
+     (0, 20.299999999999997, 0, 9.1), (13, 29)),
+    # controlledburn-rs#6: cell (4, 4) came out 0.739 instead of 0.455
+    ("POLYGON ((2.9404541633227357 6.235726447802992, 7.140490483291759 -0.6880522184656641, "
+     "12.79922599805937 6.649999999999999, 13.222799970968294 7.999704574445243, "
+     "12.79922599805937 8.351528741555857, 8.3 10.399999999999999, 12.05 6.649999999999999, "
+     "2.9404541633227357 6.235726447802992))",
+     (-1.7, 35.8, 2.9, 17.9), (6, 15)),
+    # controlledburn-rs#6: cell (3, 0) came out 0.839 instead of 0.339
+    ("POLYGON ((0.22857142857142856 0.657142857142857, 0.3 0.7285714285714284, "
+     "0.5385327833222915 0.5669218770762636, 0.3826046772369731 0.8968780211084503, "
+     "0.44285714285714284 0.9150607669103901, 0.6141351860119378 1.2110801232422874, "
+     "0.3 0.9407750526246758, 0.37142857142857144 0.7999999999999999, "
+     "0.22857142857142856 0.657142857142857))",
+     (0.3, 1.0142857142857142, 0.3, 1.157142857142857), (6, 5)),
+]
+
+
+@pytest.mark.parametrize("wkt,extent,shape", CORNER_CLIP_CASES)
+def test_corner_clip_cells_match_exact_intersection(wkt, extent, shape):
+    # An edge clipping a cell corner is recorded as a traversal with entry
+    # and exit an ulp or two apart; compared exactly it counted as movement
+    # and the cell gained a whole cell of coverage. Every start vertex.
+    xmin, xmax, ymin, ymax = extent
+    nrow, ncol = shape
+    dx, dy = (xmax - xmin) / ncol, (ymax - ymin) / nrow
+    ring = list(shapely.from_wkt(wkt).exterior.coords)[:-1]
+    for k in range(len(ring)):
+        g = shapely.Polygon(ring[k:] + ring[:k])
+        r = cb.burn(g, extent=extent, shape=shape)
+        m = r.materialize(fn="sum", values=[1.0], edge_policy="fraction", background=0.0)
+        for row in range(nrow):
+            for col in range(ncol):
+                cell = shapely.box(xmin + col * dx, ymax - (row + 1) * dy, xmin + (col + 1) * dx, ymax - row * dy)
+                want = g.intersection(cell).area / (dx * dy)
+                assert m[row, col] == pytest.approx(want, abs=1e-5), (k, row, col)
