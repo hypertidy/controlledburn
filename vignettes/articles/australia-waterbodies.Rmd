@@ -196,7 +196,7 @@ Burned area matches the polygons' own `area_m2` attribute to 0.999978.
 What is left of that difference is all in invalid polygons, rings that
 cross or touch themselves; every valid polygon burns to its exact area.
 
-Grouped by ALUM secondary class, 82.6% of DEA waterbody area is water in
+Grouped by ALUM secondary class, 82.7% of DEA waterbody area is water in
 CLUM: lakes 62%, marsh/wetland 11%, reservoir/dam 5.3%. The biggest
 non-water class is grazing native vegetation at 6.9%, then nature
 conservation at 3.8%.
