@@ -463,6 +463,35 @@ static void test_grid_validation() {
     }
 }
 
+// Holes: a cell crossed only by a hole's boundary, inside the exterior,
+// keeps the exterior's cover (1 minus the hole's fraction). It used to get
+// the hole's negative fraction alone and be dropped.
+static void test_hole_boundary_cells() {
+    GridSpec gs{0, 0, 10, 10, 10, 10};
+    CoordSeq ext = {{0.5, 0.5}, {9.5, 0.5}, {9.5, 9.5}, {0.5, 9.5}, {0.5, 0.5}};
+    CoordSeq hole = {{4.2, 4.2}, {5.8, 4.2}, {5.8, 5.8}, {4.2, 5.8}, {4.2, 4.2}};
+    CHECK_NEAR(covered_area(burn({make_polygon({ext, hole})}, gs), gs), 81.0 - 1.6 * 1.6, 1e-5);
+
+    CoordSeq e2 = {{0, 0}, {10, 0}, {10, 10}, {0, 10}, {0, 0}};
+    CoordSeq h1 = {{1.3, 1.3}, {3.7, 1.3}, {3.7, 3.7}, {1.3, 3.7}, {1.3, 1.3}};
+    CoordSeq h2 = {{6.1, 6.6}, {8.9, 6.6}, {7.5, 8.8}, {6.1, 6.6}};
+    double want = 100.0 - 2.4 * 2.4 - 0.5 * 2.8 * 2.2;
+    CHECK_NEAR(covered_area(burn({make_polygon({e2, h1, h2})}, gs), gs), want, 1e-5);
+
+    // many holes, none aligned with the grid
+    std::vector<CoordSeq> rings = {{{0, 0}, {100, 0}, {100, 100}, {0, 100}, {0, 0}}};
+    double area = 10000.0;
+    for (int i = 0; i < 20; i++) {
+        for (int j = 0; j < 20; j++) {
+            double cx = 2.5 + 5.0 * i + 0.013, cy = 2.5 + 5.0 * j + 0.029, r = 1.7;
+            rings.push_back({{cx - r, cy}, {cx, cy - r}, {cx + r, cy}, {cx, cy + r}, {cx - r, cy}});
+            area -= 2.0 * r * r;
+        }
+    }
+    GridSpec g100{0, 0, 100, 100, 333, 333};
+    CHECK_NEAR(covered_area(burn({make_polygon(rings)}, g100), g100), area, 1e-3);
+}
+
 int main() {
     test_aligned_rectangle();
     test_offset_rectangle();
@@ -488,6 +517,7 @@ int main() {
     test_wall_crossing_winding();
     test_approx_centre_line_vertex();
     test_grid_validation();
+    test_hole_boundary_cells();
 
     if (failures == 0) {
         std::printf("all tests passed\n");

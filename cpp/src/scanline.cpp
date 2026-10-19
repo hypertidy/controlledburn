@@ -116,6 +116,10 @@ struct BoundaryCellRecord {
   // crossing is to the LEFT of the cell center x. Used to compute the
   // winding number at the cell center for center-rule classification.
   int winding_delta_left;
+
+  // The ring (0 the exterior) the record comes from, so the sweep can
+  // tell which rings pass through a cell and which enclose it.
+  int ring;
 };
 
 // ---- Scanline algorithm ----
@@ -338,7 +342,7 @@ static CellMap walk_polyline(
 static void walk_ring(
     std::vector<Coordinate> coords,
     bool is_ccw,
-    bool is_exterior,
+    int ring,
     const exactextract::Grid<exactextract::infinite_extent>& grid,
     double /* dy (unused, kept for signature compat) */,
     std::vector<std::vector<BoundaryCellRecord>>& row_data,
@@ -355,6 +359,7 @@ static void walk_ring(
     std::reverse(coords.begin(), coords.end());
   }
 
+  const bool is_exterior = (ring == 0);
   float coverage_factor = is_exterior ? 1.0f : -1.0f;
   int winding_factor = is_exterior ? 1 : -1;
 
@@ -440,21 +445,20 @@ static void walk_ring(
     // has zero area but still crosses the row center, contributing to the
     // winding count that classifies interior cells.
 
+    // Records are pushed per visit (one for coverage, one for winding) and
+    // merged in the sweep after a stable sort by column, so contributions
+    // add in visit order, as in controlledburn-rs. A shared record per
+    // column (the earlier find_or_create) lost which ring each part came
+    // from, which the hole handling in the sweep needs; it also created a
+    // record for crossings that cancel within a visit, which split an
+    // interior run and dropped the cell.
     auto& row_vec = row_data[sub_r];
 
-    // Helper: find or create the BoundaryCellRecord for this column
-    auto find_or_create = [&]() -> BoundaryCellRecord& {
-      for (auto& rec : row_vec) {
-        if (rec.col == full_col) return rec;
-      }
-      row_vec.push_back({full_col, 0.0f, 0, 0});
-      return row_vec.back();
-    };
-
     if (frac != 0.0f) {
-      BoundaryCellRecord& rec = find_or_create();
-      rec.coverage += coverage_factor * frac;
+      row_vec.push_back({full_col, coverage_factor * frac, 0, 0, ring});
     }
+    int visit_delta = 0;
+    int visit_delta_left = 0;
 
     // Winding deltas from traversals
     double x_mid = (cr.box.xmin + cr.box.xmax) / 2.0;
@@ -483,8 +487,7 @@ static void walk_ring(
       int delta = (entry_y >= y_mid) ? -1 : +1; // downward = -1, upward = +1
       delta *= winding_factor;
 
-      BoundaryCellRecord& rec = find_or_create();
-      rec.winding_delta += delta;
+      visit_delta += delta;
 
       // Approx mode: classify whether this crossing is left of cell center.
       // Interpolate x at y_mid along the traversal path. Skip horizontal
@@ -508,9 +511,12 @@ static void walk_ring(
         // the standard rasterization rule (left/bottom inclusive,
         // right/top exclusive).
         if (x_at_mid <= x_mid) {
-          rec.winding_delta_left += delta;
+          visit_delta_left += delta;
         }
       }
+    }
+    if (visit_delta != 0 || visit_delta_left != 0) {
+      row_vec.push_back({full_col, 0.0f, visit_delta, visit_delta_left, ring});
     }
   }
 }
@@ -591,8 +597,7 @@ static void process_polygon(
   for (size_t r = 0; r < poly.rings.size(); r++) {
     const CoordSeq& ring = poly.rings[r];
     if (ring.size() < 4) continue;
-    bool is_exterior = (r == 0);
-    walk_ring(to_coordinates(ring), is_ccw(ring), is_exterior, subgrid, dy,
+    walk_ring(to_coordinates(ring), is_ccw(ring), static_cast<int>(r), subgrid, dy,
               row_data, sub_rows, sub_cols, row_off, col_off, mode);
   }
 
@@ -600,32 +605,68 @@ static void process_polygon(
 
   float tol = 1e-6f;
 
+  // Winding per ring, so a boundary cell gains the cover of rings that
+  // enclose it without passing through it (the exterior around a hole's
+  // boundary cell). Allocated once; each row resets only what it touched.
+  const size_t n_rings = poly.rings.size();
+  std::vector<int> ring_winding(n_rings, 0);
+  std::vector<int> touched;
+  // Rings passing through each merged cell, flat, with a span per cell;
+  // each ring appears once per cell with its summed winding delta.
+  std::vector<std::pair<int, int>> through;
+  std::vector<std::pair<size_t, size_t>> spans;
+  auto sign = [](int r) { return r == 0 ? 1 : -1; };
+
   for (size_t sr = 0; sr < sub_rows; sr++) {
     auto& row_vec = row_data[sr];
     if (row_vec.empty()) continue;
 
-    std::sort(row_vec.begin(), row_vec.end(),
-              [](const BoundaryCellRecord& a, const BoundaryCellRecord& b) {
-                return a.col < b.col;
-              });
+    // Stable, so same-column contributions merge in visit order.
+    std::stable_sort(row_vec.begin(), row_vec.end(),
+                     [](const BoundaryCellRecord& a, const BoundaryCellRecord& b) {
+                       return a.col < b.col;
+                     });
 
-    // Merge same-column entries
+    // Merge same-column entries, keeping the rings through each cell.
     std::vector<BoundaryCellRecord> merged;
+    through.clear();
+    spans.clear();
     for (auto& rec : row_vec) {
       if (!merged.empty() && merged.back().col == rec.col) {
         merged.back().coverage += rec.coverage;
         merged.back().winding_delta += rec.winding_delta;
         merged.back().winding_delta_left += rec.winding_delta_left;
+        auto& span = spans.back();
+        bool found = false;
+        for (size_t i = span.first; i < span.second; i++) {
+          if (through[i].first == rec.ring) {
+            through[i].second += rec.winding_delta;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          through.push_back({rec.ring, rec.winding_delta});
+          span.second++;
+        }
       } else {
         merged.push_back(rec);
+        spans.push_back({through.size(), through.size() + 1});
+        through.push_back({rec.ring, rec.winding_delta});
       }
     }
 
     int winding = 0;
+    // Sum of sign(r) over rings with non-zero winding: +1 inside the
+    // exterior, -1 inside a hole. Kept up to date as windings change, so
+    // a cell costs only the rings through it, not all the rings.
+    int inside = 0;
     int prev_col = -2;
     int full_row = static_cast<int>(row_off + sr);
 
-    for (auto& mc : merged) {
+    for (size_t mi = 0; mi < merged.size(); mi++) {
+      const auto& mc = merged[mi];
+      const size_t s0 = spans[mi].first, s1 = spans[mi].second;
       // Emit interior run between previous boundary cell and this one.
       // prev_col > -2 means at least one cell has been seen (including padding).
       if (winding != 0 && prev_col > -2 && mc.col > prev_col + 1) {
@@ -638,7 +679,13 @@ static void process_polygon(
       }
 
       if (mode == BurnMode::Coverage) {
-        float w = mc.coverage;
+        // +1 inside the exterior, -1 inside a hole, for rings that do not
+        // pass through this cell.
+        int enclosing = inside;
+        for (size_t i = s0; i < s1; i++) {
+          if (ring_winding[through[i].first] != 0) enclosing -= sign(through[i].first);
+        }
+        float w = enclosing != 0 ? mc.coverage + static_cast<float>(enclosing) : mc.coverage;
         if (w > tol && w < (1.0f - tol)) {
           all_edges.push_back({full_row, mc.col, w, poly_id});
         } else if (w >= (1.0f - tol)) {
@@ -656,7 +703,21 @@ static void process_polygon(
 
       winding += mc.winding_delta;
       prev_col = mc.col;
+      for (size_t i = s0; i < s1; i++) {
+        const int r = through[i].first;
+        const int before = ring_winding[r];
+        const int after = before + through[i].second;
+        if (before == 0 && after != 0) {
+          inside += sign(r);
+          touched.push_back(r);
+        } else if (before != 0 && after == 0) {
+          inside -= sign(r);
+        }
+        ring_winding[r] = after;
+      }
     }
+    for (int r : touched) ring_winding[r] = 0;
+    touched.clear();
   }
 }
 

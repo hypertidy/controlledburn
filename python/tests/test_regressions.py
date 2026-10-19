@@ -195,3 +195,46 @@ def test_materialize_core_rejects_ragged_columns():
         cb._core.materialize(i, i[:1], i, i, i[:0], i[:0],
                              np.zeros(0, np.float32), i[:0],
                              4, 4, [], "last", "threshold", 0.5, np.nan)
+
+
+# ---- holes: a hole's boundary cells keep the exterior's cover -------------
+
+HOLE_EXT = [(0.5, 0.5), (9.5, 0.5), (9.5, 9.5), (0.5, 9.5)]
+
+
+@pytest.mark.parametrize("hole", [
+    [(4.2, 4.2), (5.8, 4.2), (5.8, 5.8), (4.2, 5.8)],   # across four cells
+    [(4.2, 4.2), (4.8, 4.2), (4.8, 4.8), (4.2, 4.8)],   # within one cell
+    [(4.2, 4.6), (5.8, 4.6), (5.0, 5.4)],               # off the row centres
+    [(4.2, 4.2), (4.2, 5.8), (5.8, 5.8), (5.8, 4.2)],   # the other winding
+])
+def test_hole_removes_exactly_its_area(hole):
+    # A cell crossed only by the hole's boundary used to get the hole's
+    # negative fraction alone and be dropped (77 cells instead of 78.44
+    # for the first hole).
+    g = shapely.Polygon(HOLE_EXT, [hole])
+    r = cb.burn(g, extent=(0, 10, 0, 10), shape=(10, 10))
+    assert covered_area(r) == pytest.approx(g.area, rel=1e-6)
+
+
+def test_hole_cells_match_exact_intersection():
+    g = shapely.Polygon([(0, 0), (10, 0), (10, 10), (0, 10)],
+                        [[(1.3, 1.3), (3.7, 1.3), (3.7, 3.7), (1.3, 3.7)],
+                         [(6.1, 6.6), (8.9, 6.6), (7.5, 8.8)]])
+    r = cb.burn(g, extent=(0, 10, 0, 10), shape=(10, 10))
+    m = r.materialize(fn="sum", values=[1.0], edge_policy="fraction", background=0.0)
+    for row in range(10):
+        for col in range(10):
+            cell = shapely.box(col, 9 - row, col + 1, 10 - row)
+            assert m[row, col] == pytest.approx(g.intersection(cell).area, abs=1e-6), (row, col)
+
+
+def test_many_holes_cover_their_area():
+    holes = []
+    for i in range(20):
+        for j in range(20):
+            cx, cy, rr = 2.5 + 5 * i + 0.013, 2.5 + 5 * j + 0.029, 1.7
+            holes.append([(cx - rr, cy), (cx, cy - rr), (cx + rr, cy), (cx, cy + rr)])
+    g = shapely.Polygon([(0, 0), (100, 0), (100, 100), (0, 100)], holes)
+    r = cb.burn(g, extent=(0, 100, 0, 100), shape=(333, 333))
+    assert covered_area(r) == pytest.approx(g.area, rel=1e-6)
