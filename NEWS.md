@@ -1,3 +1,20 @@
+# controlledburn (development version)
+
+* Fixed: in coverage mode, polygons with holes lost area. A cell crossed
+  only by a hole's boundary, inside the exterior, got the hole's negative
+  fraction alone and was dropped, instead of 1 minus the hole's fraction:
+  a 9 x 9 square with a 1.6 x 1.6 hole covered 77 cells instead of 78.44.
+  Any polygon with a hole whose boundary cuts cells inside the exterior
+  (lakes in a country, say) was affected. The row sweep now tracks winding
+  per ring and adds the cover of every ring that encloses a boundary cell
+  without passing through it. Polygons without holes are unchanged. Same
+  fix as hypertidy/controlledburn-rs#11; the C++ core and the Rust port
+  now give bit-identical tables on 20,000 random valid polygons with holes.
+
+* The core no longer creates a boundary record for crossings that cancel
+  within one cell visit. On self-intersecting rings such a record split an
+  interior run and dropped the cell; valid polygons are unaffected.
+
 # controlledburn 0.3.1
 
 * Fixed: `materialise_chunk(fun = "sum")` assigned 1 to interior run cells

@@ -9,6 +9,11 @@ across languages, though the index base differs (Python 0-based, R
 
 ### Fixes from the shared C++ core
 
+- **Holes removed too much area (coverage mode).** A cell crossed only by
+  a hole's boundary, inside the exterior, got the hole's negative fraction
+  alone and was dropped; it now keeps 1 minus the hole's fraction. Covered
+  in `tests/test_regressions.py`, including a cell-by-cell comparison with
+  shapely's exact intersection.
 These landed in the core through the R package (#16, #19) and apply to
 the Python package unchanged; they are now covered by Python tests too
 (`tests/test_regressions.py`).

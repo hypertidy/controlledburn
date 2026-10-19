@@ -10,3 +10,4 @@ straddle,18.0,0,NA,NA,1e-6
 line_diagonal,NA,NA,11.401754250991,NA,1e-4
 points_mixed,NA,NA,NA,2,NA
 wall_crossing,2.12875,0,NA,NA,1e-6
+hole_boundary,78.44,0,NA,NA,1e-6
