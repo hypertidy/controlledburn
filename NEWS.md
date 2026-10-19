@@ -1,5 +1,20 @@
 # controlledburn (development version)
 
+* New `plot()` method for burns, ported from the R helpers in mdsumner/cbr.
+  Small burns are drawn record by record (runs, edge cells shaded by
+  coverage fraction, or by geometry id with `by_id = TRUE`); large ones as
+  a tiled overview drawn with 'ximage'. Exact row and column marginal
+  strips are drawn alongside by default.
+
+* New `summary()` method: exact row and column marginals, content extent,
+  per-geometry interior and boundary area, and edge fraction quantiles, in
+  time proportional to the number of records, never the grid size.
+
+* New `overview_burn()`: mean coverage per square tile as a matrix with an
+  `extent` attribute, without expanding runs to cells.
+
+* 'vaster' and 'ximage' are now imported.
+
 * Fixed: in coverage mode, polygons with holes lost area. A cell crossed
   only by a hole's boundary, inside the exterior, got the hole's negative
   fraction alone and was dropped, instead of 1 minus the hole's fraction:
