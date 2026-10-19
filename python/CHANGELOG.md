@@ -14,6 +14,12 @@ across languages, though the index base differs (Python 0-based, R
   alone and was dropped; it now keeps 1 minus the hole's fraction. Covered
   in `tests/test_regressions.py`, including a cell-by-cell comparison with
   shapely's exact intersection.
+- **A cell with edges only along its walls was filled (coverage mode).**
+  With lattice-aligned input, a cell whose polygon edges lie along both
+  of its walls, crossing the row centre in opposite directions, has zero
+  coverage and zero net winding; it got no boundary record and was filled
+  as part of the interior run, one whole cell too many. Covered in
+  `tests/test_regressions.py` and the shared `wall_notch` fixture.
 These landed in the core through the R package (#16, #19) and apply to
 the Python package unchanged; they are now covered by Python tests too
 (`tests/test_regressions.py`).

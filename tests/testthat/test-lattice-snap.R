@@ -48,3 +48,18 @@ test_that("approx: a vertex on a row centre line does not fill the row to the gr
   expect_true(all(r$runs$col_end <= 2L))
   expect_equal(nrow(r$runs), 2L)
 })
+
+test_that("a cell with edges only along its walls stays a boundary cell", {
+  ## From a raster-derived waterbody (DEA Waterbodies uid q9g5b3eyr_v1): a
+  ## lattice-aligned notch. Cell [4, 5] x [2, 3] has polygon edges along
+  ## both walls, one crossing the row centre up and the other down, so it
+  ## has zero coverage and zero net winding. It used to get no boundary
+  ## record and was filled as part of the interior run: 3.5 cells, not 2.5.
+  wkt <- "POLYGON ((4 2, 2 7, 6 2, 5 2, 5 3, 3 5.5, 4 2.5, 4 2))"
+  r <- burn(wk::as_wkb(wk::wkt(wkt)), extent = c(0, 10, 0, 10), dimension = c(10L, 10L))
+  a <- sum(r$runs$col_end - r$runs$col_start + 1) + sum(r$edges$fraction)
+  expect_equal(a, 2.5, tolerance = 1e-6)
+  ## the notch cell is row 8, col 5 (1-based): outside
+  expect_false(any(r$runs$row == 8 & r$runs$col_start <= 5 & r$runs$col_end >= 5))
+  expect_false(any(r$edges$row == 8 & r$edges$col == 5))
+})
