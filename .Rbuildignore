@@ -27,3 +27,4 @@
 ^scratch$
 ^CRAN-SUBMISSION$
 ^.posit$
+^vignettes/articles$
