@@ -28,3 +28,6 @@
 ^CRAN-SUBMISSION$
 ^.posit$
 ^vignettes/articles$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$

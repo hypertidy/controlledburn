@@ -1,0 +1,61 @@
+url: https://hypertidy.github.io/controlledburn
+
+template:
+  bootstrap: 5
+  light-switch: true
+  bslib:
+    primary: "#C8440F"        # ember
+    link-color: "#C8440F"
+    base_font: {google: "Inter"}
+    heading_font: {google: "Inter Tight"}
+    code_font: {google: "JetBrains Mono"}
+
+home:
+  title: Sparse geometry rasterization with exact coverage fractions
+  description: >
+    Rasterize polygon, line, and point geometry into sparse tables with
+    exact coverage fractions. O(perimeter) in time and memory, no dense
+    raster allocated.
+
+navbar:
+  structure:
+    left:  [reference, articles, news]
+    right: [search, github]
+
+reference:
+- title: Overview
+  contents:
+  - controlledburn-package
+  - overview_burn
+- title: Burn
+  desc: >
+    Rasterize polygon, line, and point geometry into the sparse
+    four-table result.
+  contents:
+  - burn
+- title: Consume the result
+  desc: >
+    Materialize, crop, and extract from a burn. No dense raster is
+    allocated until you ask for one.
+  contents:
+  - materialise_chunk
+  - crop_burn
+  - extract_burn
+- title: Methods
+  desc: Inspect and visualise a burn.
+  contents:
+  - plot.controlledburn
+  - summary.controlledburn
+- title: Deprecated
+  contents:
+  - burn_sparse
+
+articles:
+- title: Examples
+  navbar: ~
+  contents:
+  - matches("australia-waterbodies")
+- title: How it works
+  contents:
+  - architecture
+  - algorithms
