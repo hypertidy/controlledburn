@@ -1,6 +1,6 @@
 Package: controlledburn
 Title: Sparse Geometry Rasterization with Exact Coverage Fractions
-Version: 0.3.1.9001
+Version: 0.3.2
 Authors@R: c(
     person("Michael", "Sumner", email = "mdsumner@gmail.com",
            role = c("aut", "cre"),
@@ -22,7 +22,7 @@ Description: Rasterize polygon, line, and point geometry without
     cells. The scanline algorithm is O(perimeter) in both time and memory,
     using the scan line fill attributed to Wylie et al. (1967)
     <doi:10.1145/1465611.1465619>. Exact coverage fractions use the
-    'exactextract' algorithm by Daniel Baston, vendored from the
+    exactextract algorithm by Daniel Baston, vendored from the
     'exactextractr' package <doi:10.32614/CRAN.package.exactextractr>.
     Derived from the 'fasterize' package by Noam Ross.
 License: Apache License (== 2.0)
@@ -54,4 +54,3 @@ VignetteBuilder: knitr
 Config/roxygen2/version: 8.1.0
 Depends: 
     R (>= 3.5)
-RoxygenNote: 7.3.1

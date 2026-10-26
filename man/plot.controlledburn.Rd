@@ -42,7 +42,7 @@ as a dashed rectangle.}
 
 \item{main}{Optional title, drawn in the outer margin above the strips.}
 
-\item{...}{Passed to \code{\link[graphics:plot.default]{graphics::plot()}} for the main panel.}
+\item{...}{Passed to \code{\link[graphics:plot]{graphics::plot()}} for the main panel.}
 }
 \value{
 \code{x}, invisibly, with the summary computed for the marginals
