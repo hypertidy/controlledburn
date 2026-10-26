@@ -1,5 +1,8 @@
 # controlledburn (development version)
 
+* Fixed a GCC 16 `-Warray-bounds` warning (a false positive) at install,
+  seen on CRAN's r-devel debian-gcc and fedora-gcc checks of 0.3.1.
+
 * New `plot()` method for burns, ported from the R helpers in mdsumner/cbr.
   Small burns are drawn record by record (runs, edge cells shaded by
   coverage fraction, or by geometry id with `by_id = TRUE`); large ones as

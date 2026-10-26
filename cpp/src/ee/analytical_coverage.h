@@ -84,9 +84,13 @@ inline double analytical_covered_fraction(
         arc = perim - entry_pd + exit_pd;
     } else {
         // Entry ≈ exit (degenerate): traversal starts and ends at same point.
+        // Closedness is tested on `coords` (at least 2 points, above), not
+        // on the copy: GCC 16 cannot see that the copy is non-empty and
+        // flags poly.back() with a spurious -Warray-bounds (subscript -1).
+        const bool closed = coords.front() == coords.back();
         std::vector<Coordinate> poly(coords.begin(), coords.end());
-        if (!(poly.front() == poly.back())) {
-            poly.push_back(poly.front());
+        if (!closed) {
+            poly.push_back(coords.front());
         }
         return std::abs(polygon_signed_area(poly)) / cell_area;
     }

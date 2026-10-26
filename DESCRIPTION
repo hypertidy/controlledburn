@@ -1,6 +1,6 @@
 Package: controlledburn
 Title: Sparse Geometry Rasterization with Exact Coverage Fractions
-Version: 0.3.1
+Version: 0.3.1.9001
 Authors@R: c(
     person("Michael", "Sumner", email = "mdsumner@gmail.com",
            role = c("aut", "cre"),
