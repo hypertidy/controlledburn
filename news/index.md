@@ -2,6 +2,9 @@
 
 ## controlledburn (development version)
 
+- Fixed a GCC 16 `-Warray-bounds` warning (a false positive) at install,
+  seen on CRAN’s r-devel debian-gcc and fedora-gcc checks of 0.3.1.
+
 - New [`plot()`](https://rspatial.github.io/terra/reference/plot.html)
   method for burns, ported from the R helpers in mdsumner/cbr. Small
   burns are drawn record by record (runs, edge cells shaded by coverage
@@ -50,6 +53,8 @@
   an interior run and dropped the cell; valid polygons are unaffected.
 
 ## controlledburn 0.3.1
+
+CRAN release: 2026-10-24
 
 - Fixed: `materialise_chunk(fun = "sum")` assigned 1 to interior run
   cells instead of adding 1, so where polygon interiors overlapped the
