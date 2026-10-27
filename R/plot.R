@@ -64,7 +64,10 @@ plot.controlledburn <- function(x, what = c("auto", "exact", "overview"),
   if (marginals) {
     op <- graphics::par(no.readonly = TRUE)
     on.exit(graphics::par(op), add = TRUE)
-    .marginal_layout(ext, strip = 1 / 6, main = main)
+    oma_top <- if (is.null(main)) 0 else 2
+    graphics::par(oma = c(0, 0, oma_top, 0))
+    .marginal_layout(ext, strip = 1 / 6, csi = graphics::par("csi"),
+                     oma_top = oma_top)
     graphics::par(mar = c(3.5, 3.5, 0.5, 0.5), mgp = c(2, 0.6, 0))
   } else if (!is.null(main)) {
     op <- graphics::par(mar = c(3.5, 3.5, 2.5, 0.5))
@@ -123,21 +126,22 @@ plot.controlledburn <- function(x, what = c("auto", "exact", "overview"),
 
 ## Layout sized to the extent's aspect ratio: main panel bottom left, column
 ## strip above it, row strip to its right, and spacer cells for whatever the
-## device has left over so the strips are never longer than the map.
-.marginal_layout <- function(ext, strip = 1 / 6, main = NULL) {
-  ## the title lives in the outer margin; layout() divides what is left
-  oma_top <- if (is.null(main)) 0 else 2
-  graphics::par(oma = c(0, 0, oma_top, 0))
+## device has left over so the strips are never longer than the map. The
+## caller owns the par() state: it saves par() and resets on exit, sets the
+## outer margin for the title, and passes "csi" in. This helper has no par()
+## side effects of its own; it only installs the layout, which must persist
+## for the caller to draw into.
+.marginal_layout <- function(ext, strip = 1 / 6, csi, oma_top = 0) {
   din <- grDevices::dev.size("in")
   ## shave a little so rounding never asks for more than the device has
   W <- din[1L] * 0.99
-  H <- (din[2L] - oma_top * graphics::par("csi")) * 0.99
+  H <- (din[2L] - oma_top * csi) * 0.99
   aspect <- (ext[4L] - ext[3L]) / (ext[2L] - ext[1L])
   sw <- strip * min(W, H)
   ## the main panel's margins (mar = c(3.5, 3.5, 0.5, 0.5) lines) are part
   ## of its layout cell, so size the plot region inside them to the
   ## extent's aspect, as large as fits
-  mw <- 4 * graphics::par("csi")
+  mw <- 4 * csi
   wm <- min(W - sw - mw, (H - sw - mw) / aspect)
   hm <- wm * aspect
   widths <- c(wm + mw, sw, max(0.01, W - wm - mw - sw))
