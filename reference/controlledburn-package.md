@@ -7,7 +7,7 @@ interior cells and individually weighted boundary cells. The scanline
 algorithm is O(perimeter) in both time and memory, using the scan line
 fill attributed to Wylie et al. (1967)
 [doi:10.1145/1465611.1465619](https://doi.org/10.1145/1465611.1465619) .
-Exact coverage fractions use the 'exactextract' algorithm by Daniel
+Exact coverage fractions use the exactextract algorithm by Daniel
 Baston, vendored from the 'exactextractr' package
 [doi:10.32614/CRAN.package.exactextractr](https://doi.org/10.32614/CRAN.package.exactextractr)
 . Derived from the 'fasterize' package by Noam Ross.
@@ -18,6 +18,8 @@ Useful links:
 
 - <https://github.com/hypertidy/controlledburn>
 
+- <https://hypertidy.github.io/controlledburn/>
+
 - Report bugs at <https://github.com/hypertidy/controlledburn/issues>
 
 ## Author
@@ -26,6 +28,9 @@ Useful links:
 ([ORCID](https://orcid.org/0000-0002-2471-7511))
 
 Authors:
+
+- Michael Sumner <mdsumner@gmail.com>
+  ([ORCID](https://orcid.org/0000-0002-2471-7511))
 
 - Noam Ross ([ORCID](https://orcid.org/0000-0002-2136-0000))
 

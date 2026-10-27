@@ -232,7 +232,7 @@ g <- geos::as_geos_geometry(wk::wkb(vapour::vapour_read_geometry(sds::CGAZ())))
 
 system.time(r <- burn(g, dimension = c(2560L, 1280L), mode = "approx"))
 #>    user  system elapsed 
-#>   0.425   0.012   0.437
+#>   0.524   0.011   0.534
 r
 #> <controlledburn> 2560 x 1280 grid, 205 geometries
 #>   runs:   25232 (1123628 interior cells)

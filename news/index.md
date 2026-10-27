@@ -1,56 +1,17 @@
 # Changelog
 
-## controlledburn (development version)
+## controlledburn 0.3.2
 
-- Fixed a GCC 16 `-Warray-bounds` warning (a false positive) at install,
-  seen on CRAN’s r-devel debian-gcc and fedora-gcc checks of 0.3.1.
+- Fixed a GCC 16 `-Warray-bounds` warning (“array subscript -1 is
+  outside array bounds”) in the vendored exactextract code, reported by
+  CRAN’s r-devel gcc flavors. Ring closedness in
+  `analytical_covered_fraction()` is now tested on the input coordinate
+  vector, which the compiler can prove is non-empty, rather than on a
+  copy it cannot. No change in behaviour or output.
 
-- New [`plot()`](https://rspatial.github.io/terra/reference/plot.html)
-  method for burns, ported from the R helpers in mdsumner/cbr. Small
-  burns are drawn record by record (runs, edge cells shaded by coverage
-  fraction, or by geometry id with `by_id = TRUE`); large ones as a
-  tiled overview drawn with ‘ximage’. Exact row and column marginal
-  strips are drawn alongside by default.
-
-- New
-  [`summary()`](https://rspatial.github.io/terra/reference/summary.html)
-  method: exact row and column marginals, content extent, per-geometry
-  interior and boundary area, and edge fraction quantiles, in time
-  proportional to the number of records, never the grid size.
-
-- New
-  [`overview_burn()`](https://hypertidy.github.io/controlledburn/reference/overview_burn.md):
-  mean coverage per square tile as a matrix with an `extent` attribute,
-  without expanding runs to cells.
-
-- ‘vaster’ and ‘ximage’ are now imported.
-
-- Fixed: in coverage mode, polygons with holes lost area. A cell crossed
-  only by a hole’s boundary, inside the exterior, got the hole’s
-  negative fraction alone and was dropped, instead of 1 minus the hole’s
-  fraction: a 9 x 9 square with a 1.6 x 1.6 hole covered 77 cells
-  instead of 78.44. Any polygon with a hole whose boundary cuts cells
-  inside the exterior (lakes in a country, say) was affected. The row
-  sweep now tracks winding per ring and adds the cover of every ring
-  that encloses a boundary cell without passing through it. Polygons
-  without holes are unchanged. Same fix as
-  hypertidy/controlledburn-rs#11; the C++ core and the Rust port now
-  give bit-identical tables on 20,000 random valid polygons with holes.
-
-- Fixed: in coverage mode, a cell whose only polygon edges lie along its
-  two walls (lattice-aligned input, e.g. polygons traced from a raster
-  at half the grid’s cell size) could be filled as interior. One edge
-  crosses the row centre up and the other down, so the cell has zero
-  coverage and zero net winding; it got no boundary record and the sweep
-  filled it with the winding from its left, one whole cell too many. The
-  cell now gets a boundary record whenever the ring passes through it,
-  from one point on its boundary to another. Found on DEA Waterbodies on
-  a 50 m grid (uid q9g5b3eyr_v1 was one cell over). Not specific to
-  holes or self-touching rings; it was in 0.3.1 too.
-
-- The core no longer creates a boundary record for crossings that cancel
-  within one cell visit. On self-intersecting rings such a record split
-  an interior run and dropped the cell; valid polygons are unaffected.
+- Removed the quotes around the exactextract algorithm name in the
+  package Description, per the CRAN maintainers’ request (the
+  `'exactextractr'` package reference is retained).
 
 ## controlledburn 0.3.1
 
