@@ -185,6 +185,21 @@ static void snap_to_lattice(
   }
 }
 
+// Move c (on the boundary of box) onto the corner of box it lies within
+// tol_x, tol_y of, if any. Corners of padding cells are at -/+DBL_MAX and
+// are never within tolerance.
+static inline Coordinate snap_to_corner(const Coordinate& c, const Box& box,
+                                        double tol_x, double tol_y) {
+  double x, y;
+  if (std::fabs(c.x - box.xmin) <= tol_x)      x = box.xmin;
+  else if (std::fabs(c.x - box.xmax) <= tol_x) x = box.xmax;
+  else return c;
+  if (std::fabs(c.y - box.ymin) <= tol_y)      y = box.ymin;
+  else if (std::fabs(c.y - box.ymax) <= tol_y) y = box.ymax;
+  else return c;
+  return Coordinate(x, y);
+}
+
 static CellMap walk_polyline(
     std::vector<Coordinate> coords,
     const exactextract::Grid<exactextract::infinite_extent>& grid,
@@ -194,6 +209,9 @@ static CellMap walk_polyline(
   if (coords.empty()) return cells;
   snap_to_lattice(coords, grid);
   const size_t n_input = coords.size();
+  // Same tolerance as snap_to_lattice, from the grid's cell size (a padding
+  // cell's box is unbounded).
+  const double tol_x = grid.dx() * 1e-9, tol_y = grid.dy() * 1e-9;
 
   auto get_or_create = [&](size_t r, size_t c) -> CellRecord& {
     auto key = std::make_pair(r, c);
@@ -273,6 +291,17 @@ static CellMap walk_polyline(
           }
         }
 
+        // Corner guard: an edge through a cell corner gives a crossing an
+        // ulp or two off the corner, on the wall either side of it. The next
+        // cell then starts a sliver traversal from there to the corner, or
+        // from the corner to a point an ulp down the wall, where the true
+        // path only touches the corner. Its two ends can be out of order
+        // around the cell boundary, which the old chain chaser read as a
+        // slab of the cell or all of it (#25). Exit through the corner
+        // itself; the sliver becomes a single-point touch, which the
+        // coverage pass already ignores.
+        exit_c = snap_to_corner(exit_c, box, tol_x, tol_y);
+
         trav.coords.push_back(exit_c);
         trav.exit_side = exit_s;
 
@@ -332,6 +361,64 @@ static CellMap walk_polyline(
   return cells;
 }
 
+// A traversal that counts: a proper entry and exit with movement, or a
+// closed ring entirely within the cell.
+static inline bool valid_traversal(const LightTraversal& t) {
+  return (t.traversed() && t.multiple_unique_coordinates()) ||
+         (t.entry_side == Side::NONE && t.is_closed_ring());
+}
+
+// Whether every segment of tc runs along a wall of box. Such a traversal
+// does not split the cell: whether the cell is covered depends on the rest
+// of the ring (green_fraction reads it from the row). The single-traversal
+// formula would take the side left of travel, all of the cell or none of
+// it. A ring doubling back along a wall puts the two directions in
+// different cells as the walk happens to run, the grid cell and the padding
+// row below it say, and the grid cell came out fully covered (#25).
+static bool along_walls(const Box& box, const std::vector<Coordinate>& tc) {
+  for (size_t i = 1; i < tc.size(); i++) {
+    const Coordinate& a = tc[i - 1];
+    const Coordinate& b = tc[i];
+    bool on_x = a.x == b.x && (a.x == box.xmin || a.x == box.xmax);
+    bool on_y = a.y == b.y && (a.y == box.ymin || a.y == box.ymax);
+    if (!on_x && !on_y) return false;
+  }
+  return true;
+}
+
+// Coverage fraction of a cell crossed by several traversals of one CCW
+// ring, by Green's theorem: the covered area is the sum over the traversals
+// of the integral of (x - xmax) dy, plus the width times the covered length
+// of the left wall, which is minus left_dy, the net height of the ring's
+// traversals left of the cell in the same row.
+//
+// Every traversal adds its own term, so the result does not depend on the
+// order of the traversal ends around the cell boundary. The chain chaser
+// this replaces (exactextract::left_hand_area) did: two nearly coincident
+// traversals (a sliver, or an edge doubling back along itself) can cross a
+// wall an ulp apart in the wrong order, and the chaser then returned the
+// complement of the sliver, a whole cell too much (#25). Same as
+// controlledburn-rs's green_fraction, and the identity of its
+// CoverageWindow.
+static double green_fraction(const Box& box,
+                             const std::vector<const LightTraversal*>& valid,
+                             double left_dy) {
+  const double w = box.xmax - box.xmin, h = box.ymax - box.ymin;
+  if (!(w > 0.0 && h > 0.0)) return 0.0;
+  double a = 0.0;
+  for (const auto* t : valid) {
+    const auto& tc = t->coords;
+    for (size_t i = 1; i < tc.size(); i++) {
+      double xm = 0.5 * ((tc[i - 1].x - box.xmax) + (tc[i].x - box.xmax));
+      a += xm * (tc[i].y - tc[i - 1].y);
+    }
+  }
+  // Magnitude, as in the single-traversal formula: a lobe of a
+  // self-intersecting ring that runs clockwise after normalisation is still
+  // covered under the non-zero winding rule.
+  return std::min(std::fabs((a - w * left_dy) / (w * h)), 1.0);
+}
+
 // Walk a polygon ring and emit boundary-cell records (coverage + winding).
 //
 // Thin wrapper around walk_polyline + polygon-specific post-processing:
@@ -364,6 +451,23 @@ static void walk_ring(
   int winding_factor = is_exterior ? 1 : -1;
 
   CellMap cells = walk_polyline(std::move(coords), grid, /*closed=*/true);
+
+  // Net height of the ring's traversals in the cells left of each cell in
+  // its row (see green_fraction). The map is ordered by (row, col), so
+  // this is a running sum reset at each row.
+  std::map<CellKey, double> left_dy;
+  {
+    size_t cur_row = static_cast<size_t>(-1);
+    double acc = 0.0;
+    for (const auto& kv : cells) {
+      if (kv.first.first != cur_row) { cur_row = kv.first.first; acc = 0.0; }
+      left_dy.emplace_hint(left_dy.end(), kv.first, acc);
+      for (const auto& t : kv.second.traversals) {
+        if (!valid_traversal(t) || !t.traversed()) continue;
+        acc += t.coords.back().y - t.coords.front().y;
+      }
+    }
+  }
 
   // ---- Compute coverage fractions and winding ----
 
@@ -400,14 +504,9 @@ static void walk_ring(
     }
 
     // Filter to valid traversals (proper enter + exit, or closed ring)
-    std::vector<LightTraversal*> valid;
-    for (auto& t : cr.traversals) {
-      if (t.traversed() && t.multiple_unique_coordinates()) {
-        valid.push_back(&t);
-      } else if (t.entry_side == Side::NONE && t.is_closed_ring()) {
-        // Closed ring entirely within this cell
-        valid.push_back(&t);
-      }
+    std::vector<const LightTraversal*> valid;
+    for (const auto& t : cr.traversals) {
+      if (valid_traversal(t)) valid.push_back(&t);
     }
 
     if (valid.empty()) continue;
@@ -420,21 +519,14 @@ static void walk_ring(
             && valid[0]->is_closed_ring()) {
         frac = static_cast<float>(
           controlledburn::closed_ring_covered_fraction(cr.box, valid[0]->coords));
-      } else if (valid.size() == 1) {
+      } else if (valid.size() == 1 && !along_walls(cr.box, valid[0]->coords)) {
         frac = static_cast<float>(
           controlledburn::analytical_covered_fraction(
             cr.box, valid[0]->coords,
             valid[0]->entry_side, valid[0]->exit_side));
       } else {
-        std::vector<const std::vector<Coordinate>*> coord_lists;
-        for (auto* t : valid) {
-          coord_lists.push_back(&t->coords);
-        }
-        double cell_area = cr.box.area();
-        if (cell_area > 0.0) {
-          frac = static_cast<float>(
-            exactextract::left_hand_area(cr.box, coord_lists) / cell_area);
-        }
+        // several traversals, or one along the walls
+        frac = static_cast<float>(green_fraction(cr.box, valid, left_dy[kv.first]));
       }
     }
 
@@ -519,10 +611,16 @@ static void walk_ring(
     // winding, one crossing on each wall cancelling, and the cell was
     // filled as interior. A traversal that leaves where it entered
     // (touching a corner, or a zero-width spike in and back out) encloses
-    // nothing, and its zero coverage says nothing about the cell: no
-    // record, the sweep fills it from the winding.
+    // nothing, and its coverage says nothing about the cell: no record, the
+    // sweep fills it from the winding. That holds for coverage that is zero
+    // only up to rounding, too: a spike out to a corner vertex and back can
+    // return an ulp from where it entered, with a coverage of 1e-16, and
+    // that record kept a fully covered cell empty (#25). Below the sweep's
+    // tolerance (1e-6) such a record can only blank the cell, so it needs a
+    // pass-through.
+    const bool tiny = std::fabs(frac) < 1e-6f;
     bool passes_through = false;
-    if (frac == 0.0f && in_grid_cols && mode == BurnMode::Coverage) {
+    if (tiny && in_grid_cols && mode == BurnMode::Coverage) {
       const double tol_x = (cr.box.xmax - cr.box.xmin) * 1e-9;
       const double tol_y = (cr.box.ymax - cr.box.ymin) * 1e-9;
       for (auto* t : valid) {
@@ -534,7 +632,7 @@ static void walk_ring(
         }
       }
     }
-    if (frac != 0.0f || passes_through) {
+    if (!tiny || passes_through) {
       row_vec.push_back({full_col, coverage_factor * frac, 0, 0, ring});
     }
     if (visit_delta != 0 || visit_delta_left != 0) {
@@ -745,6 +843,56 @@ static void process_polygon(
 
 // ---- Lightweight approx sweep ----
 //
+// a + b as the rounded sum s and its exact error e.
+static inline void two_sum(double a, double b, double& s, double& e) {
+  s = a + b;
+  double bb = s - a;
+  e = (a - (s - bb)) + (b - bb);
+}
+
+// Sign of (bx - ax)(cy - ay) - (cx - ax)(by - ay), exactly: positive when c
+// is left of the line a -> b. The determinant is expanded into six products
+// of input coordinates, each split exactly with an FMA, and the twelve terms
+// are summed as a non-overlapping expansion (Shewchuk's grow-expansion),
+// whose sign is that of its largest component. A float filter answers the
+// common case. Same as orient2d_sign in controlledburn-rs.
+static int orient2d_sign(double ax, double ay, double bx, double by,
+                         double cx, double cy) {
+  double l = (bx - ax) * (cy - ay);
+  double r = (cx - ax) * (by - ay);
+  double det = l - r;
+  double bound = 4.0e-16 * (std::fabs(l) + std::fabs(r));  // ccwerrboundA, padded
+  if (det > bound) return 1;
+  if (det < -bound) return -1;
+  const double prods[6][3] = {
+    {bx, cy, 1.0}, {bx, ay, -1.0}, {ax, cy, -1.0},
+    {cx, by, -1.0}, {cx, ay, 1.0}, {ax, by, 1.0}
+  };
+  double e[12];
+  int n = 0;
+  for (const auto& pq : prods) {
+    double hi = pq[0] * pq[1];
+    double lo = std::fma(pq[0], pq[1], -hi);
+    const double terms[2] = {pq[2] * lo, pq[2] * hi};
+    for (double t : terms) {
+      // grow-expansion: add t to e[0..n), keeping increasing magnitude
+      double q = t;
+      for (int k = 0; k < n; k++) {
+        double sum, err;
+        two_sum(q, e[k], sum, err);
+        e[k] = err;
+        q = sum;
+      }
+      e[n++] = q;
+    }
+  }
+  for (int k = n - 1; k >= 0; k--) {
+    if (e[k] > 0.0) return 1;
+    if (e[k] < 0.0) return -1;
+  }
+  return 0;
+}
+
 // Direct edge-row intersection sweep for Approx mode. Bypasses the
 // walker entirely: for each polygon edge, compute x-intercepts at
 // each row's y_mid, accumulate winding per row, sweep left-to-right
@@ -781,6 +929,10 @@ static void process_polygon_approx(
   struct Intercept {
     double x;
     int delta;
+    // Column of the crossing (clamped to the grid) and whether it lies left
+    // of or on that column's centre, decided exactly.
+    int col;
+    bool left;
   };
   std::vector<std::vector<Intercept>> row_intercepts(
       static_cast<size_t>(n_sweep_rows));
@@ -832,8 +984,19 @@ static void process_polygon_approx(
         int delta = (y1 < y0) ? -1 : +1;
         delta *= wf;
 
+        // Left of or on the centre (the left-inclusive rule), decided
+        // exactly from the edge's endpoints taken bottom to top, not from
+        // the rounded intercept: two edges through nearly the same point (a
+        // sliver, or a ring doubling back along itself) give intercepts that
+        // round either side of a centre they both miss, and the cell burned.
+        int col = static_cast<int>(std::floor((x_int - gs.xmin) / dx));
+        if (col < 0) col = 0;
+        if (col >= gs.ncol) col = gs.ncol - 1;
+        double x_mid = gs.xmin + (col + 0.5) * dx;
+        bool left = orient2d_sign(xa, ya, xb, yb, x_mid, y_mid) <= 0;
+
         row_intercepts[static_cast<size_t>(r - row_lo)].push_back(
-            {x_int, delta});
+            {x_int, delta, col, left});
       }
     }
   }
@@ -843,8 +1006,14 @@ static void process_polygon_approx(
     auto& intercepts = row_intercepts[static_cast<size_t>(r - row_lo)];
     if (intercepts.empty()) continue;
 
-    std::sort(intercepts.begin(), intercepts.end(),
+    // By column, then side of its centre, then x: only the side of each
+    // centre matters, and this keeps the order consistent with the exact
+    // side test where rounded intercepts tie or cross. Stable, as in
+    // controlledburn-rs.
+    std::stable_sort(intercepts.begin(), intercepts.end(),
               [](const Intercept& a, const Intercept& b) {
+                if (a.col != b.col) return a.col < b.col;
+                if (a.left != b.left) return a.left;
                 return a.x < b.x;
               });
 
@@ -852,12 +1021,8 @@ static void process_polygon_approx(
     int run_start = -1;
 
     for (const auto& ix : intercepts) {
-      int col = static_cast<int>(std::floor((ix.x - gs.xmin) / dx));
-      if (col < 0) col = 0;
-      if (col >= gs.ncol) col = gs.ncol - 1;
-
-      double x_mid = gs.xmin + (col + 0.5) * dx;
-      bool left_of_center = (ix.x <= x_mid);
+      int col = ix.col;
+      bool left_of_center = ix.left;
 
       if (left_of_center) {
         int new_winding = winding + ix.delta;

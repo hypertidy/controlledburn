@@ -12,3 +12,4 @@ points_mixed,NA,NA,NA,2,NA
 wall_crossing,2.12875,0,NA,NA,1e-6
 hole_boundary,78.44,0,NA,NA,1e-6
 wall_notch,2.5,0,NA,NA,1e-6
+corner_pass,6.157834037584929,0,NA,NA,1e-6

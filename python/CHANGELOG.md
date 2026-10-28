@@ -9,6 +9,16 @@ across languages, though the index base differs (Python 0-based, R
 
 ### Fixes from the shared C++ core
 
+- **Corner passes and near-coincident edges (coverage mode, #25).** A
+  cell was overcounted where an edge passes exactly through a cell
+  corner, or where two edges nearly coincide (a sliver, a ring doubling
+  back along itself), by up to a whole cell. Cells crossed by several
+  traversals now get their coverage by Green's theorem, which does not
+  depend on the order of the traversal ends. Covered in
+  `tests/test_regressions.py` and the shared `corner_pass` fixture.
+- **Cell-centre ties (approx mode, #25).** The side of a cell centre an
+  edge passes is decided exactly, so a centre two edges both miss by
+  1e-13 no longer burns.
 - **Holes removed too much area (coverage mode).** A cell crossed only by
   a hole's boundary, inside the exterior, got the hole's negative fraction
   alone and was dropped; it now keeps 1 minus the hole's fraction. Covered

@@ -11,6 +11,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <algorithm>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -537,6 +538,135 @@ static void test_spike_cell_stays_covered() {
     CHECK(covered);
 }
 
+// ---- Corner passes and near-coincident edges (#25, controlledburn-rs#6) ----
+
+// Value of one cell from the tables: 1 for a run, the fraction for an edge.
+static double cell_value(const BurnResult& r, int row, int col) {
+    double v = 0.0;
+    for (const auto& run : r.runs)
+        if (run.row == row && run.col_start <= col && run.col_end > col) v += 1.0;
+    for (const auto& e : r.edges)
+        if (e.row == row && e.col == col) v += e.fraction;
+    return v;
+}
+
+// Every start vertex, both orientations.
+static std::vector<CoordSeq> all_starts(const CoordSeq& ring) {
+    std::vector<CoordSeq> out;
+    size_t n = ring.size() - 1;
+    for (int rev = 0; rev < 2; rev++) {
+        for (size_t k = 0; k < n; k++) {
+            CoordSeq r;
+            for (size_t i = 0; i < n; i++) r.push_back(ring[(i + k) % n]);
+            if (rev) std::reverse(r.begin(), r.end());
+            r.push_back(r.front());
+            out.push_back(r);
+        }
+    }
+    return out;
+}
+
+// Edges exactly through a cell corner. The crossing came out an ulp off the
+// corner, the next cell got a sliver traversal along its wall, and the chain
+// chaser read it as a slab of the cell or all of it. Exact values from
+// controlledburn-rs's CoverageWindow.
+static void test_corner_pass() {
+    CoordSeq a = {{13.49307281327689, 0.280951025273552}, {13.774064548591133, 0.1953615710514231},
+                  {14.150447247739818, 0.19536157105142304}, {14.454947247739819, 0.2945346261241548},
+                  {14.571255898165475, 0.455}, {14.454947247739819, 0.6154653738758452},
+                  {17.207761779641103, 4.932666216410308}, {12.6, 1.4000000000000004},
+                  {13.649999999999999, 0.34999999999999964}, {6.0614012054372814, 0.45500000000000046},
+                  {13.49307281327689, 0.280951025273552}};
+    GridSpec ga{0, 0, 20.299999999999997, 9.1, 29, 13};
+    for (const auto& r : all_starts(a)) {
+        BurnResult res = burn({make_polygon({r})}, ga);
+        CHECK_NEAR(cell_value(res, 12, 18), 0.09430835509369358, 2e-6);
+        CHECK_NEAR(covered_area(res, ga), 6.157834037584929, 1e-5);
+    }
+    CoordSeq b = {{2.9404541633227357, 6.235726447802992}, {7.140490483291759, -0.6880522184656641},
+                  {12.79922599805937, 6.649999999999999}, {13.222799970968294, 7.999704574445243},
+                  {12.79922599805937, 8.351528741555857}, {8.3, 10.399999999999999},
+                  {12.05, 6.649999999999999}, {2.9404541633227357, 6.235726447802992}};
+    GridSpec gb{-1.7, 2.9, 35.8, 17.9, 15, 6};
+    for (const auto& r : all_starts(b)) {
+        CHECK_NEAR(cell_value(burn({make_polygon({r})}, gb), 4, 4), 0.4545231387355177, 2e-6);
+    }
+    CoordSeq c = {{0.22857142857142856, 0.657142857142857}, {0.3, 0.7285714285714284},
+                  {0.5385327833222915, 0.5669218770762636}, {0.3826046772369731, 0.8968780211084503},
+                  {0.44285714285714284, 0.9150607669103901}, {0.6141351860119378, 1.2110801232422874},
+                  {0.3, 0.9407750526246758}, {0.37142857142857144, 0.7999999999999999},
+                  {0.22857142857142856, 0.657142857142857}};
+    GridSpec gc{0.3, 0.3, 1.0142857142857142, 1.157142857142857, 5, 6};
+    for (const auto& r : all_starts(c)) {
+        CHECK_NEAR(cell_value(burn({make_polygon({r})}, gc), 3, 0), 0.338841372753266, 2e-6);
+    }
+    // From CI on controlledburn-rs#17: lattice diagonals through the grid's
+    // top-right corner; row 2 col 9 burned as fully covered.
+    CoordSeq d = {{-178.8212054697768, -87.7088728160751}, {-178.7142857142857, -87.71428571428572},
+                  {-178.28571428571428, -87.28571428571429}, {-178.64285714285714, -87.64285714285715},
+                  {-178.8212054697768, -87.61314778927319}, {-178.8212054697768, -87.7088728160751}};
+    GridSpec gd{-180.0, -90.0, -178.42857142857142, -87.28571428571429, 11, 19};
+    for (const auto& r : all_starts(d)) {
+        CHECK_NEAR(cell_value(burn({make_polygon({r})}, gd), 2, 9), 0.14582257, 2e-6);
+    }
+}
+
+// A sliver of area 4e-13: its two long edges cross cell walls an ulp apart
+// in the wrong order, and the chain chaser returned the complement, whole
+// cells. Covers nothing at any resolution.
+static void test_sliver_coincident_edges() {
+    CoordSeq s = {{1008.7666666666667, -2000.7}, {1003.7666666666667, -1999.7},
+                  {1002.1, -1999.3666666666666}, {1008.7666666666667, -2000.7}};
+    for (int k = 1; k <= 4; k++) {
+        GridSpec g{1000.1, -2000.7, 1009.7666666666667, -1998.0333333333333, 29 * k, 8 * k};
+        for (const auto& r : all_starts(s)) {
+            CHECK_NEAR(covered_area(burn({make_polygon({r})}, g), g), 0.0, 1e-5);
+        }
+    }
+}
+
+// A zero-width spike out to a cell corner and back: its coverage came out
+// 3e-16, and that record blanked a fully covered cell (row 25 col 4).
+static void test_spike_to_corner() {
+    CoordSeq s = {{0.09000464930083663, 0.2951258728043881}, {0.225, 0.2749999999999999},
+                  {0.2, 0.3500000000000001}, {0.275, 0.125}, {0.25, 0.44999999999999996},
+                  {0.2279343842256219, 0.4548286815756889}, {0.22617971754901423, 0.4856824868406428},
+                  {0.22173674555812387, 0.5020994537202749}, {0.2166843842256219, 0.49639790095734193},
+                  {0.09000464930083663, 0.2951258728043881}};
+    GridSpec g{0.0, 0.0, 0.25, 1.6, 5, 32};
+    for (const auto& r : all_starts(s)) {
+        CHECK_NEAR(cell_value(burn({make_polygon({r})}, g), 25, 4), 1.0, 2e-6);
+    }
+}
+
+// A triangle below the grid traces part of the grid's bottom edge out and
+// back. One direction landed in the bottom row and the other in the padding
+// row, and the bottom-row cells, with a single traversal along their wall,
+// burned 1 (exact 0).
+static void test_wall_traced_both_ways() {
+    CoordSeq s = {{2.837265806357478, 0.30000000000000004}, {3.014285714285714, 0.30000000000000004},
+                  {3.0402714541578892, 0.22857142857142854}, {2.9374143113007465, 0.3},
+                  {2.837265806357478, 0.30000000000000004}};
+    GridSpec g{0.3, 0.3, 3.728571428571428, 1.0142857142857142, 24, 5};
+    for (const auto& r : all_starts(s)) {
+        CHECK_NEAR(covered_area(burn({make_polygon({r})}, g), g), 0.0, 1e-9);
+    }
+}
+
+// Approx: two edges of a ring doubling back along a line both pass 1e-13
+// right of the centre of row 13 col 2; one rounded intercept landed on it
+// and the left-inclusive rule burned the cell. Decided exactly now.
+static void test_approx_centre_tie() {
+    CoordSeq s = {{1000.4, -2000.7}, {1001.3000000000001, -1999.8000000000002},
+                  {1001.293897355882, -1999.95}, {1001.3511730051581, -1999.8000000000002},
+                  {1002.0812267040778, -1999.6101141954598}, {1002.398382455067, -1997.7693056968183},
+                  {1001.293897355882, -1999.4751141954598}, {1001.45, -1999.65}, {1000.4, -2000.7}};
+    GridSpec g{1000.1, -2000.7, 1002.8000000000001, -1996.2, 9, 15};
+    for (const auto& r : all_starts(s)) {
+        CHECK(cell_value(burn({make_polygon({r})}, g, BurnMode::Approx), 13, 2) == 0.0);
+    }
+}
+
 int main() {
     test_aligned_rectangle();
     test_offset_rectangle();
@@ -565,6 +695,11 @@ int main() {
     test_hole_boundary_cells();
     test_wall_notch_cell();
     test_spike_cell_stays_covered();
+    test_corner_pass();
+    test_sliver_coincident_edges();
+    test_spike_to_corner();
+    test_wall_traced_both_ways();
+    test_approx_centre_tie();
 
     if (failures == 0) {
         std::printf("all tests passed\n");
