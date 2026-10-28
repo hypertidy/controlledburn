@@ -153,14 +153,24 @@ test_that("a spike to a corner, and a wall traced both ways, stay exact", {
 
 test_that("an approx centre tie is decided exactly", {
   ## two edges along one line both pass 1e-13 right of the centre of 0-based
-  ## cell (13, 2); a rounded intercept landed on it and the cell burned
-  x <- c(1000.4, 1001.3000000000001, 1001.293897355882, 1001.3511730051581, 1002.0812267040778,
-         1002.398382455067, 1001.293897355882, 1001.45, 1000.4)
-  y <- c(-2000.7, -1999.8000000000002, -1999.95, -1999.8000000000002, -1999.6101141954598,
-         -1997.7693056968183, -1999.4751141954598, -1999.65, -2000.7)
+  ## cell (13, 2); a rounded intercept landed on it and the cell burned.
+  ## Hex literals: R parses 17-digit decimal literals with its own strtod,
+  ## which is an ulp off on platforms without an extended long double
+  ## (macOS arm64), and an ulp here moves the edges across the centre.
+  ## Decimal: x 1000.4 1001.3000000000001 1001.293897355882 1001.3511730051581
+  ## 1002.0812267040778 1002.398382455067 1001.293897355882 1001.45 1000.4;
+  ## y -2000.7 -1999.8000000000002 -1999.95 -1999.8000000000002
+  ## -1999.6101141954598 -1997.7693056968183 -1999.4751141954598 -1999.65
+  ## -2000.7; extent 1000.1 1002.8000000000001 -2000.7 -1996.2.
+  x <- c(0x1.f433333333333p+9, 0x1.f4a6666666667p+9, 0x1.f4a59e6db5f27p+9, 0x1.f4acf33cae323p+9,
+         0x1.f50a65a2fac9cp+9, 0x1.f532fe323fe81p+9, 0x1.f4a59e6db5f27p+9, 0x1.f4b999999999ap+9,
+         0x1.f433333333333p+9)
+  y <- c(-0x1.f42cccccccccdp+10, -0x1.f3f3333333334p+10, -0x1.f3fcccccccccdp+10, -0x1.f3f3333333334p+10,
+         -0x1.f3e70c1c6914dp+10, -0x1.f3713c4df61d8p+10, -0x1.f3de68455ed76p+10, -0x1.f3e999999999ap+10,
+         -0x1.f42cccccccccdp+10)
+  ext <- c(0x1.f40cccccccccdp+9, 0x1.f566666666667p+9, -0x1.f42cccccccccdp+10, -0x1.f30cccccccccdp+10)
   for (w in all_starts(x, y)) {
-    r <- burn(wk::as_wkb(wk::wkt(w)), extent = c(1000.1, 1002.8000000000001, -2000.7, -1996.2),
-              dimension = c(9L, 15L), mode = "approx")
+    r <- burn(wk::as_wkb(wk::wkt(w)), extent = ext, dimension = c(9L, 15L), mode = "approx")
     expect_equal(cell_value(r, 14, 3), 0)
   }
 })
