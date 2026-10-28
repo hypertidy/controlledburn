@@ -25,13 +25,13 @@ Source:
 [`DESCRIPTION`](https://github.com/hypertidy/controlledburn/blob/main/DESCRIPTION)
 
 Sumner M, Ross N (2026). *controlledburn: Sparse Geometry Rasterization
-with Exact Coverage Fractions*. R package version 0.3.2,
+with Exact Coverage Fractions*. R package version 0.3.2.9000,
 <https://hypertidy.github.io/controlledburn/>.
 
     @Manual{,
       title = {controlledburn: Sparse Geometry Rasterization with Exact Coverage Fractions},
       author = {Michael Sumner and Noam Ross},
       year = {2026},
-      note = {R package version 0.3.2},
+      note = {R package version 0.3.2.9000},
       url = {https://hypertidy.github.io/controlledburn/},
     }
