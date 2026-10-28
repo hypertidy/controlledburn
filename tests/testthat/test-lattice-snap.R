@@ -82,3 +82,95 @@ test_that("a zero-width spike into a covered cell keeps it covered", {
   ## the spike cell is row 14, col 17 (1-based): fully covered
   expect_true(any(r$runs$row == 14 & r$runs$col_start <= 17 & r$runs$col_end >= 17))
 })
+
+## ---- corner passes and near-coincident edges (#25, controlledburn-rs#6) ----
+
+## value of one 1-based cell from the tables
+cell_value <- function(r, row, col) {
+  sum(r$runs$row == row & r$runs$col_start <= col & r$runs$col_end >= col) +
+    sum(r$edges$fraction[r$edges$row == row & r$edges$col == col])
+}
+
+## WKT of every start vertex, both orientations, of a closed ring
+all_starts <- function(x, y) {
+  n <- length(x) - 1L
+  out <- character()
+  for (rev in c(FALSE, TRUE)) for (k in seq_len(n)) {
+    i <- ((seq_len(n) + k - 2L) %% n) + 1L
+    if (rev) i <- rev(i)
+    i <- c(i, i[1L])
+    out <- c(out, sprintf("POLYGON ((%s))", paste(sprintf("%.17g %.17g", x[i], y[i]), collapse = ", ")))
+  }
+  out
+}
+
+test_that("an edge exactly through a cell corner is not overcounted", {
+  ## (12.6, 1.4) -> (13.65, 0.35) passes through the top-right corner of
+  ## 0-based cell (12, 18). It burned 1.0; exact 0.0943.
+  x <- c(13.49307281327689, 13.774064548591133, 14.150447247739818, 14.454947247739819,
+         14.571255898165475, 14.454947247739819, 17.207761779641103, 12.6,
+         13.649999999999999, 6.0614012054372814, 13.49307281327689)
+  y <- c(0.280951025273552, 0.1953615710514231, 0.19536157105142304, 0.2945346261241548,
+         0.455, 0.6154653738758452, 4.932666216410308, 1.4000000000000004,
+         0.34999999999999964, 0.45500000000000046, 0.280951025273552)
+  for (w in all_starts(x, y)) {
+    r <- burn(wk::as_wkb(wk::wkt(w)), extent = c(0, 20.299999999999997, 0, 9.1), dimension = c(29L, 13L))
+    expect_equal(cell_value(r, 13, 19), 0.09430835509369358, tolerance = 1e-5)
+    expect_equal((sum(r$runs$col_end - r$runs$col_start + 1) + sum(r$edges$fraction)) * 0.49,
+                 6.157834037584929, tolerance = 1e-6)
+  }
+})
+
+test_that("a 4e-13 sliver with near-coincident edges covers nothing", {
+  x <- c(1008.7666666666667, 1003.7666666666667, 1002.1, 1008.7666666666667)
+  y <- c(-2000.7, -1999.7, -1999.3666666666666, -2000.7)
+  for (k in 1:4) for (w in all_starts(x, y)) {
+    r <- burn(wk::as_wkb(wk::wkt(w)), extent = c(1000.1, 1009.7666666666667, -2000.7, -1998.0333333333333),
+              dimension = c(29L * k, 8L * k))
+    expect_lt(sum(r$runs$col_end - r$runs$col_start + 1) + sum(r$edges$fraction), 1e-5)
+  }
+})
+
+test_that("a spike to a corner, and a wall traced both ways, stay exact", {
+  ## zero-width spike to the corner of 0-based cell (25, 4): fully covered
+  x <- c(0.09000464930083663, 0.225, 0.2, 0.275, 0.25, 0.2279343842256219, 0.22617971754901423,
+         0.22173674555812387, 0.2166843842256219, 0.09000464930083663)
+  y <- c(0.2951258728043881, 0.2749999999999999, 0.3500000000000001, 0.125, 0.44999999999999996,
+         0.4548286815756889, 0.4856824868406428, 0.5020994537202749, 0.49639790095734193, 0.2951258728043881)
+  for (w in all_starts(x, y)) {
+    r <- burn(wk::as_wkb(wk::wkt(w)), extent = c(0, 0.25, 0, 1.6), dimension = c(5L, 32L))
+    expect_equal(cell_value(r, 26, 5), 1)
+  }
+  ## a triangle below the grid traces its bottom edge out and back: nothing
+  x <- c(2.837265806357478, 3.014285714285714, 3.0402714541578892, 2.9374143113007465, 2.837265806357478)
+  y <- c(0.30000000000000004, 0.30000000000000004, 0.22857142857142854, 0.3, 0.30000000000000004)
+  for (w in all_starts(x, y)) {
+    r <- burn(wk::as_wkb(wk::wkt(w)), extent = c(0.3, 3.728571428571428, 0.3, 1.0142857142857142),
+              dimension = c(24L, 5L))
+    expect_equal(nrow(r$runs) + nrow(r$edges), 0L)
+  }
+})
+
+test_that("an approx centre tie is decided exactly", {
+  ## two edges along one line both pass 1e-13 right of the centre of 0-based
+  ## cell (13, 2); a rounded intercept landed on it and the cell burned.
+  ## Hex literals: R parses 17-digit decimal literals with its own strtod,
+  ## which is an ulp off on platforms without an extended long double
+  ## (macOS arm64), and an ulp here moves the edges across the centre.
+  ## Decimal: x 1000.4 1001.3000000000001 1001.293897355882 1001.3511730051581
+  ## 1002.0812267040778 1002.398382455067 1001.293897355882 1001.45 1000.4;
+  ## y -2000.7 -1999.8000000000002 -1999.95 -1999.8000000000002
+  ## -1999.6101141954598 -1997.7693056968183 -1999.4751141954598 -1999.65
+  ## -2000.7; extent 1000.1 1002.8000000000001 -2000.7 -1996.2.
+  x <- c(0x1.f433333333333p+9, 0x1.f4a6666666667p+9, 0x1.f4a59e6db5f27p+9, 0x1.f4acf33cae323p+9,
+         0x1.f50a65a2fac9cp+9, 0x1.f532fe323fe81p+9, 0x1.f4a59e6db5f27p+9, 0x1.f4b999999999ap+9,
+         0x1.f433333333333p+9)
+  y <- c(-0x1.f42cccccccccdp+10, -0x1.f3f3333333334p+10, -0x1.f3fcccccccccdp+10, -0x1.f3f3333333334p+10,
+         -0x1.f3e70c1c6914dp+10, -0x1.f3713c4df61d8p+10, -0x1.f3de68455ed76p+10, -0x1.f3e999999999ap+10,
+         -0x1.f42cccccccccdp+10)
+  ext <- c(0x1.f40cccccccccdp+9, 0x1.f566666666667p+9, -0x1.f42cccccccccdp+10, -0x1.f30cccccccccdp+10)
+  for (w in all_starts(x, y)) {
+    r <- burn(wk::as_wkb(wk::wkt(w)), extent = ext, dimension = c(9L, 15L), mode = "approx")
+    expect_equal(cell_value(r, 14, 3), 0)
+  }
+})

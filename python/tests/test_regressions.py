@@ -270,3 +270,65 @@ def test_zero_width_spike_cell_stays_covered():
     m = r.materialize(fn="sum", values=[1.0], edge_policy="fraction", background=0.0)
     assert m[13, 16] == pytest.approx(1.0)
     assert covered_area(r) == pytest.approx(3.026275470389206, rel=1e-6)
+
+
+# ---- corner passes and near-coincident edges (#25, controlledburn-rs#6) ---
+
+def all_starts(pts):
+    n = len(pts)
+    for rev in (False, True):
+        for k in range(n):
+            r = [pts[(i + k) % n] for i in range(n)]
+            yield shapely.Polygon(r[::-1] if rev else r)
+
+
+def cover(g, extent, shape, mode="coverage"):
+    r = cb.burn(g, extent=extent, shape=shape, mode=mode)
+    return r, r.materialize(fn="sum", values=[1.0], edge_policy="fraction", background=0.0)
+
+
+def test_edge_through_a_cell_corner_is_not_overcounted():
+    # (12.6, 1.4) -> (13.65, 0.35) passes through the top-right corner of
+    # cell (12, 18): it burned 1.0, exact 0.0943.
+    pts = [(13.49307281327689, 0.280951025273552), (13.774064548591133, 0.1953615710514231),
+           (14.150447247739818, 0.19536157105142304), (14.454947247739819, 0.2945346261241548),
+           (14.571255898165475, 0.455), (14.454947247739819, 0.6154653738758452),
+           (17.207761779641103, 4.932666216410308), (12.6, 1.4000000000000004),
+           (13.649999999999999, 0.34999999999999964), (6.0614012054372814, 0.45500000000000046)]
+    for g in all_starts(pts):
+        r, m = cover(g, (0, 20.299999999999997, 0, 9.1), (13, 29))
+        assert m[12, 18] == pytest.approx(0.09430835509369358, abs=2e-6)
+        assert covered_area(r) == pytest.approx(6.157834037584929, rel=1e-6)
+
+
+def test_sliver_with_near_coincident_edges_covers_nothing():
+    pts = [(1008.7666666666667, -2000.7), (1003.7666666666667, -1999.7), (1002.1, -1999.3666666666666)]
+    for k in (1, 2, 3, 4):
+        for g in all_starts(pts):
+            r, _ = cover(g, (1000.1, 1009.7666666666667, -2000.7, -1998.0333333333333), (8 * k, 29 * k))
+            assert covered_area(r) < 1e-5
+
+
+def test_spike_to_a_corner_and_wall_traced_both_ways():
+    pts = [(0.09000464930083663, 0.2951258728043881), (0.225, 0.2749999999999999),
+           (0.2, 0.3500000000000001), (0.275, 0.125), (0.25, 0.44999999999999996),
+           (0.2279343842256219, 0.4548286815756889), (0.22617971754901423, 0.4856824868406428),
+           (0.22173674555812387, 0.5020994537202749), (0.2166843842256219, 0.49639790095734193)]
+    for g in all_starts(pts):
+        _, m = cover(g, (0, 0.25, 0, 1.6), (32, 5))
+        assert m[25, 4] == pytest.approx(1.0)
+    pts = [(2.837265806357478, 0.30000000000000004), (3.014285714285714, 0.30000000000000004),
+           (3.0402714541578892, 0.22857142857142854), (2.9374143113007465, 0.3)]
+    for g in all_starts(pts):
+        r, _ = cover(g, (0.3, 3.728571428571428, 0.3, 1.0142857142857142), (5, 24))
+        assert len(r.runs) == 0 and len(r.edges) == 0
+
+
+def test_approx_centre_tie_is_decided_exactly():
+    pts = [(1000.4, -2000.7), (1001.3000000000001, -1999.8000000000002), (1001.293897355882, -1999.95),
+           (1001.3511730051581, -1999.8000000000002), (1002.0812267040778, -1999.6101141954598),
+           (1002.398382455067, -1997.7693056968183), (1001.293897355882, -1999.4751141954598),
+           (1001.45, -1999.65)]
+    for g in all_starts(pts):
+        _, m = cover(g, (1000.1, 1002.8000000000001, -2000.7, -1996.2), (15, 9), mode="approx")
+        assert m[13, 2] == 0.0

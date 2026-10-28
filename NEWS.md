@@ -1,3 +1,27 @@
+# controlledburn (development version)
+
+* Fixed (coverage mode): a cell was overcounted where a polygon edge passes
+  exactly through a cell corner, or where two edges nearly coincide (#25,
+  found by the controlledburn-rs property suite). An edge through a corner
+  gave a crossing an ulp off it and a sliver traversal along the next
+  cell's wall; the cell walker now exits through the corner itself. A cell
+  crossed by several traversals got its coverage from exactextract's chain
+  chaser, which depends on the order of the traversal ends around the cell;
+  rounding can swap two nearly coincident ends and the chaser then returned
+  the complement, a whole cell too much. Such cells, and a single traversal
+  lying along the cell walls, now use Green's theorem: each traversal adds
+  its own term, plus the cell width times the covered length of its left
+  wall, read from the row. A zero-width spike out to a corner vertex and
+  back no longer leaves a 1e-16 coverage record that blanks a covered cell.
+  The issue's ring covered 6.6016 instead of 6.1578; a 4e-13 sliver covered
+  up to 11 whole cells. A self-intersecting bowtie with its closing edge on
+  a column wall now covers the exact 32 cells, not 26.
+
+* Fixed (approx mode): which side of a cell centre an edge passes is now an
+  exact orientation test, not a comparison of the rounded intercept with
+  the centre. Two edges of a ring doubling back along a line, both 1e-13
+  right of a centre, burned that cell when one intercept rounded onto it.
+
 # controlledburn 0.3.2
 
 * Fixed a GCC 16 `-Warray-bounds` warning ("array subscript -1 is outside
