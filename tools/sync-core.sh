@@ -9,6 +9,7 @@
 #        LinkingTo: controlledburn)
 #   cpp/src/scanline.cpp -> src/core_scanline.cpp
 #   cpp/src/wkb.cpp      -> src/core_wkb.cpp
+#   cpp/src/no_fma.h     -> src/no_fma.h
 #
 # Include-path rewrites: the standalone core vendors its GEOS-free
 # exactextract subset under cpp/src/ee/, while the R package already
@@ -33,6 +34,7 @@ sed -e 's|#include "ee/analytical_coverage.h"|#include "analytical_coverage.h"|'
     cpp/src/scanline.cpp > src/core_scanline.cpp
 
 cp cpp/src/wkb.cpp src/core_wkb.cpp
+cp cpp/src/no_fma.h src/no_fma.h
 
 # License artefacts for the Python package: PEP 639 license-files must
 # live inside the python/ project tree, so they are copies of the root
@@ -49,4 +51,4 @@ if [ "$a" != "$b" ]; then
   exit 1
 fi
 
-echo "core synced: inst/include/controlledburn/, src/core_scanline.cpp, src/core_wkb.cpp, python/LICENSE, python/LICENSES/"
+echo "core synced: inst/include/controlledburn/, src/core_scanline.cpp, src/core_wkb.cpp, src/no_fma.h, python/LICENSE, python/LICENSES/"

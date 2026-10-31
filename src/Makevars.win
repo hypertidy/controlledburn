@@ -1,7 +1,5 @@
 PKG_CPPFLAGS = -I../inst/include -Iexactextract
 CXX_STD = CXX17
-# No fused multiply-add, so results match the Rust canon on every platform.
-PKG_CXXFLAGS = -ffp-contract=off
 
 OBJECTS = core_scanline.o core_wkb.o scanline_shim.o cpp11.o \
   exactextract/cell.o \

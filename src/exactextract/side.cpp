@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "../no_fma.h"  // first: no fused multiply-add (see header)
 #include <ostream>
 
 #include "side.h"
