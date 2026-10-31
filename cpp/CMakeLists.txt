@@ -46,6 +46,11 @@ if(CONTROLLEDBURN_BUILD_TESTS)
   target_link_libraries(test_parity_fixtures PRIVATE controlledburn)
   add_test(NAME parity_fixtures COMMAND test_parity_fixtures
            "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures")
+
+  add_executable(test_canon_tables tests/test_canon_tables.cpp)
+  target_link_libraries(test_canon_tables PRIVATE controlledburn)
+  add_test(NAME canon_tables COMMAND test_canon_tables
+           "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures")
 endif()
 
 include(GNUInstallDirs)
