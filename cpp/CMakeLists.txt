@@ -31,6 +31,8 @@ target_include_directories(controlledburn
 # (Python extension modules, R shared libs).
 set_target_properties(controlledburn PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# No fused multiply-add: every core source includes src/no_fma.h first,
+# a pragma rather than a flag so the R and Python builds get it too.
 target_compile_options(controlledburn PRIVATE
   $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra>
 )
@@ -45,6 +47,11 @@ if(CONTROLLEDBURN_BUILD_TESTS)
   add_executable(test_parity_fixtures tests/test_parity_fixtures.cpp)
   target_link_libraries(test_parity_fixtures PRIVATE controlledburn)
   add_test(NAME parity_fixtures COMMAND test_parity_fixtures
+           "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures")
+
+  add_executable(test_canon_tables tests/test_canon_tables.cpp)
+  target_link_libraries(test_canon_tables PRIVATE controlledburn)
+  add_test(NAME canon_tables COMMAND test_canon_tables
            "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures")
 endif()
 

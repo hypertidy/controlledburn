@@ -1,5 +1,18 @@
 # controlledburn (development version)
 
+* The core no longer uses fused multiply-add. Every core source file
+  includes `no_fma.h` first, which turns off floating-point contraction by
+  pragma (clang, GCC, MSVC), so the R, Python and CMake builds all get it
+  without a compiler flag (`-ffp-contract=off` in `Makevars` is a
+  non-portable flag for R CMD check). Without it, clang on arm64 macOS and
+  GCC on FMA-capable targets (aarch64, `-march=x86-64-v3`) moved run
+  boundaries on knife-edge inputs, so results differed by platform. The
+  Rust crate never fuses. Found by the canonical-table check
+  (`cpp/tests/test_canon_tables.cpp`), which now passes with GCC and clang
+  on FMA targets. All core translation units must agree: turning
+  contraction off in the scanline file alone gave more differences, not
+  fewer.
+
 * Fixed (coverage mode): a cell was overcounted where a polygon edge passes
   exactly through a cell corner, or where two edges nearly coincide (#25,
   found by the controlledburn-rs property suite). An edge through a corner
