@@ -31,8 +31,11 @@ target_include_directories(controlledburn
 # (Python extension modules, R shared libs).
 set_target_properties(controlledburn PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# -ffp-contract=off: no fused multiply-add. The Rust crate (the canon)
+# never fuses, and clang on arm64 (and GCC with FMA targets) otherwise
+# does, which moves cell boundaries on knife-edge inputs (canon_tables).
 target_compile_options(controlledburn PRIVATE
-  $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra>
+  $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -ffp-contract=off>
 )
 
 if(CONTROLLEDBURN_BUILD_TESTS)

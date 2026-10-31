@@ -1,5 +1,12 @@
 # controlledburn (development version)
 
+* The core is now compiled with `-ffp-contract=off` (CMake, so the Python
+  build too, and `src/Makevars`). Without it, clang on arm64 macOS, and GCC
+  on FMA-capable targets, fuse multiply-adds and move run boundaries on
+  knife-edge inputs, so results differed by platform. The Rust crate never
+  fuses. Found by the canonical-table check (`cpp/tests/test_canon_tables.cpp`),
+  which now passes on macOS and with `-march=x86-64-v3`.
+
 * Fixed (coverage mode): a cell was overcounted where a polygon edge passes
   exactly through a cell corner, or where two edges nearly coincide (#25,
   found by the controlledburn-rs property suite). An edge through a corner
