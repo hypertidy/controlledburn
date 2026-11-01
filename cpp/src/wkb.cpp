@@ -3,6 +3,7 @@
 // Copyright (c) 2025 Michael Sumner
 // Licensed under Apache License 2.0
 
+#include "no_fma.h"  // first: no fused multiply-add (see header)
 #include "controlledburn/wkb.hpp"
 #include "controlledburn/burn.hpp"
 
