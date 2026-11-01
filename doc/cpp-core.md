@@ -60,7 +60,9 @@ Lines and points are unaffected by mode.
 
 ### Python bindings (`python/`)
 
-pybind11 + scikit-build-core. `burn()` takes WKB bytes, shapely
+PyO3 + maturin over the controlledburn Rust crate (hypertidy/controlledburn-rs),
+not over this core; the canonical tables (`fixtures/canon-tables.txt`) keep the
+two in step record by record. `burn()` takes WKB bytes, shapely
 geometries, geopandas objects or Arrow WKB arrays, and returns numpy
 structured arrays; `materialize()` returns dense 2D arrays. Extent is
 `(xmin, xmax, ymin, ymax)` as in R; `shape` is numpy-style
@@ -79,7 +81,7 @@ and `cpp-core` branches:
 - **C++ core tests** (`.github/workflows/cpp-core-test.yaml`): cmake +
   ctest on ubuntu-latest and macos-latest.
 - **Python tests** (`.github/workflows/python-test.yaml`): pytest on
-  ubuntu-latest and macos-latest, Python 3.11 and 3.12.
+  ubuntu-latest, macos-latest and windows-latest, Python 3.11 and 3.12.
 - **R CMD check** (`.github/workflows/R-CMD-check-check.yaml`):
   macOS-latest (release) and ubuntu-latest (release).
 
@@ -182,9 +184,10 @@ dependency is gone:
 1. **Port target/snap/clamp into `materialize.hpp`** using the
    resurrected `test-materialise.R` as the spec (chunked windowed reads
    for Python too).
-2. **Python sdist/PyPI**: vendor the core into `python/` (sync step
-   like the R side) when a first release is wanted.
+2. **Python sdist/PyPI**: no vendoring needed; the Python package builds
+   from the `controlledburn` crate on crates.io.
 3. **fasterize convergence**: point fasterize at the core (engine +
    pixel-function consumer both exist now); approx mode provides the
    center-rule sweep.
-4. Later: Rust binding candidate (same WKB-in, tables-out contract).
+4. R onto the Rust crate (extendr), after which this core is a library
+   for C++ users only.

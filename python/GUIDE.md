@@ -45,9 +45,9 @@ From a git checkout:
 pip install ./python
 ```
 
-Needs a C++17 compiler and CMake 3.16 or newer (supplied through
-scikit-build-core). The build reads the core from `../cpp`, so installing
-straight from GitHub also works:
+Needs a Rust toolchain (stable, from https://rustup.rs); the build
+backend is maturin, and the engine is the `controlledburn` crate from
+crates.io, so installing straight from GitHub also works:
 
 ```sh
 pip install "git+https://github.com/hypertidy/controlledburn#subdirectory=python"
@@ -189,7 +189,7 @@ cb.burn(wkb, extent=(0, 10, 0, 10), shape=(0, 10))
 
 As in the R package, both arguments can be skipped, or a `resolution`
 given instead of a shape. When `extent` is omitted it comes from a
-WKB-envelope scan in the C++ core, so no shapely is needed for it on any
+WKB-envelope scan in the core, so no shapely is needed for it on any
 input path. `cb.resolve_grid()` shows what `burn()` will use:
 
 ```python
@@ -338,7 +338,7 @@ the recommended way to move geometry between the two.
 ### Deriving the grid from Arrow input
 
 Arrow input needs no shapely to fit a default grid: when `extent` is
-omitted it is computed by a WKB-envelope scan in the C++ core, and
+omitted it is computed by a WKB-envelope scan in the core, and
 `shape` / `resolution` then follow the usual rules.
 
 ```python
@@ -911,7 +911,9 @@ out. controlledburn does no geodesy.
 cell-for-cell fasterize agreement use `mode="approx"` at burn time.
 
 **8. Independent versions and index base.** The Python package is
-versioned separately from the R package. They share the same C++ core;
+versioned separately from the R package. Python builds from the Rust
+crate and R from the C++ core, which is checked against the Rust crate
+record by record (`fixtures/canon-tables.txt`);
 the *coverage values* match, but Python is 0-based with an exclusive
 `col_end` while R is 1-based inclusive. See `python/CHANGELOG.md` for the
 Python history.
@@ -951,7 +953,10 @@ suites precisely to keep it that way.
 
 ## See also
 
-- `cpp/README.md` and `doc/cpp-core.md` for the C++ core.
+- [controlledburn-rs](https://github.com/hypertidy/controlledburn-rs), the
+  Rust crate the Python package builds from.
+- `cpp/README.md` and `doc/cpp-core.md` for the C++ core the R package
+  builds from.
 - `vignette("architecture")` in the R package for how the engine works.
 - `inst/docs-design/` for the design records, including the unified
   polygon/line/point rasterization design.

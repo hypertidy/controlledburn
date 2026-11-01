@@ -1,0 +1,17 @@
+[package]
+name = "controlledburn-python"
+version = "0.4.0"
+edition = "2021"
+publish = false
+description = "Python bindings for controlledburn, built from the Rust crate"
+license = "Apache-2.0"
+repository = "https://github.com/hypertidy/controlledburn"
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+controlledburn = "0.2.4"
+numpy = "0.30"
+pyo3 = { version = "0.30", features = ["extension-module"] }

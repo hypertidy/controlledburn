@@ -1,11 +1,26 @@
 # Changelog — controlledburn (Python)
 
-The Python package is versioned independently of the R package. Both
-share the same C++ core; coverage fractions, lengths and areas match
+The Python package is versioned independently of the R package. Python
+builds from the controlledburn Rust crate and R from the C++ core, which
+is checked against it record by record; coverage fractions, lengths and areas match
 across languages, though the index base differs (Python 0-based, R
 1-based -- see 0.4.0).
 
 ## Unreleased
+
+### Built from the Rust crate
+
+- **The binding is now PyO3 over the `controlledburn` Rust crate**
+  (hypertidy/controlledburn-rs, the canonical implementation), replacing
+  the pybind11 module over the C++ core. The package API is unchanged:
+  `controlledburn._core` is a small Python shim with the same functions
+  and signatures over the native `controlledburn._native`. Output is byte
+  for byte the same as the C++ binding on all 240 canonical cases, and
+  `tests/test_canon_tables.py` now checks every record of both modes
+  against `fixtures/canon-tables.txt`. Building needs a Rust toolchain
+  (maturin) instead of a C++17 compiler and CMake. The engine comes from
+  crates.io, so an sdist builds without vendoring, and wheels are pure
+  Rust with no system dependencies.
 
 ### Fixes from the shared C++ core
 
