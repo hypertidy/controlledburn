@@ -1,5 +1,10 @@
 # controlledburn (development version)
 
+* The Python package (`python/`) now builds from the controlledburn Rust
+  crate (PyO3 + maturin) instead of this C++ core, with an unchanged API
+  and identical output on the canonical tables. The R package still
+  builds from the C++ core.
+
 * The core no longer uses fused multiply-add. Every core source file
   includes `no_fma.h` first, which turns off floating-point contraction by
   pragma (clang, GCC, MSVC), so the R, Python and CMake builds all get it

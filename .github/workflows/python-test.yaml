@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         python-version: ['3.11', '3.12']
         # One combination also installs geopandas + geoarrow-pyarrow so the
         # real-source Arrow tests in test_arrow.py actually run instead of
@@ -32,6 +32,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
+      # The extension is built from the controlledburn Rust crate (maturin).
+      - uses: dtolnay/rust-toolchain@stable
 
       - name: Install package and test dependencies
         run: |

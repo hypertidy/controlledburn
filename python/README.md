@@ -2,7 +2,8 @@
 
 Scanline polygon/line/point rasterization with exact coverage
 fractions, O(perimeter) in time and memory, producing sparse output.
-Python bindings (pybind11) over the pure C++17 core in ../cpp.
+Python bindings (PyO3) over the controlledburn Rust crate
+(hypertidy/controlledburn-rs), the canonical implementation.
 
 ## Usage
 
@@ -70,12 +71,11 @@ From the repository root:
 pip install ./python
 ```
 
-Requires a C++17 compiler and CMake >= 3.16 (via scikit-build-core).
-The build references the core at ../cpp, so it works for git checkouts
-and `pip install git+...#subdirectory=python`; publishing an sdist to
-PyPI would need the core vendored into this tree first (a sync step
-like the R side's tools/sync-core.sh) -- deliberately deferred until a
-first release.
+Requires a Rust toolchain (stable, via https://rustup.rs) to build from
+source; the build backend is maturin. The engine is the `controlledburn`
+crate from crates.io, so a git checkout, `pip install
+git+...#subdirectory=python` and an sdist all build the same way, and
+wheels are pure Rust with no system dependencies.
 
 ## License
 
