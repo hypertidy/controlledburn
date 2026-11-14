@@ -1,4 +1,4 @@
-# Features aligned with the controlledburn Rust crate (0.3.1): burn options
+# Features aligned with the controlledburn Rust crate (0.3.2): burn options
 # (merge_parts, coalesce_runs, id_offset, threads), burning onto a window
 # (target), slice_burn() and relate_cells(). The core's records are checked
 # against the crate itself in cpp/tests/test_canon_ops.cpp; these tests

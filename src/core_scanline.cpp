@@ -1593,6 +1593,8 @@ static unsigned resolve_threads(unsigned threads) {
   return n == 0 ? 1 : n;
 }
 
+static size_t work_from(size_t n, double lo, double hi, const GridSpec& grid);
+
 // A geometry's estimated burn cost: one, plus its coordinates, plus the
 // grid rows its extent spans, the extent taken from at most 16
 // coordinates of each part. As `work` in controlledburn-rs.
@@ -1621,6 +1623,19 @@ static size_t work(const Geometry& g, const GridSpec& grid) {
     if (!p.rings.empty()) part(p.rings[0]);
     for (size_t r = 1; r < p.rings.size(); r++) n += p.rings[r].size();
   }
+  return work_from(n, lo, hi, grid);
+}
+
+// work() of a WKB blob, read without building the geometry; 1 for a blob
+// that is empty or does not parse. As `work_wkb` in controlledburn-rs.
+static size_t work_wkb(const WKBSpan& s, const GridSpec& grid) {
+  size_t n;
+  double lo, hi;
+  if (!detail::wkb_sample_extent(s.data, s.size, n, lo, hi)) return 1;
+  return work_from(n, lo, hi, grid);
+}
+
+static size_t work_from(size_t n, double lo, double hi, const GridSpec& grid) {
   lo = std::max(lo, grid.ymin);
   hi = std::min(hi, grid.ymax);
   size_t rows = 0;
@@ -1719,6 +1734,11 @@ static void check_window(const GridSpec& gs, uint32_t row0, uint32_t row1,
 
 } // anonymous namespace
 
+namespace detail {
+size_t burn_work(const Geometry& g, const GridSpec& grid) { return work(g, grid); }
+size_t burn_work_wkb(const WKBSpan& s, const GridSpec& grid) { return work_wkb(s, grid); }
+} // namespace detail
+
 // ---- Public entry points ----
 
 BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs,
@@ -1770,29 +1790,23 @@ BurnResult burn_wkb_par(const std::vector<WKBSpan>& wkb, const GridSpec& gs,
   if (opts.id_offset < 0) {
     throw std::invalid_argument("id_offset " + std::to_string(opts.id_offset) + " is negative");
   }
-  std::vector<Parsed> parsed(wkb.size());
-  for (size_t k = 0; k < wkb.size(); k++) parsed[k] = parse_one(wkb[k]);
-  // burn_wkb checks each non-empty blob's id; the last such is enough.
-  for (size_t k = wkb.size(); k-- > 0;) {
-    if (!parsed[k].skip) { geom_id(opts, k); break; }
+  // burn_wkb checks each non-empty blob's id in turn: throw for the first
+  // whose id is beyond int32, as it does.
+  for (size_t k = static_cast<size_t>(INT32_MAX - opts.id_offset) + 1; k < wkb.size(); k++) {
+    if (wkb[k].data && wkb[k].size != 0) geom_id(opts, k);
   }
+  // Each blob is parsed by the thread that burns it, so no parsed
+  // geometry outlives its burn; the work is read from the bytes.
   FullGrid full_grid = make_full_grid(gs);
   BurnResult out;
   bool done = run_parallel(
-      wkb.size(), threads,
-      [&](size_t k) { return parsed[k].skip || parsed[k].failed ? size_t(1) : work(parsed[k].g, gs); },
+      wkb.size(), threads, [&](size_t k) { return work_wkb(wkb[k], gs); },
       [&](size_t k, BurnResult& o) {
-        if (parsed[k].skip) return;
-        burn_parsed(parsed[k], geom_id(opts, k), full_grid, gs, o, opts, nullptr);
+        if (!wkb[k].data || wkb[k].size == 0) return;
+        burn_parsed(parse_one(wkb[k]), geom_id(opts, k), full_grid, gs, o, opts, nullptr);
       },
       out);
-  if (done) return out;
-  BurnResult serial;
-  for (size_t k = 0; k < wkb.size(); k++) {
-    if (parsed[k].skip) continue;
-    burn_parsed(parsed[k], geom_id(opts, k), full_grid, gs, serial, opts, nullptr);
-  }
-  return serial;
+  return done ? out : burn_wkb(wkb, gs, opts);
 }
 
 BurnResult burn_window(const std::vector<Geometry>& geoms, const GridSpec& gs,

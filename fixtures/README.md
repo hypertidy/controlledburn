@@ -55,7 +55,7 @@ Each row in `expected.csv` defines the expected results:
   `cpp/` until the test passes. R and Python see the same core through
   `tools/sync-core.sh`, so they need no copy of this check.
 
-- **canon-ops.txt** -- the Rust crate's answers (controlledburn 0.3.1 on
+- **canon-ops.txt** -- the Rust crate's answers (controlledburn 0.3.2 on
   crates.io) for the operations the C++ core ports from it, on the inputs
   of canon-tables.txt plus eight fixed `relate_cells` cases: burns with
   the default options (runs coalesced, parts merged) and with each option

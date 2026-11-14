@@ -71,7 +71,7 @@ adds 1 to row/col/col_start/id (leaving `col_end`) to restore its
 
 ### Options and operations (from the Rust crate)
 
-The API follows the controlledburn Rust crate (0.3.1), the canonical
+The API follows the controlledburn Rust crate (0.3.2), the canonical
 implementation, with the same defaults and the same records
 (`tests/test_canon_ops.cpp` checks every operation against the crate's
 own answers in `fixtures/canon-ops.txt`).

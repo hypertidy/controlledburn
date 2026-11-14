@@ -2,7 +2,7 @@
 // record for record against the crate.
 //
 // fixtures/canon-ops.txt is written by tools/canon-ops (controlledburn
-// crate 0.3.1) from the inputs of fixtures/canon-tables.txt: burns with
+// crate 0.3.2) from the inputs of fixtures/canon-tables.txt: burns with
 // the default options (coalesced runs, merged parts) and others, burns
 // onto windows, slice_tiles, merge_cells, crop and relate_cells, in both
 // modes. This test recomputes each with the C++ core and requires the
@@ -20,7 +20,9 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace controlledburn;
@@ -218,6 +220,147 @@ CoordSeq ring(double cx, double cy, double r, int k, double phase) {
     return v;
 }
 
+// WKB of `g` in either byte order, with `extra` (0-2) zero ordinates after
+// x and y: ISO codes (1000, 3000), or EWKB flags and an SRID when `ewkb`.
+struct WkbWriter {
+    bool big;
+    size_t extra;
+    bool ewkb;
+    std::vector<uint8_t> b;
+
+    void u32(uint32_t v) {
+        for (int i = 0; i < 4; i++)
+            b.push_back(static_cast<uint8_t>(big ? v >> (8 * (3 - i)) : v >> (8 * i)));
+    }
+    void f64(double d) {
+        uint64_t u;
+        std::memcpy(&u, &d, 8);
+        for (int i = 0; i < 8; i++)
+            b.push_back(static_cast<uint8_t>(big ? u >> (8 * (7 - i)) : u >> (8 * i)));
+    }
+    void head(uint32_t base, bool top) {
+        b.push_back(big ? 0 : 1);
+        if (ewkb) {
+            uint32_t flags = (extra >= 1 ? 0x80000000u : 0) | (extra >= 2 ? 0x40000000u : 0);
+            u32(base | flags | (top ? 0x20000000u : 0));
+            if (top) u32(4326);
+        } else {
+            u32(base + (extra == 0 ? 0 : extra == 1 ? 1000 : 3000));
+        }
+    }
+    void pt(const Coord& c) {
+        f64(c.x);
+        f64(c.y);
+        for (size_t i = 0; i < extra; i++) f64(0.0);
+    }
+    void seq(const CoordSeq& s) {
+        u32(static_cast<uint32_t>(s.size()));
+        for (const auto& c : s) pt(c);
+    }
+    void poly(const Polygon& p) {
+        u32(static_cast<uint32_t>(p.rings.size()));
+        for (const auto& r : p.rings) seq(r);
+    }
+    std::vector<uint8_t> write(const Geometry& g) {
+        b.clear();
+        switch (g.kind) {
+        case GeomKind::Point: head(1, true); pt(g.points[0][0]); break;
+        case GeomKind::LineString: head(2, true); seq(g.lines[0]); break;
+        case GeomKind::Polygon: head(3, true); poly(g.polygons[0]); break;
+        case GeomKind::MultiPoint:
+            head(4, true);
+            u32(static_cast<uint32_t>(g.points.size()));
+            for (const auto& p : g.points) { head(1, false); pt(p[0]); }
+            break;
+        case GeomKind::MultiLineString:
+            head(5, true);
+            u32(static_cast<uint32_t>(g.lines.size()));
+            for (const auto& l : g.lines) { head(2, false); seq(l); }
+            break;
+        case GeomKind::MultiPolygon:
+            head(6, true);
+            u32(static_cast<uint32_t>(g.polygons.size()));
+            for (const auto& p : g.polygons) { head(3, false); poly(p); }
+            break;
+        }
+        return b;
+    }
+};
+
+// burn_wkb_par equals burn_wkb, with the blobs of `geoms` in both byte
+// orders, ISO and EWKB, with Z and M, and with empty and unparseable
+// blobs among them; and each blob's work read from its bytes equals the
+// work of the parsed geometry.
+void check_wkb_threads(std::vector<Geometry> geoms, const GridSpec& g) {
+    // kinds the polygon-and-line set lacks: a lone point, a NaN point (POINT
+    // EMPTY), an empty polygon, and a multi-line whose last coordinate alone
+    // reaches higher (38 coordinates, so the sample's step of 3 misses none
+    // but the last)
+    for (int i = 0; i < 40; i++) {
+        double x = 5.0 + 9.0 * i, y = 20.0 + 4.0 * i;
+        Geometry p; p.kind = GeomKind::Point; p.points.push_back({{x, y}});
+        Geometry e; e.kind = GeomKind::Point; e.points.push_back({{std::nan(""), y}});
+        Geometry ep; ep.kind = GeomKind::Polygon; ep.polygons.push_back(Polygon{});
+        Geometry ml; ml.kind = GeomKind::MultiLineString;
+        ml.lines.push_back(ring(x, y, 2.0, 8, i));
+        ml.lines.push_back(CoordSeq{});
+        CoordSeq open;
+        for (int k = 0; k < 38; k++) open.push_back({x + 0.2 * k, k == 37 ? y + 5.0 : y});
+        ml.lines.push_back(open);
+        for (auto* q : {&p, &e, &ep, &ml}) geoms.insert(geoms.begin() + 61 * i, *q);
+    }
+    std::vector<std::vector<uint8_t>> blobs;
+    for (size_t k = 0; k < geoms.size(); k++) {
+        if (k % 97 == 13) blobs.push_back({});                  // empty: skipped
+        else if (k % 89 == 7) blobs.push_back({1, 3, 0, 0, 0, 7});  // truncated: a note
+        else {
+            WkbWriter w{k % 2 == 1, k % 3, k % 5 == 2, {}};
+            blobs.push_back(w.write(geoms[k]));
+        }
+    }
+    std::vector<WKBSpan> spans;
+    for (const auto& b : blobs) spans.push_back(WKBSpan{b.data(), b.size()});
+    spans[spans.size() / 2] = WKBSpan{nullptr, 0};             // null: skipped
+
+    size_t total = 0, bad_work = 0;
+    for (const auto& s : spans) {
+        size_t w = detail::burn_work_wkb(s, g);
+        total += w;
+        size_t want = 1;
+        if (s.data && s.size) {
+            try { want = detail::burn_work(parse_wkb(s.data, s.size), g); } catch (const WKBParseError&) {}
+        }
+        if (w != want) bad_work++;
+    }
+    check(bad_work == 0, "work read from WKB equals work of the parsed geometry");
+    check(total > 8 * 8192, "WKB burn is large enough for threads");
+
+    for (BurnMode mode : {BurnMode::Coverage, BurnMode::Approx}) {
+        for (bool merge : {true, false}) {
+            BurnOptions o = BurnOptions(mode).with_merge_parts(merge).with_id_offset(3);
+            BurnResult serial = burn_wkb(spans, g, o);
+            check(!serial.notes.empty(), "the truncated blobs give notes");
+            for (unsigned t : {2u, 5u, 0u}) {
+                check(same(burn_wkb_par(spans, g, o, t), serial), "burn_wkb_par equals burn_wkb");
+            }
+        }
+    }
+    // errors as burn_wkb's: a bad grid, a negative offset, an id beyond int32
+    GridSpec bad{0.0, 0.0, 10.0, 10.0, 0, 10};
+    std::vector<std::pair<GridSpec, BurnOptions>> errs = {
+        {bad, BurnOptions()},
+        {g, BurnOptions().with_id_offset(-1)},
+        {g, BurnOptions().with_id_offset(INT32_MAX)},
+    };
+    for (const auto& eo : errs) {
+        std::string want, got;
+        try { burn_wkb(spans, eo.first, eo.second); } catch (const std::exception& e) { want = e.what(); }
+        try { burn_wkb_par(spans, eo.first, eo.second, 4); } catch (const std::exception& e) { got = e.what(); }
+        check(!want.empty() && got == want, "burn_wkb_par errors as burn_wkb");
+    }
+    std::printf("wkb threads: %zu blobs, work %zu\n", spans.size(), total);
+}
+
 // The threaded burn and slicing equal the serial ones (inputs large
 // enough that the threads are used).
 void check_threads() {
@@ -255,6 +398,7 @@ void check_threads() {
             }
         }
     }
+    check_wkb_threads(geoms, g);
     BurnResult r = burn(geoms, g, BurnOptions());
     size_t n = r.runs.size() + r.edges.size() + r.lines.size() + r.points.size();
     // fine tiles over a dense burn, so slice_tiles_par takes its threaded path
