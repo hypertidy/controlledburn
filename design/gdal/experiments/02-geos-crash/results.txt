@@ -1,0 +1,17 @@
+== geos-inst
+valid: 1
+  repro exit 0
+  random_39: GEOS 3.14.2dev-CAPI-1.20.5 valid=1 ok=1 cell(36,18): GridIntersectionFractions 2.80242837e-30, intersection area fraction 1
+  gen140: /bin/bash: line 1: 584749 Segmentation fault      $S/interior-$v $args 2>&1
+  exit 139
+== geos-315-inst
+ok 1, sum of fractions * cell area 12.9799999995, polygon area 12.98
+  repro exit 0
+  random_39: GEOS 3.15.0-CAPI-1.21.0 valid=1 ok=1 cell(36,18): GridIntersectionFractions 2.80242837e-30, intersection area fraction 1
+  gen140: /bin/bash: line 1: 584763 Segmentation fault      $S/interior-$v $args 2>&1
+  exit 139
+== geos-main-inst
+ok 1, sum of fractions * cell area 12.9799999995, polygon area 12.98
+  repro exit 0
+  random_39: GEOS 3.16.0dev-CAPI-1.23.0 valid=1 ok=1 cell(36,18): GridIntersectionFractions 2.80242837e-30, intersection area fraction 1
+  gen140: GEOS 3.16.0dev-CAPI-1.23.0 valid=1 ok=1 cell(11,4): GridIntersectionFractions 0, intersection area fraction 1

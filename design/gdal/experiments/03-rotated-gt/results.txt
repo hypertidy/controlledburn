@@ -1,0 +1,7 @@
+GDAL 3.14.0dev-9bb42f5a7b-dirty
+rotated 30 deg, 40 x 30 unit cells, polygon area 605.185 cells
+cell centres inside the polygon (truth): 606
+gdal.Rasterize cells burned:             606
+gdal raster zonal-stats count:           0
+control, unrotated grid, zonal-stats:    606
+zonal-stats exit status on rotated grid: 0 stderr: ''

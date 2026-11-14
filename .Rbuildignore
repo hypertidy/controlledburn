@@ -32,3 +32,4 @@
 ^docs$
 ^pkgdown$
 ^\.gitattributes$
+^design$

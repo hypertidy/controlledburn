@@ -1,0 +1,17 @@
+GDAL 3.14.0dev-9bb42f5a7b-dirty
+polar sector, 60 x 40 cells, geolocation arrays of cell centres
+check: centre of cell (row 20, col 30) maps to pixel/line (30.5000, 20.5000); expected (30.5, 20.5)
+
+polygon  method                                truth  burned  missed  extra
+sliver   gdal.Rasterize, geolocated target       132       0     132      0
+sliver   gdal.Rasterize, -to DST_METHOD=GEOLOC    132       0     132      0
+sliver   vertices moved, pixel-space burn        132     103     129    100
+sliver   densified to 5.0, pixel-space burn      132     133       1      2
+sliver   densified to 1.0, pixel-space burn      132     132       0      0
+sliver   densified to 0.25, pixel-space burn     132     132       0      0
+quad     gdal.Rasterize, geolocated target       676       0     676      0
+quad     gdal.Rasterize, -to DST_METHOD=GEOLOC    676       0     676      0
+quad     vertices moved, pixel-space burn        676     875     114    313
+quad     densified to 5.0, pixel-space burn      676     678       0      2
+quad     densified to 1.0, pixel-space burn      676     676       0      0
+quad     densified to 0.25, pixel-space burn     676     676       0      0
