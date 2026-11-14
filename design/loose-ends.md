@@ -2,15 +2,15 @@
 
 Updated 2026-11-14. Kept by hand; tick items off or delete them as they close.
 
-## PR #39: align with crate 0.3.1 (branch `align-crate-0.3.1`)
+## PR #39: align with crate 0.3.1 (merged 2026-11-14)
 
-- [ ] Review and merge. CI was green on 2026-11-14 on all jobs (R on three OSes
+- [x] Review and merge. CI was green on 2026-11-14 on all jobs (R on three OSes
       plus oldrel, ctest on Linux and macOS, pytest on three OSes × 2 Pythons,
       pkgdown) except R-devel, which was still running.
 - [ ] `CRAN-SUBMISSION` is left untracked on purpose (it is in `.Rbuildignore`).
       Commit or delete it as you prefer.
 
-## Crate 0.3.2 (branch `align-crate-0.3.2`, local, on top of PR #39)
+## Crate 0.3.2 (PR #40, branch `align-crate-0.3.2`)
 
 - [x] `burn_wkb_par` parses each blob on the thread that burns it; work read
       from the bytes (`detail::wkb_sample_extent`), tested equal to the
@@ -19,8 +19,8 @@ Updated 2026-11-14. Kept by hand; tick items off or delete them as they close.
       but for its header. Python builds from 0.3.2.
 - [x] C++ `burn_wkb_par` had no test; `test_canon_ops` now checks it against
       `burn_wkb` (byte orders, ISO and EWKB, Z/M, empty, null, truncated).
-- [ ] Push `align-crate-0.3.2` and open its PR once #39 is merged (or stack
-      it on #39). ctest and R tests pass locally; pytest not run locally.
+- [ ] PR #40 (opened 2026-11-14 after #39 merged): review and merge. ctest
+      and R tests passed locally; pytest not run locally, so check CI.
 - [ ] Crate: `burn_wkb_par` checks `id(len - 1)` up front, so with an id
       overflow among 3+ blobs its error names a different blob than
       `burn_wkb`'s (and a trailing empty blob can fail it where serial
