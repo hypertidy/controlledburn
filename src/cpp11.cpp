@@ -6,16 +6,56 @@
 #include <R_ext/Visibility.h>
 
 // scanline_shim.cpp
-cpp11::writable::list cpp_scanline_burn(cpp11::list wkb_list, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow, std::string mode);
-extern "C" SEXP _controlledburn_cpp_scanline_burn(SEXP wkb_list, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow, SEXP mode) {
+cpp11::writable::list cpp_scanline_burn(cpp11::list wkb_list, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow, std::string mode, bool coalesce_runs, bool merge_parts, int id_offset, int threads);
+extern "C" SEXP _controlledburn_cpp_scanline_burn(SEXP wkb_list, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow, SEXP mode, SEXP coalesce_runs, SEXP merge_parts, SEXP id_offset, SEXP threads) {
   BEGIN_CPP11
-    return cpp11::as_sexp(cpp_scanline_burn(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(wkb_list), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow), cpp11::as_cpp<cpp11::decay_t<std::string>>(mode)));
+    return cpp11::as_sexp(cpp_scanline_burn(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(wkb_list), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow), cpp11::as_cpp<cpp11::decay_t<std::string>>(mode), cpp11::as_cpp<cpp11::decay_t<bool>>(coalesce_runs), cpp11::as_cpp<cpp11::decay_t<bool>>(merge_parts), cpp11::as_cpp<cpp11::decay_t<int>>(id_offset), cpp11::as_cpp<cpp11::decay_t<int>>(threads)));
+  END_CPP11
+}
+// scanline_shim.cpp
+cpp11::writable::list cpp_scanline_burn_window(cpp11::list wkb_list, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow, int row0, int row1, int col0, int col1, std::string mode, bool coalesce_runs, bool merge_parts, int id_offset);
+extern "C" SEXP _controlledburn_cpp_scanline_burn_window(SEXP wkb_list, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow, SEXP row0, SEXP row1, SEXP col0, SEXP col1, SEXP mode, SEXP coalesce_runs, SEXP merge_parts, SEXP id_offset) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_scanline_burn_window(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(wkb_list), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow), cpp11::as_cpp<cpp11::decay_t<int>>(row0), cpp11::as_cpp<cpp11::decay_t<int>>(row1), cpp11::as_cpp<cpp11::decay_t<int>>(col0), cpp11::as_cpp<cpp11::decay_t<int>>(col1), cpp11::as_cpp<cpp11::decay_t<std::string>>(mode), cpp11::as_cpp<cpp11::decay_t<bool>>(coalesce_runs), cpp11::as_cpp<cpp11::decay_t<bool>>(merge_parts), cpp11::as_cpp<cpp11::decay_t<int>>(id_offset)));
+  END_CPP11
+}
+// scanline_shim.cpp
+SEXP cpp_crop(cpp11::list x, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow, double txmin, double tymin, double txmax, double tymax);
+extern "C" SEXP _controlledburn_cpp_crop(SEXP x, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow, SEXP txmin, SEXP tymin, SEXP txmax, SEXP tymax) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_crop(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(x), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow), cpp11::as_cpp<cpp11::decay_t<double>>(txmin), cpp11::as_cpp<cpp11::decay_t<double>>(tymin), cpp11::as_cpp<cpp11::decay_t<double>>(txmax), cpp11::as_cpp<cpp11::decay_t<double>>(tymax)));
+  END_CPP11
+}
+// scanline_shim.cpp
+cpp11::writable::list cpp_slice_tiles(cpp11::list x, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow, int tile_ncol, int tile_nrow, int threads);
+extern "C" SEXP _controlledburn_cpp_slice_tiles(SEXP x, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow, SEXP tile_ncol, SEXP tile_nrow, SEXP threads) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_slice_tiles(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(x), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow), cpp11::as_cpp<cpp11::decay_t<int>>(tile_ncol), cpp11::as_cpp<cpp11::decay_t<int>>(tile_nrow), cpp11::as_cpp<cpp11::decay_t<int>>(threads)));
+  END_CPP11
+}
+// scanline_shim.cpp
+cpp11::writable::doubles_matrix<> cpp_materialise(cpp11::list x, int ncol, int nrow, std::string fun);
+extern "C" SEXP _controlledburn_cpp_materialise(SEXP x, SEXP ncol, SEXP nrow, SEXP fun) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_materialise(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(x), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow), cpp11::as_cpp<cpp11::decay_t<std::string>>(fun)));
+  END_CPP11
+}
+// scanline_shim.cpp
+cpp11::writable::list cpp_relate_cells(cpp11::list wkb_list, cpp11::list x, double xmin, double ymin, double xmax, double ymax, int ncol, int nrow, int id_offset);
+extern "C" SEXP _controlledburn_cpp_relate_cells(SEXP wkb_list, SEXP x, SEXP xmin, SEXP ymin, SEXP xmax, SEXP ymax, SEXP ncol, SEXP nrow, SEXP id_offset) {
+  BEGIN_CPP11
+    return cpp11::as_sexp(cpp_relate_cells(cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(wkb_list), cpp11::as_cpp<cpp11::decay_t<cpp11::list>>(x), cpp11::as_cpp<cpp11::decay_t<double>>(xmin), cpp11::as_cpp<cpp11::decay_t<double>>(ymin), cpp11::as_cpp<cpp11::decay_t<double>>(xmax), cpp11::as_cpp<cpp11::decay_t<double>>(ymax), cpp11::as_cpp<cpp11::decay_t<int>>(ncol), cpp11::as_cpp<cpp11::decay_t<int>>(nrow), cpp11::as_cpp<cpp11::decay_t<int>>(id_offset)));
   END_CPP11
 }
 
 extern "C" {
 static const R_CallMethodDef CallEntries[] = {
-    {"_controlledburn_cpp_scanline_burn", (DL_FUNC) &_controlledburn_cpp_scanline_burn, 8},
+    {"_controlledburn_cpp_crop",                 (DL_FUNC) &_controlledburn_cpp_crop,                 11},
+    {"_controlledburn_cpp_materialise",          (DL_FUNC) &_controlledburn_cpp_materialise,           4},
+    {"_controlledburn_cpp_relate_cells",         (DL_FUNC) &_controlledburn_cpp_relate_cells,          9},
+    {"_controlledburn_cpp_scanline_burn",        (DL_FUNC) &_controlledburn_cpp_scanline_burn,        12},
+    {"_controlledburn_cpp_scanline_burn_window", (DL_FUNC) &_controlledburn_cpp_scanline_burn_window, 15},
+    {"_controlledburn_cpp_slice_tiles",          (DL_FUNC) &_controlledburn_cpp_slice_tiles,          10},
     {NULL, NULL, 0}
 };
 }

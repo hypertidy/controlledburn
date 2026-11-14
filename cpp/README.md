@@ -64,10 +64,37 @@ BurnResult r = burn_wkb(wkb_spans, grid);
 
 All indices are 0-based, row 0 is the top row, and `col_end` is
 exclusive: a run covers the half-open column range `[col_start, col_end)`.
-Geometry k (0-based input position) gets id = k. A binding that wants a
+Geometry k (0-based input position) gets id = k + `id_offset`. A binding that wants a
 different convention adds its own offset -- the R package's cpp11 shim
 adds 1 to row/col/col_start/id (leaving `col_end`) to restore its
 1-based, inclusive contract.
+
+### Options and operations (from the Rust crate)
+
+The API follows the controlledburn Rust crate (0.3.1), the canonical
+implementation, with the same defaults and the same records
+(`tests/test_canon_ops.cpp` checks every operation against the crate's
+own answers in `fixtures/canon-ops.txt`).
+
+```cpp
+BurnOptions opts;                    // coverage, coalesce_runs, merge_parts, id_offset 0
+opts = BurnOptions::parity(BurnMode::Coverage);  // the core's earlier records
+opts = BurnOptions(BurnMode::Approx).with_merge_parts(false).with_id_offset(100);
+
+burn(geoms, grid, opts);                          // or burn_wkb
+burn_par(geoms, grid, opts, threads);             // same result, several threads
+burn_window(geoms, grid, row0, row1, col0, col1, opts);  // only a window's cells
+
+coalesce_runs(r.runs);               // merge adjacent runs
+merge_cells(r);                      // one record per (id, cell)
+crop(r, grid, xmin, ymin, xmax, ymax, out, subgrid);
+slice_tiles(r, grid, tile_ncol, tile_nrow);       // or slice_tiles_par
+relate_cells(r, geoms, grid, opts);  // DE-9IM per (polygon, cell), relate.hpp
+```
+
+A `BurnMode` converts to the default options with that mode, so
+`burn(geoms, grid, BurnMode::Approx)` coalesces runs and merges parts;
+use `BurnOptions::parity(mode)` for the records the core gave before these options.
 
 `GeometryCollection` is rejected (mixed dimensions break weight
 semantics -- split upstream) and curved types must be linearised by the
@@ -114,10 +141,15 @@ case), grid-straddling polygons, line length conservation, point
 binning, WKB round trips (including malformed input), materialization
 under both edge policies, and degenerate input.
 
-## Bindings (planned)
+`tests/test_canon_tables.cpp` and `tests/test_canon_ops.cpp` check the
+core record for record against the Rust crate (see
+[../fixtures/README.md](../fixtures/README.md)).
 
-- R: the existing package becomes a thin cpp11 shim over `burn_wkb`
-  (or keeps GEOS-based parsing via libgeos and constructs `Geometry`
-  directly -- the core does not care where coordinates come from).
-- Python: pybind11/nanobind over the same API, returning numpy arrays
-  or Arrow tables of the four-table contract.
+## Bindings
+
+- R: the package in this repository is a cpp11 shim over this core
+  (`src/scanline_shim.cpp`, sources synced by `tools/sync-core.sh`).
+- Python: built from the Rust crate itself (`python/`), not this core.
+
+The threaded entry points use `std::thread`; link with your platform's
+thread library (CMake's `Threads::Threads`).

@@ -11,5 +11,7 @@
 #include "burn.hpp"
 #include "wkb.hpp"
 #include "materialize.hpp"
+#include "ops.hpp"
+#include "relate.hpp"
 
 #endif

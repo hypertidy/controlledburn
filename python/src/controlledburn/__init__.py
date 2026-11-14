@@ -345,6 +345,9 @@ def burn(
     shape: Optional[Sequence[int]] = None,
     resolution=None,
     mode: str = "coverage",
+    merge_parts: bool = True,
+    coalesce_runs: bool = True,
+    id_offset: int = 0,
 ) -> BurnResult:
     """Burn geometries onto a regular grid, returning sparse tables.
 
@@ -356,7 +359,7 @@ def burn(
         GeoDataFrame, or a sequence mixing WKB, shapely and ``None``.
         See :func:`as_wkb_list`. WKB may be ISO WKB or EWKB, either
         byte order; Z/M ordinates are skipped. Geometry k (0-based
-        position) is assigned id k in the output tables. ``None``
+        position) is assigned id k + id_offset in the output tables. ``None``
         entries are skipped but still consume an id.
     extent : (xmin, xmax, ymin, ymax), optional
         Grid extent, matching the R package's
@@ -379,6 +382,22 @@ def burn(
         cells iff the cell center is inside the polygon. No edges are
         produced for polygons in approx mode. Lines and points are
         unaffected by mode.
+    merge_parts : bool
+        One record per cell for a multi-part geometry (default True, as
+        the Rust crate). A cell several parts of a MultiPolygon cross gets
+        one edge with the parts' fractions summed, or a run once the sum
+        reaches 1 (two halves either side of a shared border make a full
+        cell, not 0.5 + 0.5); an edge in a cell another part covers fully
+        is dropped. A MultiLineString's parts are summed per cell the same
+        way. Overlapping parts are not unioned: the sum is capped at a
+        full cell. False keeps each part's own records.
+    coalesce_runs : bool
+        Merge adjacent runs on a row (default True). False gives one run
+        per fully covered boundary cell; the cells are the same.
+    id_offset : int
+        Added to each geometry's position to give its id (default 0), so
+        burns of consecutive slices of a collection concatenate without
+        renumbering.
 
     Non-fatal problems (unparseable WKB, GeometryCollection input) are
     raised as warnings and the offending geometry is skipped;
@@ -386,16 +405,21 @@ def burn(
     """
     if mode not in ("coverage", "approx"):
         raise ValueError("mode must be 'coverage' or 'approx'")
+    if int(id_offset) != id_offset or id_offset < 0:
+        raise ValueError("id_offset must be a non-negative integer")
+    opts = dict(coalesce=bool(coalesce_runs), merge_parts=bool(merge_parts))
 
     if _is_arrow(geoms) and not _is_shapely_like(geoms):
-        return _burn_arrow(geoms, extent, shape, resolution, mode)
+        return _burn_arrow(geoms, extent, shape, resolution, mode, opts,
+                           int(id_offset))
 
     wkb = as_wkb_list(geoms)
     extent, shape = resolve_grid(wkb, extent, shape, resolution)
     xmin, xmax, ymin, ymax = extent
     nrow, ncol = shape
 
-    raw = _core.burn_wkb(list(wkb), xmin, ymin, xmax, ymax, ncol, nrow, mode)
+    raw = _core.burn_wkb(list(wkb), xmin, ymin, xmax, ymax, ncol, nrow, mode,
+                         id_offset=int(id_offset), **opts)
 
     for geom_index, message in raw["notes"]:
         warnings.warn(f"geometry {geom_index}: {message}", stacklevel=2)
@@ -629,7 +653,8 @@ def _arrow_extent(chunks):
     return (xmin, xmax, ymin, ymax)
 
 
-def _burn_arrow(geoms, extent, shape, resolution, mode) -> BurnResult:
+def _burn_arrow(geoms, extent, shape, resolution, mode, opts=None,
+                id_offset=0) -> BurnResult:
     """Arrow-native burn: consume WKB directly from Arrow buffers.
 
     The zero-copy counterpart of :func:`burn` for Arrow input (anything
@@ -654,21 +679,17 @@ def _burn_arrow(geoms, extent, shape, resolution, mode) -> BurnResult:
     dtypes = {"runs": _RUNS_DTYPE, "edges": _EDGES_DTYPE,
               "lines": _LINES_DTYPE, "points": _POINTS_DTYPE}
     parts = {k: [] for k in dtypes}
-    id_offset = 0
+    # Each chunk burns with the ids of its place in the whole input.
     for values, offsets, valid, n in chunks:
         raw = _core.burn_wkb_arrow(
             values, offsets, valid,
             xmin, ymin, xmax, ymax, ncol, nrow, mode,
+            id_offset=id_offset, **(opts or {}),
         )
         for geom_index, message in raw["notes"]:
-            warnings.warn(f"geometry {geom_index + id_offset}: {message}",
-                          stacklevel=3)
+            warnings.warn(f"geometry {geom_index}: {message}", stacklevel=3)
         for key, dt in dtypes.items():
-            arr = _structured(raw[key], dt)
-            if id_offset and len(arr):
-                arr = arr.copy()
-                arr["id"] += id_offset
-            parts[key].append(arr)
+            parts[key].append(_structured(raw[key], dt))
         id_offset += n
 
     return BurnResult(

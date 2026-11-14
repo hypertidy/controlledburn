@@ -1,7 +1,8 @@
 PKG_CPPFLAGS = -I../inst/include -Iexactextract
 CXX_STD = CXX17
+PKG_LIBS = -lpthread
 
-OBJECTS = core_scanline.o core_wkb.o scanline_shim.o cpp11.o \
+OBJECTS = core_scanline.o core_wkb.o core_ops.o core_relate.o scanline_shim.o cpp11.o \
   exactextract/cell.o \
   exactextract/traversal.o \
   exactextract/traversal_areas.o \

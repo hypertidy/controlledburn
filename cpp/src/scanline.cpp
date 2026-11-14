@@ -23,7 +23,13 @@
 #include "controlledburn/output.hpp"
 #include "controlledburn/wkb.hpp"
 
+#include <atomic>
+#include <climits>
+#include <exception>
+#include <limits>
 #include <map>
+#include <string>
+#include <thread>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -37,6 +43,7 @@
 #include "ee/traversal_areas.h"
 #include "ee/measures.h"
 #include "ee/analytical_coverage.h"
+#include "predicates.h"
 
 namespace controlledburn {
 
@@ -58,6 +65,8 @@ double signed_area(const CoordSeq& ring) {
 }
 
 namespace {
+
+using detail::orient2d_sign;
 
 // ---- Lightweight traversal tracking ----
 
@@ -438,6 +447,8 @@ static void walk_ring(
     size_t sub_cols,
     size_t row_off,
     size_t col_off,
+    size_t keep_lo,
+    size_t keep_hi,
     BurnMode mode = BurnMode::Coverage
 ) {
   if (coords.size() < 4) return;
@@ -482,6 +493,8 @@ static void walk_ring(
     if (r < 1) continue;
     size_t sub_r = r - 1;
     if (sub_r >= sub_rows) continue;
+    // Rows are independent from here on: a window sweeps only its rows.
+    if (sub_r < keep_lo || sub_r >= keep_hi) continue;
 
     // Determine column mapping.
     // Padding COLUMNS still carry winding deltas for their grid row
@@ -671,6 +684,31 @@ static Box ring_envelope(const CoordSeq& ring) {
   return Box(xmin, ymin, xmax, ymax);
 }
 
+// ---- A window of the grid (burn_window) ----
+//
+// Rows [r0, r1) and columns [c0, c1) of the full grid, and `near`, its box
+// widened by two cells each side (lines are walked only there).
+struct Window {
+  int r0, r1, c0, c1;
+  exactextract::Box near;
+
+  Window(const GridSpec& gs, uint32_t row0, uint32_t row1, uint32_t col0, uint32_t col1)
+      : r0(static_cast<int>(row0)), r1(static_cast<int>(row1)),
+        c0(static_cast<int>(col0)), c1(static_cast<int>(col1)),
+        near(exactextract::Box::make_empty()) {
+    double dx = gs.dx(), dy = gs.dy();
+    auto x = [&](double c) { return gs.xmin + c * dx; };
+    auto y = [&](double r) { return gs.ymax - r * dy; };
+    double rr0 = static_cast<double>(row0) - 2.0, rr1 = static_cast<double>(row1) + 2.0;
+    double cc0 = static_cast<double>(col0) - 2.0, cc1 = static_cast<double>(col1) + 2.0;
+    near = exactextract::Box(x(cc0), y(rr1), x(cc1), y(rr0));
+  }
+
+  bool has(int row, int col) const {
+    return row >= r0 && row < r1 && col >= c0 && col < c1;
+  }
+};
+
 // ---- Process polygon: per-POLYGON processing with padding-aware sweep ----
 //
 // Single-polygon path. For MULTIPOLYGON each component is processed
@@ -685,6 +723,7 @@ static void process_polygon(
     int poly_id,
     std::vector<GridRun>& all_runs,
     std::vector<GridEdge>& all_edges,
+    const Window* win = nullptr,
     BurnMode mode = BurnMode::Coverage
 ) {
   using namespace exactextract;
@@ -711,6 +750,19 @@ static void process_polygon(
   size_t col_off = static_cast<size_t>(
     std::round((subgrid_bounded.xmin() - full_grid.xmin()) / dx));
 
+  // A window keeps the sub-grid the whole burn uses, so the walk, the snap
+  // and the fractions are its own, and sweeps only the window's rows; the
+  // caller cuts the columns.
+  size_t keep_lo = 0, keep_hi = sub_rows;
+  if (win) {
+    size_t wc0 = static_cast<size_t>(win->c0), wc1 = static_cast<size_t>(win->c1);
+    if (wc1 <= col_off || wc0 >= col_off + sub_cols) return;
+    size_t wr0 = static_cast<size_t>(win->r0), wr1 = static_cast<size_t>(win->r1);
+    keep_lo = std::min(wr0 > row_off ? wr0 - row_off : 0, sub_rows);
+    keep_hi = std::min(wr1 > row_off ? wr1 - row_off : 0, sub_rows);
+  }
+  if (keep_lo >= keep_hi) return;
+
   std::vector<std::vector<BoundaryCellRecord>> row_data(sub_rows);
 
   // Exterior ring, then holes. Orientation from shoelace sign (replaces
@@ -719,7 +771,7 @@ static void process_polygon(
     const CoordSeq& ring = poly.rings[r];
     if (ring.size() < 4) continue;
     walk_ring(to_coordinates(ring), is_ccw(ring), static_cast<int>(r), subgrid, dy,
-              row_data, sub_rows, sub_cols, row_off, col_off, mode);
+              row_data, sub_rows, sub_cols, row_off, col_off, keep_lo, keep_hi, mode);
   }
 
   // ---- Winding sweep: emit runs and edges per row ----
@@ -738,7 +790,7 @@ static void process_polygon(
   std::vector<std::pair<size_t, size_t>> spans;
   auto sign = [](int r) { return r == 0 ? 1 : -1; };
 
-  for (size_t sr = 0; sr < sub_rows; sr++) {
+  for (size_t sr = keep_lo; sr < keep_hi; sr++) {
     auto& row_vec = row_data[sr];
     if (row_vec.empty()) continue;
 
@@ -844,55 +896,7 @@ static void process_polygon(
 
 // ---- Lightweight approx sweep ----
 //
-// a + b as the rounded sum s and its exact error e.
-static inline void two_sum(double a, double b, double& s, double& e) {
-  s = a + b;
-  double bb = s - a;
-  e = (a - (s - bb)) + (b - bb);
-}
-
-// Sign of (bx - ax)(cy - ay) - (cx - ax)(by - ay), exactly: positive when c
-// is left of the line a -> b. The determinant is expanded into six products
-// of input coordinates, each split exactly with an FMA, and the twelve terms
-// are summed as a non-overlapping expansion (Shewchuk's grow-expansion),
-// whose sign is that of its largest component. A float filter answers the
-// common case. Same as orient2d_sign in controlledburn-rs.
-static int orient2d_sign(double ax, double ay, double bx, double by,
-                         double cx, double cy) {
-  double l = (bx - ax) * (cy - ay);
-  double r = (cx - ax) * (by - ay);
-  double det = l - r;
-  double bound = 4.0e-16 * (std::fabs(l) + std::fabs(r));  // ccwerrboundA, padded
-  if (det > bound) return 1;
-  if (det < -bound) return -1;
-  const double prods[6][3] = {
-    {bx, cy, 1.0}, {bx, ay, -1.0}, {ax, cy, -1.0},
-    {cx, by, -1.0}, {cx, ay, 1.0}, {ax, by, 1.0}
-  };
-  double e[12];
-  int n = 0;
-  for (const auto& pq : prods) {
-    double hi = pq[0] * pq[1];
-    double lo = std::fma(pq[0], pq[1], -hi);
-    const double terms[2] = {pq[2] * lo, pq[2] * hi};
-    for (double t : terms) {
-      // grow-expansion: add t to e[0..n), keeping increasing magnitude
-      double q = t;
-      for (int k = 0; k < n; k++) {
-        double sum, err;
-        two_sum(q, e[k], sum, err);
-        e[k] = err;
-        q = sum;
-      }
-      e[n++] = q;
-    }
-  }
-  for (int k = n - 1; k >= 0; k--) {
-    if (e[k] > 0.0) return 1;
-    if (e[k] < 0.0) return -1;
-  }
-  return 0;
-}
+// orient2d_sign: exact orientation, in predicates.h (shared with relate.cpp).
 
 // Direct edge-row intersection sweep for Approx mode. Bypasses the
 // walker entirely: for each polygon edge, compute x-intercepts at
@@ -905,7 +909,8 @@ static void process_polygon_approx(
     const Polygon& poly,
     const GridSpec& gs,
     int poly_id,
-    std::vector<GridRun>& all_runs
+    std::vector<GridRun>& all_runs,
+    const Window* win = nullptr
 ) {
   if (poly.rings.empty() || poly.rings[0].size() < 4) return;
 
@@ -919,9 +924,12 @@ static void process_polygon_approx(
 
   // Row range that the polygon can touch (0-based).
   // Row 0 is the TOP row: y_mid = ymax - 0.5*dy
-  int row_lo = std::max(0, static_cast<int>(
+  // A window sweeps only its own rows.
+  int lo = win ? win->r0 : 0;
+  int hi = win ? win->r1 - 1 : gs.nrow - 1;
+  int row_lo = std::max(lo, static_cast<int>(
       std::floor((gs.ymax - env.ymax) / dy)));
-  int row_hi = std::min(gs.nrow - 1, static_cast<int>(
+  int row_hi = std::min(hi, static_cast<int>(
       std::floor((gs.ymax - env.ymin) / dy)));
   if (row_lo > row_hi) return;
 
@@ -1070,11 +1078,62 @@ static void process_polygon_approx(
 // absolute length of the line within the cell, in CRS units -- sum of
 // segment lengths across all traversal records for that cell.
 
+// The parts of `line` to walk for the cells in `near`, as [start, end]
+// vertex index pairs: each run of segments whose box meets `near`, started
+// at the last vertex before it that lies inside one cell, clear of every
+// wall (or at the line's start), and runs that then overlap joined. From
+// such a vertex on, a walk started there and the whole walk are the same
+// (the walker computes each crossing from the segment's own vertices); the
+// vertices a part's walk starts and ends at belong to segments that miss
+// `near`, so where it differs from the whole walk is not the window's.
+// Same as near_runs in controlledburn-rs.
+static std::vector<std::pair<size_t, size_t>> near_runs(
+    const CoordSeq& line,
+    const exactextract::Grid<exactextract::bounded_extent>& grid,
+    const exactextract::Box& b
+) {
+  auto meets = [&](const Coord& p, const Coord& q) {
+    return !(std::max(p.x, q.x) < b.xmin || std::min(p.x, q.x) > b.xmax ||
+             std::max(p.y, q.y) < b.ymin || std::min(p.y, q.y) > b.ymax);
+  };
+  const double dx = grid.dx(), dy = grid.dy();
+  // well clear of the walls: of rounding in `xmin + k * dx` and of the
+  // walker's snap (1e-9 of a cell)
+  auto clear = [](double v, double d) {
+    double f = v / d;
+    return std::fabs(f - std::round(f)) * d > 1e-6 * d + 1e-13 * std::fabs(v);
+  };
+  auto inside_one_cell = [&](const Coord& p) {
+    return clear(p.x - grid.xmin(), dx) && clear(grid.ymax() - p.y, dy);
+  };
+  std::vector<std::pair<size_t, size_t>> runs;
+  size_t i = 0;
+  const size_t n = line.size() - 1;
+  while (i < n) {
+    if (!meets(line[i], line[i + 1])) {
+      i++;
+      continue;
+    }
+    size_t start = i;
+    while (start > 0 && !inside_one_cell(line[start])) start--;
+    size_t end = i + 1;
+    while (end < n && meets(line[end], line[end + 1])) end++;
+    if (!runs.empty() && start <= runs.back().second) {
+      runs.back().second = end;
+    } else {
+      runs.push_back({start, end});
+    }
+    i = end;
+  }
+  return runs;
+}
+
 static void process_line(
     const CoordSeq& line,
     const exactextract::Grid<exactextract::bounded_extent>& full_grid,
     int line_id,
-    std::vector<GridLine>& all_lines
+    std::vector<GridLine>& all_lines,
+    const exactextract::Box* near = nullptr
 ) {
   using namespace exactextract;
 
@@ -1090,34 +1149,53 @@ static void process_line(
   size_t n_rows = grid.rows();
   size_t n_cols = grid.cols();
 
-  CellMap cells = walk_polyline(to_coordinates(line), grid, /*closed=*/false);
+  std::vector<std::pair<size_t, size_t>> parts;
+  if (near) {
+    parts = near_runs(line, full_grid, *near);
+  } else {
+    parts.push_back({0, line.size() - 1});
+  }
 
-  for (const auto& kv : cells) {
-    size_t r = kv.first.first;
-    size_t c = kv.first.second;
-    const CellRecord& cr = kv.second;
+  // (padded row, col) -> summed length. One walk visits a cell in one
+  // record; with several parts (a window's), a cell's lengths are summed
+  // over the parts in line order, so cells near the window get the whole
+  // walk's lengths, bit for bit.
+  std::map<CellKey, double> lengths;
+  for (const auto& part : parts) {
+    CoordSeq piece(line.begin() + static_cast<std::ptrdiff_t>(part.first),
+                   line.begin() + static_cast<std::ptrdiff_t>(part.second) + 1);
+    CellMap cells = walk_polyline(to_coordinates(piece), grid, /*closed=*/false);
 
-    // Skip padding ring (top/bottom row, left/right col of infinite_extent).
-    if (r < 1 || r >= n_rows - 1) continue;
-    if (c < 1 || c >= n_cols - 1) continue;
+    for (const auto& kv : cells) {
+      size_t r = kv.first.first;
+      size_t c = kv.first.second;
+      const CellRecord& cr = kv.second;
 
-    double total_length = 0.0;
-    for (const auto& t : cr.traversals) {
-      const auto& tc = t.coords;
-      if (tc.size() < 2) continue;
-      for (size_t i = 1; i < tc.size(); i++) {
-        double sx = tc[i].x - tc[i-1].x;
-        double sy = tc[i].y - tc[i-1].y;
-        total_length += std::sqrt(sx * sx + sy * sy);
+      // Skip padding ring (top/bottom row, left/right col of infinite_extent).
+      if (r < 1 || r >= n_rows - 1) continue;
+      if (c < 1 || c >= n_cols - 1) continue;
+
+      double& total_length = lengths[kv.first];
+      for (const auto& t : cr.traversals) {
+        const auto& tc = t.coords;
+        if (tc.size() < 2) continue;
+        for (size_t i = 1; i < tc.size(); i++) {
+          double sx = tc[i].x - tc[i-1].x;
+          double sy = tc[i].y - tc[i-1].y;
+          total_length += std::sqrt(sx * sx + sy * sy);
+        }
       }
     }
+  }
 
-    if (total_length > 0.0) {
+  // Row-major record order (the map's).
+  for (const auto& kv : lengths) {
+    if (kv.second > 0.0) {
       // Map infinite_extent (r, c) to the 0-based bounded grid; padding=1
       // means subtracting 1 recovers the bounded index.
       all_lines.push_back({
-        static_cast<int>(r) - 1, static_cast<int>(c) - 1,
-        static_cast<float>(total_length),
+        static_cast<int>(kv.first.first) - 1, static_cast<int>(kv.first.second) - 1,
+        static_cast<float>(kv.second),
         line_id
       });
     }
@@ -1158,30 +1236,484 @@ static void process_point(
 
 // ---- Process geometry: dispatch by kind ----
 
+using FullGrid = exactextract::Grid<exactextract::bounded_extent>;
+
+// The sweep's tolerance on a cell's coverage (process_polygon).
+constexpr float kTol = 1e-6f;
+
+static void note(BurnResult& out, int32_t id, std::string msg) {
+  out.notes.push_back({id, std::move(msg)});
+}
+
+// Keep the records from run_start, edge_start and line_start on that lie
+// in `win`, cutting runs at its columns.
+static void clip(BurnResult& out, const Window& win, size_t run_start,
+                 size_t edge_start, size_t line_start) {
+  size_t w = run_start;
+  for (size_t i = run_start; i < out.runs.size(); i++) {
+    GridRun r = out.runs[i];
+    r.col_start = std::max(r.col_start, win.c0);
+    r.col_end = std::min(r.col_end, win.c1);
+    if (r.row >= win.r0 && r.row < win.r1 && r.col_start < r.col_end) {
+      out.runs[w++] = r;
+    }
+  }
+  out.runs.resize(w);
+  w = edge_start;
+  for (size_t i = edge_start; i < out.edges.size(); i++) {
+    if (win.has(out.edges[i].row, out.edges[i].col)) out.edges[w++] = out.edges[i];
+  }
+  out.edges.resize(w);
+  w = line_start;
+  for (size_t i = line_start; i < out.lines.size(); i++) {
+    if (win.has(out.lines[i].row, out.lines[i].col)) out.lines[w++] = out.lines[i];
+  }
+  out.lines.resize(w);
+}
+
+// Merge adjacent runs of runs[start..), which are ordered by (row,
+// col_start); the runs before start are left alone.
+static void coalesce_sorted_from(std::vector<GridRun>& runs, size_t start) {
+  size_t w = start;
+  for (size_t i = start; i < runs.size(); i++) {
+    GridRun cur = runs[i];
+    if (w > start) {
+      GridRun& last = runs[w - 1];
+      if (last.id == cur.id && last.row == cur.row && cur.col_start <= last.col_end) {
+        if (cur.col_end > last.col_end) last.col_end = cur.col_end;
+        continue;
+      }
+    }
+    runs[w++] = cur;
+  }
+  runs.resize(w);
+}
+
+// One edge per cell for the edges of one geometry, edges[start..): the
+// parts' fractions summed per cell (in part order), a cell whose sum
+// reaches 1 made a one-cell run.
+static void merge_part_edges(BurnResult& out, size_t start) {
+  auto& edges = out.edges;
+  std::stable_sort(edges.begin() + static_cast<std::ptrdiff_t>(start), edges.end(),
+                   [](const GridEdge& a, const GridEdge& b) {
+                     return a.row != b.row ? a.row < b.row : a.col < b.col;
+                   });
+  size_t w = start;
+  for (size_t i = start; i < edges.size(); i++) {
+    GridEdge cur = edges[i];
+    if (w > start) {
+      GridEdge& last = edges[w - 1];
+      if (last.row == cur.row && last.col == cur.col) {
+        last.fraction += cur.fraction;
+        continue;
+      }
+    }
+    edges[w++] = cur;
+  }
+  edges.resize(w);
+  w = start;
+  for (size_t i = start; i < edges.size(); i++) {
+    GridEdge e = edges[i];
+    if (e.fraction >= 1.0f - kTol) {
+      out.runs.push_back({e.row, e.col, e.col + 1, e.id});
+    } else {
+      edges[w++] = e;
+    }
+  }
+  edges.resize(w);
+}
+
+// Drop the edges of one geometry (edges[edge_start..), sorted by cell)
+// that lie in one of its runs (runs[run_start..), sorted and coalesced).
+static void drop_edges_in_runs(BurnResult& out, size_t run_start, size_t edge_start) {
+  const auto& runs = out.runs;
+  auto& edges = out.edges;
+  size_t j = run_start;
+  size_t w = edge_start;
+  for (size_t i = edge_start; i < edges.size(); i++) {
+    GridEdge e = edges[i];
+    while (j < runs.size() &&
+           (runs[j].row < e.row || (runs[j].row == e.row && runs[j].col_end <= e.col))) {
+      j++;
+    }
+    bool covered = j < runs.size() && runs[j].row == e.row && runs[j].col_start <= e.col;
+    if (!covered) edges[w++] = e;
+  }
+  edges.resize(w);
+}
+
+// One record per cell for the line parts of one geometry, lines[start..):
+// lengths summed per cell, in part order.
+static void merge_part_lines(BurnResult& out, size_t start) {
+  auto& lines = out.lines;
+  std::stable_sort(lines.begin() + static_cast<std::ptrdiff_t>(start), lines.end(),
+                   [](const GridLine& a, const GridLine& b) {
+                     return a.row != b.row ? a.row < b.row : a.col < b.col;
+                   });
+  size_t w = start;
+  for (size_t i = start; i < lines.size(); i++) {
+    GridLine cur = lines[i];
+    if (w > start) {
+      GridLine& last = lines[w - 1];
+      if (last.row == cur.row && last.col == cur.col) {
+        last.length += cur.length;
+        continue;
+      }
+    }
+    lines[w++] = cur;
+  }
+  lines.resize(w);
+}
+
+// A note for each ring the engines skip as too short: fewer than 4
+// coordinates once closed. A short exterior skips its part, holes and all;
+// a short hole skips only itself. Empty rings are skipped silently.
+static void note_short_rings(const std::vector<Polygon>& polys, int32_t id, BurnResult& out) {
+  for (size_t pi = 0; pi < polys.size(); pi++) {
+    const auto& rings = polys[pi].rings;
+    for (size_t ri = 0; ri < rings.size(); ri++) {
+      size_t n = rings[ri].size();
+      if (n == 0 || n >= 4) continue;
+      if (ri == 0) {
+        note(out, id, "skipped polygon part " + std::to_string(pi) + ": exterior ring has " +
+                          std::to_string(n) + " coordinates when closed, 4 needed");
+        break;
+      }
+      note(out, id, "skipped hole " + std::to_string(ri) + " of polygon part " +
+                        std::to_string(pi) + ": " + std::to_string(n) +
+                        " coordinates when closed, 4 needed");
+    }
+  }
+}
+
 static void process_geometry(
     const Geometry& g,
-    const exactextract::Grid<exactextract::bounded_extent>& full_grid,
+    const FullGrid& full_grid,
     const GridSpec& gs,
     double dx, double dy,
     int geom_id,
     BurnResult& out,
-    BurnMode mode = BurnMode::Coverage
+    const BurnOptions& opts,
+    const Window* win
 ) {
-  // Multi types iterate the same containers as their singular
-  // counterparts; each component is processed independently (polygons
-  // get their own winding sweep).
-  for (const auto& poly : g.polygons) {
-    if (mode == BurnMode::Approx) {
-      process_polygon_approx(poly, gs, geom_id, out.runs);
+  const size_t run_start = out.runs.size();
+  const size_t edge_start = out.edges.size();
+  const size_t line_start = out.lines.size();
+  const auto& polys = g.polygons;
+  note_short_rings(polys, geom_id, out);
+  for (const auto& poly : polys) {
+    if (opts.mode == BurnMode::Approx) {
+      process_polygon_approx(poly, gs, geom_id, out.runs, win);
     } else {
-      process_polygon(poly, full_grid, dx, dy, geom_id, out.runs, out.edges, mode);
+      process_polygon(poly, full_grid, dx, dy, geom_id, out.runs, out.edges, win);
     }
   }
-  for (const auto& line : g.lines) {
-    process_line(line, full_grid, geom_id, out.lines);
+  if (win) clip(out, *win, run_start, edge_start, line_start);
+  const bool merge = opts.merge_parts && polys.size() > 1;
+  if (merge) merge_part_edges(out, edge_start);
+  if ((opts.coalesce_runs || merge) && out.runs.size() > run_start) {
+    // One polygon's runs come out of the sweep ordered by (row,
+    // col_start); a multipolygon's are in that order only per part, so
+    // sort them together first, or a later part's run left of an earlier
+    // part's on a shared row is swallowed by the merge.
+    if (polys.size() > 1) {
+      std::stable_sort(out.runs.begin() + static_cast<std::ptrdiff_t>(run_start), out.runs.end(),
+                       [](const GridRun& a, const GridRun& b) {
+                         return a.row != b.row ? a.row < b.row : a.col_start < b.col_start;
+                       });
+    }
+    coalesce_sorted_from(out.runs, run_start);
   }
+  if (merge) drop_edges_in_runs(out, run_start, edge_start);
+
+  for (size_t i = 0; i < g.lines.size(); i++) {
+    if (g.lines[i].size() == 1) {
+      note(out, geom_id, "skipped line part " + std::to_string(i) + ": 1 coordinate, 2 needed");
+    }
+    process_line(g.lines[i], full_grid, geom_id, out.lines, win ? &win->near : nullptr);
+  }
+  if (win) clip(out, *win, out.runs.size(), out.edges.size(), line_start);
+  if (opts.merge_parts && g.lines.size() > 1) merge_part_lines(out, line_start);
+
+  const size_t point_start = out.points.size();
   for (const auto& pt : g.points) {
     process_point(pt, full_grid, geom_id, out.points);
+  }
+  if (win) {
+    size_t w = point_start;
+    for (size_t i = point_start; i < out.points.size(); i++) {
+      if (win->has(out.points[i].row, out.points[i].col)) out.points[w++] = out.points[i];
+    }
+    out.points.resize(w);
+  }
+}
+
+// WKB's POINT EMPTY: both coordinates NaN.
+static bool is_empty_point(const CoordSeq& p) {
+  return p.empty() || (std::isnan(p[0].x) && std::isnan(p[0].y));
+}
+
+// As Geometry::is_empty in controlledburn-rs, by kind.
+static bool geometry_is_empty(const Geometry& g) {
+  switch (g.kind) {
+  case GeomKind::Point:
+  case GeomKind::MultiPoint:
+    for (const auto& p : g.points) if (!is_empty_point(p)) return false;
+    return true;
+  case GeomKind::LineString:
+    return g.lines.empty() || g.lines[0].empty();
+  case GeomKind::MultiLineString:
+    return g.lines.empty();
+  case GeomKind::Polygon:
+    return g.polygons.empty() || g.polygons[0].rings.empty();
+  case GeomKind::MultiPolygon:
+    return g.polygons.empty();
+  }
+  return g.empty();
+}
+
+static bool finite(const Coord& c) { return std::isfinite(c.x) && std::isfinite(c.y); }
+
+// Every coordinate finite, empty points aside.
+static bool geometry_is_finite(const Geometry& g) {
+  for (const auto& p : g.points)
+    for (const auto& c : p)
+      if (!finite(c) && !(std::isnan(c.x) && std::isnan(c.y))) return false;
+  for (const auto& l : g.lines)
+    for (const auto& c : l)
+      if (!finite(c)) return false;
+  for (const auto& p : g.polygons)
+    for (const auto& r : p.rings)
+      for (const auto& c : r)
+        if (!finite(c)) return false;
+  return true;
+}
+
+static bool ring_needs_closing(const CoordSeq& r) {
+  return r.size() >= 2 && (r.front().x != r.back().x || r.front().y != r.back().y);
+}
+
+// Burn one geometry: skip empties, note non-finite ones, close unclosed
+// rings, and turn engine errors into notes.
+static void burn_one(const Geometry& g0, int32_t id, const FullGrid& full_grid,
+                     const GridSpec& gs, BurnResult& out, const BurnOptions& opts,
+                     const Window* win) {
+  if (geometry_is_empty(g0)) return;
+  if (!geometry_is_finite(g0)) {
+    note(out, id, "skipped geometry with non-finite coordinates");
+    return;
+  }
+  bool needs = false;
+  for (const auto& p : g0.polygons)
+    for (const auto& r : p.rings)
+      if (ring_needs_closing(r)) needs = true;
+  Geometry closed;
+  if (needs) {
+    closed = g0;
+    for (auto& p : closed.polygons)
+      for (auto& r : p.rings)
+        if (ring_needs_closing(r)) r.push_back(r.front());
+  }
+  const Geometry& g = needs ? closed : g0;
+  try {
+    process_geometry(g, full_grid, gs, gs.dx(), gs.dy(), id, out, opts, win);
+  } catch (const std::exception& e) {
+    note(out, id, std::string("error processing geometry: ") + e.what());
+  }
+}
+
+// The id of geometry k, checked.
+static int32_t geom_id(const BurnOptions& opts, size_t k) {
+  if (k > static_cast<size_t>(INT32_MAX) ||
+      static_cast<int64_t>(opts.id_offset) + static_cast<int64_t>(k) > INT32_MAX) {
+    throw std::invalid_argument("geometry " + std::to_string(k) + " with id_offset " +
+                                std::to_string(opts.id_offset) + ": id beyond i32::MAX");
+  }
+  return opts.id_offset + static_cast<int32_t>(k);
+}
+
+static void validate(const GridSpec& gs, const BurnOptions& opts, size_t n) {
+  gs.validate();
+  if (opts.id_offset < 0) {
+    throw std::invalid_argument("id_offset " + std::to_string(opts.id_offset) + " is negative");
+  }
+  if (n > 0) geom_id(opts, n - 1);
+}
+
+static FullGrid make_full_grid(const GridSpec& gs) {
+  return FullGrid(exactextract::Box(gs.xmin, gs.ymin, gs.xmax, gs.ymax), gs.dx(), gs.dy());
+}
+
+// A parsed WKB blob: its geometry, or the parse error, or nothing (an
+// empty blob, skipped silently).
+struct Parsed {
+  Geometry g;
+  std::string error;
+  bool skip = false;
+  bool failed = false;
+};
+
+static Parsed parse_one(const WKBSpan& s) {
+  Parsed p;
+  if (!s.data || s.size == 0) {
+    p.skip = true;
+    return p;
+  }
+  try {
+    p.g = parse_wkb(s.data, s.size);
+  } catch (const WKBParseError& e) {
+    p.failed = true;
+    p.error = e.what();
+  }
+  return p;
+}
+
+static void burn_parsed(const Parsed& p, int32_t id, const FullGrid& full_grid,
+                        const GridSpec& gs, BurnResult& out, const BurnOptions& opts,
+                        const Window* win) {
+  if (p.skip) return;
+  if (p.failed) {
+    note(out, id, "failed to parse WKB: " + p.error);
+    return;
+  }
+  burn_one(p.g, id, full_grid, gs, out, opts, win);
+}
+
+// ---- Threads ----
+
+// burn_par uses at most one thread per this much work (a geometry's work
+// being its coordinates plus the grid rows it spans).
+constexpr size_t kWorkPerThread = size_t(1) << 13;
+// Chunks of geometries per thread.
+constexpr size_t kChunksPerThread = 16;
+
+static unsigned resolve_threads(unsigned threads) {
+  if (threads != 0) return threads;
+  unsigned n = std::thread::hardware_concurrency();
+  return n == 0 ? 1 : n;
+}
+
+// A geometry's estimated burn cost: one, plus its coordinates, plus the
+// grid rows its extent spans, the extent taken from at most 16
+// coordinates of each part. As `work` in controlledburn-rs.
+static size_t work(const Geometry& g, const GridSpec& grid) {
+  size_t n = 0;
+  double lo = std::numeric_limits<double>::infinity();
+  double hi = -std::numeric_limits<double>::infinity();
+  auto part = [&](const CoordSeq& c) {
+    n += c.size();
+    size_t step = (c.size() + 15) / 16 + (c.empty() ? 1 : 0);
+    for (size_t i = 0; i < c.size(); i += step) {
+      lo = std::min(lo, c[i].y);
+      hi = std::max(hi, c[i].y);
+    }
+    if (!c.empty()) {
+      lo = std::min(lo, c.back().y);
+      hi = std::max(hi, c.back().y);
+    }
+  };
+  // Points: one part of all the point coordinates, as Rust's points().
+  CoordSeq pts;
+  for (const auto& p : g.points) pts.insert(pts.end(), p.begin(), p.end());
+  part(pts);
+  for (const auto& l : g.lines) part(l);
+  for (const auto& p : g.polygons) {
+    if (!p.rings.empty()) part(p.rings[0]);
+    for (size_t r = 1; r < p.rings.size(); r++) n += p.rings[r].size();
+  }
+  lo = std::max(lo, grid.ymin);
+  hi = std::min(hi, grid.ymax);
+  size_t rows = 0;
+  if (hi > lo) {
+    rows = static_cast<size_t>(std::min((hi - lo) / grid.dy(), static_cast<double>(grid.nrow))) + 1;
+  }
+  return 1 + n + rows;
+}
+
+// Burn items [0, n) on several threads: `cost(k)` estimates item k's
+// work, `burn_k(k, out)` burns it. Contiguous chunks of about equal work,
+// costliest first, taken by the threads in turn, then concatenated in
+// order. Returns false (nothing done) when one thread would do.
+template <typename Cost, typename BurnK>
+static bool run_parallel(size_t n, unsigned threads_in, Cost cost_of, BurnK burn_k,
+                         BurnResult& out) {
+  size_t threads = resolve_threads(threads_in);
+  std::vector<size_t> cost(n);
+  size_t total = 0;
+  for (size_t k = 0; k < n; k++) {
+    cost[k] = cost_of(k);
+    total += cost[k];
+  }
+  threads = std::min(threads, total / kWorkPerThread);
+  if (threads < 2 || n < 2) return false;
+
+  size_t target = (total + threads * kChunksPerThread - 1) / (threads * kChunksPerThread);
+  std::vector<std::pair<size_t, size_t>> chunks;
+  size_t start = 0, acc = 0;
+  for (size_t k = 0; k < n; k++) {
+    acc += cost[k];
+    if (acc >= target) {
+      chunks.push_back({start, k + 1});
+      start = k + 1;
+      acc = 0;
+    }
+  }
+  if (start < n) chunks.push_back({start, n});
+  std::vector<size_t> chunk_cost(chunks.size(), 0);
+  for (size_t c = 0; c < chunks.size(); c++)
+    for (size_t k = chunks[c].first; k < chunks[c].second; k++) chunk_cost[c] += cost[k];
+  std::vector<size_t> order(chunks.size());
+  for (size_t i = 0; i < order.size(); i++) order[i] = i;
+  std::stable_sort(order.begin(), order.end(),
+                   [&](size_t a, size_t b) { return chunk_cost[a] > chunk_cost[b]; });
+
+  std::vector<BurnResult> parts(chunks.size());
+  std::atomic<size_t> next(0);
+  std::vector<std::exception_ptr> errors(std::min(threads, chunks.size()));
+  std::vector<std::thread> pool;
+  for (size_t t = 0; t < errors.size(); t++) {
+    pool.emplace_back([&, t]() {
+      try {
+        for (;;) {
+          size_t i = next.fetch_add(1, std::memory_order_relaxed);
+          if (i >= order.size()) break;
+          size_t c = order[i];
+          for (size_t k = chunks[c].first; k < chunks[c].second; k++) burn_k(k, parts[c]);
+        }
+      } catch (...) {
+        errors[t] = std::current_exception();
+      }
+    });
+  }
+  for (auto& th : pool) th.join();
+  for (auto& e : errors)
+    if (e) std::rethrow_exception(e);
+
+  size_t nr = 0, ne = 0, nl = 0, np = 0;
+  for (const auto& p : parts) {
+    nr += p.runs.size(); ne += p.edges.size(); nl += p.lines.size(); np += p.points.size();
+  }
+  out.runs.reserve(nr); out.edges.reserve(ne); out.lines.reserve(nl); out.points.reserve(np);
+  for (auto& p : parts) {
+    out.runs.insert(out.runs.end(), p.runs.begin(), p.runs.end());
+    out.edges.insert(out.edges.end(), p.edges.begin(), p.edges.end());
+    out.lines.insert(out.lines.end(), p.lines.begin(), p.lines.end());
+    out.points.insert(out.points.end(), p.points.begin(), p.points.end());
+    for (auto& nt : p.notes) out.notes.push_back(std::move(nt));
+    p = BurnResult();
+  }
+  return true;
+}
+
+static void check_window(const GridSpec& gs, uint32_t row0, uint32_t row1,
+                         uint32_t col0, uint32_t col1) {
+  if (row0 >= row1 || col0 >= col1 || row1 > static_cast<uint32_t>(gs.nrow) ||
+      col1 > static_cast<uint32_t>(gs.ncol)) {
+    throw std::invalid_argument(
+        "window rows " + std::to_string(row0) + ".." + std::to_string(row1) + ", cols " +
+        std::to_string(col0) + ".." + std::to_string(col1) +
+        " must be non-empty and within " + std::to_string(gs.nrow) + " rows, " +
+        std::to_string(gs.ncol) + " cols");
   }
 }
 
@@ -1190,59 +1722,109 @@ static void process_geometry(
 // ---- Public entry points ----
 
 BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& gs,
-                BurnMode mode) {
-  gs.validate();
-
-  double dx = gs.dx();
-  double dy = gs.dy();
-
-  exactextract::Grid<exactextract::bounded_extent> full_grid(
-      exactextract::Box(gs.xmin, gs.ymin, gs.xmax, gs.ymax), dx, dy);
-
+                const BurnOptions& opts) {
+  validate(gs, opts, geoms.size());
+  FullGrid full_grid = make_full_grid(gs);
   BurnResult out;
   for (size_t k = 0; k < geoms.size(); k++) {
-    const Geometry& g = geoms[k];
-    if (g.empty()) continue;
-    try {
-      process_geometry(g, full_grid, gs, dx, dy, static_cast<int>(k), out, mode);
-    } catch (const std::exception& e) {
-      out.notes.push_back({static_cast<int32_t>(k),
-                           std::string("error processing geometry: ") + e.what()});
-    }
+    burn_one(geoms[k], geom_id(opts, k), full_grid, gs, out, opts, nullptr);
   }
   return out;
 }
 
 BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& gs,
-                    BurnMode mode) {
+                    const BurnOptions& opts) {
   gs.validate();
-
-  double dx = gs.dx();
-  double dy = gs.dy();
-
-  exactextract::Grid<exactextract::bounded_extent> full_grid(
-      exactextract::Box(gs.xmin, gs.ymin, gs.xmax, gs.ymax), dx, dy);
-
+  if (opts.id_offset < 0) {
+    throw std::invalid_argument("id_offset " + std::to_string(opts.id_offset) + " is negative");
+  }
+  FullGrid full_grid = make_full_grid(gs);
   BurnResult out;
   for (size_t k = 0; k < wkb.size(); k++) {
     if (!wkb[k].data || wkb[k].size == 0) continue;
+    int32_t id = geom_id(opts, k);
+    burn_parsed(parse_one(wkb[k]), id, full_grid, gs, out, opts, nullptr);
+  }
+  return out;
+}
 
-    Geometry g;
-    try {
-      g = parse_wkb(wkb[k].data, wkb[k].size);
-    } catch (const WKBParseError& e) {
-      out.notes.push_back({static_cast<int32_t>(k),
-                           std::string("failed to parse WKB: ") + e.what()});
-      continue;
-    }
-    if (g.empty()) continue;
+BurnResult burn_par(const std::vector<Geometry>& geoms, const GridSpec& gs,
+                    const BurnOptions& opts, unsigned threads) {
+  if (resolve_threads(threads) < 2 || geoms.size() < 2) return burn(geoms, gs, opts);
+  validate(gs, opts, geoms.size());
+  FullGrid full_grid = make_full_grid(gs);
+  BurnResult out;
+  bool done = run_parallel(
+      geoms.size(), threads, [&](size_t k) { return work(geoms[k], gs); },
+      [&](size_t k, BurnResult& o) {
+        burn_one(geoms[k], geom_id(opts, k), full_grid, gs, o, opts, nullptr);
+      },
+      out);
+  return done ? out : burn(geoms, gs, opts);
+}
 
-    try {
-      process_geometry(g, full_grid, gs, dx, dy, static_cast<int>(k), out, mode);
-    } catch (const std::exception& e) {
-      out.notes.push_back({static_cast<int32_t>(k),
-                           std::string("error processing geometry: ") + e.what()});
-    }
+BurnResult burn_wkb_par(const std::vector<WKBSpan>& wkb, const GridSpec& gs,
+                        const BurnOptions& opts, unsigned threads) {
+  if (resolve_threads(threads) < 2 || wkb.size() < 2) return burn_wkb(wkb, gs, opts);
+  gs.validate();
+  if (opts.id_offset < 0) {
+    throw std::invalid_argument("id_offset " + std::to_string(opts.id_offset) + " is negative");
+  }
+  std::vector<Parsed> parsed(wkb.size());
+  for (size_t k = 0; k < wkb.size(); k++) parsed[k] = parse_one(wkb[k]);
+  // burn_wkb checks each non-empty blob's id; the last such is enough.
+  for (size_t k = wkb.size(); k-- > 0;) {
+    if (!parsed[k].skip) { geom_id(opts, k); break; }
+  }
+  FullGrid full_grid = make_full_grid(gs);
+  BurnResult out;
+  bool done = run_parallel(
+      wkb.size(), threads,
+      [&](size_t k) { return parsed[k].skip || parsed[k].failed ? size_t(1) : work(parsed[k].g, gs); },
+      [&](size_t k, BurnResult& o) {
+        if (parsed[k].skip) return;
+        burn_parsed(parsed[k], geom_id(opts, k), full_grid, gs, o, opts, nullptr);
+      },
+      out);
+  if (done) return out;
+  BurnResult serial;
+  for (size_t k = 0; k < wkb.size(); k++) {
+    if (parsed[k].skip) continue;
+    burn_parsed(parsed[k], geom_id(opts, k), full_grid, gs, serial, opts, nullptr);
+  }
+  return serial;
+}
+
+BurnResult burn_window(const std::vector<Geometry>& geoms, const GridSpec& gs,
+                       uint32_t row0, uint32_t row1, uint32_t col0, uint32_t col1,
+                       const BurnOptions& opts) {
+  gs.validate();
+  check_window(gs, row0, row1, col0, col1);
+  validate(gs, opts, geoms.size());
+  Window win(gs, row0, row1, col0, col1);
+  FullGrid full_grid = make_full_grid(gs);
+  BurnResult out;
+  for (size_t k = 0; k < geoms.size(); k++) {
+    burn_one(geoms[k], geom_id(opts, k), full_grid, gs, out, opts, &win);
+  }
+  return out;
+}
+
+BurnResult burn_wkb_window(const std::vector<WKBSpan>& wkb, const GridSpec& gs,
+                           uint32_t row0, uint32_t row1, uint32_t col0, uint32_t col1,
+                           const BurnOptions& opts) {
+  gs.validate();
+  check_window(gs, row0, row1, col0, col1);
+  if (opts.id_offset < 0) {
+    throw std::invalid_argument("id_offset " + std::to_string(opts.id_offset) + " is negative");
+  }
+  Window win(gs, row0, row1, col0, col1);
+  FullGrid full_grid = make_full_grid(gs);
+  BurnResult out;
+  for (size_t k = 0; k < wkb.size(); k++) {
+    if (!wkb[k].data || wkb[k].size == 0) continue;
+    int32_t id = geom_id(opts, k);
+    burn_parsed(parse_one(wkb[k]), id, full_grid, gs, out, opts, &win);
   }
   return out;
 }

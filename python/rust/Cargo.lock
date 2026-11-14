@@ -10,9 +10,9 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
 name = "controlledburn"
-version = "0.2.4"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "811c442fce690d0e5cdc7de91e3bd8f3cc89266a63316c103723a20f910afe64"
+checksum = "04fb7df5ede8c788a576d1f44f600e189f95c56913c620f3299c8b3b009f504f"
 
 [[package]]
 name = "controlledburn-python"

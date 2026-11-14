@@ -8,6 +8,24 @@ across languages, though the index base differs (Python 0-based, R
 
 ## Unreleased
 
+### Rust crate 0.3.1, with its defaults
+
+- **Built from controlledburn 0.3.1** (was 0.2.4), and with the crate's
+  default options instead of its parity mode, so the records change (not
+  the cells): **`merge_parts=True`** gives one record per cell for a
+  multi-part geometry (a cell two MultiPolygon parts cross gets one edge
+  with their fractions summed, or a run once the sum reaches 1, so two
+  halves either side of a shared border make a full cell rather than
+  0.5 + 0.5; MultiLineString parts are summed per cell too), and
+  **`coalesce_runs=True`** merges adjacent runs on a row. `burn()` takes
+  both, and **`id_offset`** (ids are `id_offset + k`, so burns of slices
+  of a collection concatenate). `merge_parts=False, coalesce_runs=False`
+  gives the previous records. The Arrow path passes each chunk's offset
+  to the crate instead of renumbering afterwards.
+- The crate notes rings of fewer than 4 coordinates (once closed), lines
+  of one coordinate and geometries with non-finite coordinates as
+  warnings, and closes unclosed rings.
+
 ### Built from the Rust crate
 
 - **The binding is now PyO3 over the `controlledburn` Rust crate**

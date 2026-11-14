@@ -11,7 +11,6 @@ Rasterize polygon, line, and point geometry without materializing any pixel valu
 \seealso{
 Useful links:
 \itemize{
-  \item \url{https://github.com/hypertidy/controlledburn}
   \item \url{https://hypertidy.github.io/controlledburn/}
   \item Report bugs at \url{https://github.com/hypertidy/controlledburn/issues}
 }

@@ -54,3 +54,21 @@ Each row in `expected.csv` defines the expected results:
   --test canon`), the new file is copied here, and the change is ported to
   `cpp/` until the test passes. R and Python see the same core through
   `tools/sync-core.sh`, so they need no copy of this check.
+
+- **canon-ops.txt** -- the Rust crate's answers (controlledburn 0.3.1 on
+  crates.io) for the operations the C++ core ports from it, on the inputs
+  of canon-tables.txt plus eight fixed `relate_cells` cases: burns with
+  the default options (runs coalesced, parts merged) and with each option
+  on its own, `id_offset`, `burn_window` on four windows, `slice_tiles`,
+  `merge_cells`, `crop` and `relate_cells`, in both modes. Written by
+  `tools/canon-ops` (a small cargo program depending on the crate):
+
+  ```sh
+  cd tools/canon-ops
+  cargo run --release -- ../../fixtures/canon-tables.txt > ../../fixtures/canon-ops.txt
+  ```
+
+  `cpp/tests/test_canon_ops.cpp` requires the C++ core to give the same
+  records in the same order, fractions as bits, and checks that the
+  threaded burn and slicing equal the serial ones. Regenerate it when the
+  crate is bumped, then port the change to `cpp/` until the test passes.

@@ -175,8 +175,16 @@ fn burn_spans(
     grid: &cb::GridSpec,
     mode: cb::BurnMode,
     coalesce: bool,
+    merge_parts: bool,
+    id_offset: i64,
 ) -> PyResult<cb::BurnResult> {
-    let opts = cb::BurnOptions::parity(mode).with_coalesce_runs(coalesce);
+    let id_offset = i32::try_from(id_offset)
+        .map_err(|_| PyValueError::new_err("id_offset must fit in 32 bits"))?;
+    let opts = cb::BurnOptions::default()
+        .with_mode(mode)
+        .with_coalesce_runs(coalesce)
+        .with_merge_parts(merge_parts)
+        .with_id_offset(id_offset);
     py.detach(|| cb::burn_wkb(spans.slices(), grid, opts))
         .map_err(|e| PyValueError::new_err(e.to_string()))
 }
@@ -268,7 +276,7 @@ fn bbox(spans: &Spans) -> Option<(f64, f64, f64, f64)> {
 }
 
 #[pyfunction]
-#[pyo3(signature = (wkb_list, xmin, ymin, xmax, ymax, ncol, nrow, mode = "coverage", coalesce = false))]
+#[pyo3(signature = (wkb_list, xmin, ymin, xmax, ymax, ncol, nrow, mode = "coverage", coalesce = true, merge_parts = true, id_offset = 0))]
 #[allow(clippy::too_many_arguments)]
 fn burn_wkb<'py>(
     py: Python<'py>,
@@ -281,16 +289,18 @@ fn burn_wkb<'py>(
     nrow: i64,
     mode: &str,
     coalesce: bool,
+    merge_parts: bool,
+    id_offset: i64,
 ) -> PyResult<Bound<'py, PyDict>> {
     let g = grid(xmin, ymin, xmax, ymax, ncol, nrow)?;
     let m = parse_mode(mode)?;
     let (_keep, spans) = list_spans(wkb_list)?;
-    let r = burn_spans(py, &spans, &g, m, coalesce)?;
+    let r = burn_spans(py, &spans, &g, m, coalesce, merge_parts, id_offset)?;
     assemble(py, &r)
 }
 
 #[pyfunction]
-#[pyo3(signature = (values, offsets, valid, xmin, ymin, xmax, ymax, ncol, nrow, mode = "coverage", coalesce = false))]
+#[pyo3(signature = (values, offsets, valid, xmin, ymin, xmax, ymax, ncol, nrow, mode = "coverage", coalesce = true, merge_parts = true, id_offset = 0))]
 #[allow(clippy::too_many_arguments)]
 fn burn_wkb_arrow<'py>(
     py: Python<'py>,
@@ -305,11 +315,13 @@ fn burn_wkb_arrow<'py>(
     nrow: i64,
     mode: &str,
     coalesce: bool,
+    merge_parts: bool,
+    id_offset: i64,
 ) -> PyResult<Bound<'py, PyDict>> {
     let g = grid(xmin, ymin, xmax, ymax, ncol, nrow)?;
     let m = parse_mode(mode)?;
     let (_keep, spans) = arrow_spans(values, &offsets, valid.as_ref())?;
-    let r = burn_spans(py, &spans, &g, m, coalesce)?;
+    let r = burn_spans(py, &spans, &g, m, coalesce, merge_parts, id_offset)?;
     assemble(py, &r)
 }
 
@@ -419,11 +431,7 @@ fn materialize<'py>(
             .collect(),
         ..Default::default()
     };
-    let opts = cb::MaterializeOptions {
-        fn_,
-        edge_policy,
-        threshold,
-    };
+    let opts = cb::MaterializeOptions::new(fn_, edge_policy).with_threshold(threshold);
     let mut buf = vec![background; g.ncol as usize * g.nrow as usize];
     let vals = (!values.is_empty()).then_some(values.as_slice());
     py.detach(|| cb::materialize(&res, &mut buf, g.ncol, g.nrow, vals, &opts))

@@ -1,0 +1,12 @@
+[package]
+name = "canon-ops"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Writes fixtures/canon-ops.txt: the controlledburn crate's records for burn options, windows, tiles, merge_cells, crop and relate_cells on the canonical inputs, for the C++ core to check against"
+license = "Apache-2.0"
+
+[dependencies]
+controlledburn = "=0.3.1"
+
+[workspace]
