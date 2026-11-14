@@ -10,23 +10,33 @@ Updated 2026-11-14. Kept by hand; tick items off or delete them as they close.
 - [ ] `CRAN-SUBMISSION` is left untracked on purpose (it is in `.Rbuildignore`).
       Commit or delete it as you prefer.
 
-## Crate 0.3.2 (released 2026-11-12): the next code work
+## Crate 0.3.2 (branch `align-crate-0.3.2`, local, on top of PR #39)
 
-- [ ] `burn_wkb_par` in 0.3.2 parses each blob on the thread that burns it, and
-      balances work read from the bytes without building geometries. The C++
-      `burn_wkb_par` (`cpp/src/scanline.cpp`) parses every blob first and then
-      runs `burn_par`, which is the slow path that 0.3.2 replaced (2 to 11× at
-      128 threads, per the crate CHANGELOG). R's `burn(threads = )` goes
-      through it (`src/scanline_shim.cpp`).
-- [ ] Records are unchanged from 0.3.1, so `tools/canon-ops` needs only the pin
-      bumped to `=0.3.2` and a regenerate. The thread checks in
-      `cpp/tests/test_canon_ops.cpp` cover the rest.
-- [ ] Python: `python/rust/Cargo.toml` to `controlledburn = "0.3.2"`. Expose
-      `burn_wkb_par` if Python gets a `threads` argument (it has none yet).
+- [x] `burn_wkb_par` parses each blob on the thread that burns it; work read
+      from the bytes (`detail::wkb_sample_extent`), tested equal to the
+      parsed work. Approx, 100k small polygons, 32 threads: 52 -> 12 ms.
+- [x] `tools/canon-ops` pinned `=0.3.2`; `fixtures/canon-ops.txt` identical
+      but for its header. Python builds from 0.3.2.
+- [x] C++ `burn_wkb_par` had no test; `test_canon_ops` now checks it against
+      `burn_wkb` (byte orders, ISO and EWKB, Z/M, empty, null, truncated).
+- [ ] Push `align-crate-0.3.2` and open its PR once #39 is merged (or stack
+      it on #39). ctest and R tests pass locally; pytest not run locally.
+- [ ] Crate: `burn_wkb_par` checks `id(len - 1)` up front, so with an id
+      overflow among 3+ blobs its error names a different blob than
+      `burn_wkb`'s (and a trailing empty blob can fail it where serial
+      would not). The C++ port names the first non-empty overflowing blob,
+      as serial does. Worth a crate issue or fix.
+- [ ] Python: expose `burn_wkb_par` if Python gets a `threads` argument.
 - [ ] Crate "Unreleased": the book now calls Natural Earth's Sudan a
       self-intersecting ring. Worth a line in the R docs on invalid input
       (winding fill), since `relate_cells` and coverage both follow the
       winding rule.
+
+## BURN format (`design/burn-format/`)
+
+- [ ] Notes towards a spec for a `.burn` file (sparse tables, grid, latent
+      indexes, features for DE-9IM and zonal stats) and GDAL drivers. Open
+      questions listed there; the name is a placeholder.
 
 ## Smaller items from the 0.3.1 work
 
@@ -50,6 +60,9 @@ Updated 2026-11-14. Kept by hand; tick items off or delete them as they close.
   - [ ] GEOS: fractions on invalid input (discussion);
   - [ ] the conversation with Dan Baston: route A (GEOS) or B (GDAL-native),
         sparse output, shared `--pixels` vocabulary, ISciences relicensing.
+- [ ] GDAL source: `~/gdal` is the primary tree (at 9bb42f5a7b, 2026-11-11).
+      `/perm_storage/home/gdalbuilder/gdal` and the copies under
+      `/rdsi/PRIVATE/raad/` and old session scratchpads need cleaning up.
 - [ ] The GEOS builds used by experiments 01 and 02 were in the session
       scratchpad and will be gone. Rebuild with
       `cmake -S geos -B build -DBUILD_TESTING=OFF && ninja -C build install`

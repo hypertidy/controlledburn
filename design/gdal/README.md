@@ -6,6 +6,8 @@
 - [experiments/](experiments/README.md): five experiments with scripts and
   results. They compare GEOS and controlledburn, test GDAL on rotated and
   geolocated grids, and benchmark GDAL's rasterizer.
+- [../burn-format/](../burn-format/README.md): notes towards a `.burn` file
+  format and GDAL drivers for it (plan.md Stage 4's table output).
 - [upstream-drafts.md](upstream-drafts.md): facts for bug reports to GDAL and
   GEOS. Nothing has been filed.
 
