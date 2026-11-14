@@ -82,7 +82,7 @@ grid. Only the grid's description does (crate `design/grid-frontends.md`).
 
 - A CRS (WKT2 or PROJJSON) goes with every grid kind.
 - **Use GTI's layer-metadata names where they fit**
-  (`doc/source/drivers/raster/gti.rst` in `~/gdal`): `XSIZE`, `YSIZE`,
+  (`doc/source/drivers/raster/gti.rst` in GDAL's source): `XSIZE`, `YSIZE`,
   `GEOTRANSFORM`, `SRS`, `RESX`, `RESY`. GTI is GDAL's existing "raster
   described by a vector table" driver, so GDAL users already know these
   names.

@@ -60,10 +60,10 @@ Updated 2026-11-14. Kept by hand; tick items off or delete them as they close.
   - [ ] GEOS: fractions on invalid input (discussion);
   - [ ] the conversation with Dan Baston: route A (GEOS) or B (GDAL-native),
         sparse output, shared `--pixels` vocabulary, ISciences relicensing.
-- [ ] GDAL source: `~/gdal` is the primary tree (at 9bb42f5a7b, 2026-11-11).
-      `/perm_storage/home/gdalbuilder/gdal` and the copies under
-      `/rdsi/PRIVATE/raad/` and old session scratchpads need cleaning up.
-- [ ] The GEOS builds used by experiments 01 and 02 were in the session
-      scratchpad and will be gone. Rebuild with
+- [ ] GDAL source: the experiments and notes were read against GDAL master
+      at 9bb42f5a7b (2026-11-11). Older GDAL source copies on the dev
+      machine need cleaning up.
+- [ ] The GEOS builds used by experiments 01 and 02 were temporary and are
+      gone. Rebuild with
       `cmake -S geos -B build -DBUILD_TESTING=OFF && ninja -C build install`
       (branches `3.14`, tag `3.15.0`, `main`).
