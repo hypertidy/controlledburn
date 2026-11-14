@@ -1,0 +1,17 @@
+GEOS 3.16.0dev-CAPI-1.23.0
+
+oracle corpus (burnscars, 50 cases)
+  coverage: controlledburn vs GEOS           cases   50  cells    87968  |diff|>1e-6     1  >1e-3     1  full/0   1  0/full   0  max 1 (random_39)
+  coverage: GEOS vs exactextract 0.3.0       cases   50  cells    87968  |diff|>1e-6     4  >1e-3     4  full/0   4  0/full   0  max 1 (random_1)
+  coverage: controlledburn vs exactextract 0.3.0 cases   50  cells    87968  |diff|>1e-6     5  >1e-3     5  full/0   5  0/full   0  max 1 (random_1)
+  approx:   controlledburn vs GDAL rasterize cases   50  cells    87968  |diff|>1e-6    64  >1e-3    64  full/0  23  0/full  41  max 1 (offset_rect)
+
+canon corpus (controlledburn, polygonal geometries; 'cases' counts geometries)
+  coverage: controlledburn vs GEOS           cases  199  cells    20588  |diff|>1e-6   142  >1e-3   142  full/0   2  0/full   3  max 1 (gen235#1) GEOS failures 1
+
+timing: one polygon, star of N vertices filling an n x n grid (best of 3)
+       N       n        cb ms      GEOS ms      ratio     cb records    GEOS buf MB
+    1000    1000         10.2         24.3        2.4          22702              4
+   10000    4000         55.6        519.9        9.3         111754             64
+  100000   10000        174.1       3081.4       17.7         280141            400
+  100000   20000        382.8      12015.9       31.4         560351           1600

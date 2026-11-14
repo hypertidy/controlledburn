@@ -1,0 +1,18 @@
+GDAL 3.14.0dev-9bb42f5a7b-dirty
+corpus                             method                                     ms    cells set      vs GDAL
+one star, 100k vertices            GDAL, cell centre                      1543.1     63849455            -
+                                   controlledburn approx, 1 thread          18.3     63849455          0 cells differ
+                                   controlledburn approx, 8 threads         18.0     63849455          0 cells differ
+                                   GDAL, ALL_TOUCHED                      1592.0     63961547            -
+                                   controlledburn fraction > 0, 1 thr      300.0     63961414        135 cells differ
+                                   controlledburn fraction > 0, 8 thr      265.4     63961414        135 cells differ
+                                   ALL_TOUCHED disagreements: 134 set only by GDAL, 1 only by controlledburn; of the first 135 checked,
+                                   0 GDAL-only cells have zero intersection area (largest GDAL-only area 9.88e-07), 1 cb-only cells have area > 0
+20k random 24-gons, r 2-30 cells   GDAL, cell centre                       325.5      9579777            -
+                                   controlledburn approx, 1 thread         168.3      9579777          0 cells differ
+                                   controlledburn approx, 8 threads         47.5      9579777          0 cells differ
+                                   GDAL, ALL_TOUCHED                       452.4     10930193            -
+                                   controlledburn fraction > 0, 1 thr     1783.9     10928589       1610 cells differ
+                                   controlledburn fraction > 0, 8 thr      324.9     10928589       1610 cells differ
+                                   ALL_TOUCHED disagreements: 1607 set only by GDAL, 3 only by controlledburn; of the first 400 checked,
+                                   0 GDAL-only cells have zero intersection area (largest GDAL-only area 9.96e-07), 1 cb-only cells have area > 0
