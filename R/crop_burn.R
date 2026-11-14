@@ -23,69 +23,45 @@
 #' }
 crop_burn <- function(x, target) {
   stopifnot(inherits(x, "controlledburn"))
-  stopifnot(length(target) == 4)
-
+  if (!is.numeric(target) || length(target) != 4L || anyNA(target)) {
+    stop("'target' must be numeric c(xmin, xmax, ymin, ymax)")
+  }
   ext <- x$extent
   dim <- x$dimension
-  dx <- (ext[2] - ext[1]) / dim[1]
-  dy <- (ext[4] - ext[3]) / dim[2]
-
-  # Target extent to row/col bounds (snap outward, 1-based).
-  # Tolerance nudge avoids floating-point floor/ceiling errors when
-  # the target aligns exactly with cell boundaries.
-  eps <- 1e-8
-  col_lo <- max(1L, as.integer(floor((target[1] - ext[1]) / dx + eps)) + 1L)
-  col_hi <- min(dim[1], as.integer(ceiling((target[2] - ext[1]) / dx - eps)))
-  row_hi <- min(dim[2], as.integer(ceiling((ext[4] - target[3]) / dy - eps)))
-  row_lo <- max(1L, as.integer(floor((ext[4] - target[4]) / dy + eps)) + 1L)
-
-  if (col_lo > col_hi || row_lo > row_hi) {
+  res <- cpp_crop(x, ext[1], ext[3], ext[2], ext[4], dim[1], dim[2],
+                  target[1], target[3], target[2], target[4])
+  if (is.null(res)) {
     warning("target extent does not overlap the grid")
+    res <- .empty_tables()
     new_ext <- target
     new_dim <- c(0L, 0L)
   } else {
-    new_ext <- c(
-      ext[1] + (col_lo - 1L) * dx,
-      ext[1] + col_hi * dx,
-      ext[4] - row_hi * dy,
-      ext[4] - (row_lo - 1L) * dy
-    )
-    new_dim <- c(col_hi - col_lo + 1L, row_hi - row_lo + 1L)
+    g <- res$grid
+    new_ext <- g[c(1, 3, 2, 4)]
+    new_dim <- as.integer(g[5:6])
   }
-
-  crop_table <- function(df, row_col, col_cols = NULL) {
-    if (is.null(df) || nrow(df) == 0) return(df)
-    keep <- df$row >= row_lo & df$row <= row_hi
-    if (!is.null(col_cols)) {
-      if (length(col_cols) == 1) {
-        keep <- keep & df[[col_cols]] >= col_lo & df[[col_cols]] <= col_hi
-      } else {
-        # Runs: col_end >= col_lo and col_start <= col_hi
-        keep <- keep & df[[col_cols[2]]] >= col_lo & df[[col_cols[1]]] <= col_hi
-      }
-    }
-    df <- df[keep, , drop = FALSE]
-    df$row <- df$row - row_lo + 1L
-    if (!is.null(col_cols)) {
-      if (length(col_cols) == 1) {
-        df[[col_cols]] <- df[[col_cols]] - col_lo + 1L
-      } else {
-        df[[col_cols[1]]] <- pmax(df[[col_cols[1]]], col_lo) - col_lo + 1L
-        df[[col_cols[2]]] <- pmin(df[[col_cols[2]]], col_hi) - col_lo + 1L
-      }
-    }
-    rownames(df) <- NULL
-    df
-  }
-
   out <- list(
-    runs   = crop_table(x$runs, "row", c("col_start", "col_end")),
-    edges  = crop_table(x$edges, "row", "col"),
-    lines  = crop_table(x$lines, "row", "col"),
-    points = crop_table(x$points, "row", "col"),
+    runs   = res$runs,
+    edges  = res$edges,
+    lines  = res$lines,
+    points = res$points,
     extent = new_ext,
     dimension = new_dim
   )
+  if (!is.null(x$options)) out$options <- x$options
   class(out) <- "controlledburn"
   out
+}
+
+# The four tables with no records.
+.empty_tables <- function() {
+  list(
+    runs = data.frame(row = integer(), col_start = integer(),
+                      col_end = integer(), id = integer()),
+    edges = data.frame(row = integer(), col = integer(),
+                       fraction = numeric(), id = integer()),
+    lines = data.frame(row = integer(), col = integer(),
+                       length = numeric(), id = integer()),
+    points = data.frame(row = integer(), col = integer(), id = integer())
+  )
 }

@@ -40,7 +40,13 @@ reference:
   contents:
   - materialise_chunk
   - crop_burn
+  - slice_burn
   - extract_burn
+- title: Predicates
+  desc: >
+    The DE-9IM relation of each polygon to each grid cell, from a burn.
+  contents:
+  - relate_cells
 - title: Methods
   desc: Inspect and visualise a burn.
   contents:

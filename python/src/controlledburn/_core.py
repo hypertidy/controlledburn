@@ -3,7 +3,8 @@
 # Forwards to the native module built from the controlledburn Rust crate
 # (rust/src/lib.rs), coercing array arguments to the contiguous dtypes the
 # native functions take. Same names and signatures as the former pybind11
-# module over the C++ core, so the package API above it is unchanged.
+# module over the C++ core. burn_wkb and burn_wkb_arrow take the crate's
+# options (coalesce, merge_parts, id_offset), with its defaults.
 #
 # Copyright (c) 2025 Michael Sumner
 # Licensed under Apache License 2.0
@@ -23,16 +24,20 @@ def _mask(valid):
     return None if valid is None else np.ascontiguousarray(valid, dtype=np.uint8)
 
 
-def burn_wkb(wkb_list, xmin, ymin, xmax, ymax, ncol, nrow, mode="coverage"):
+def burn_wkb(wkb_list, xmin, ymin, xmax, ymax, ncol, nrow, mode="coverage",
+             coalesce=True, merge_parts=True, id_offset=0):
     return _native.burn_wkb(wkb_list, float(xmin), float(ymin), float(xmax),
-                            float(ymax), int(ncol), int(nrow), mode)
+                            float(ymax), int(ncol), int(nrow), mode,
+                            bool(coalesce), bool(merge_parts), int(id_offset))
 
 
 def burn_wkb_arrow(values, offsets, valid, xmin, ymin, xmax, ymax, ncol, nrow,
-                   mode="coverage"):
+                   mode="coverage", coalesce=True, merge_parts=True, id_offset=0):
     return _native.burn_wkb_arrow(values, _i64(offsets), _mask(valid),
                                   float(xmin), float(ymin), float(xmax),
-                                  float(ymax), int(ncol), int(nrow), mode)
+                                  float(ymax), int(ncol), int(nrow), mode,
+                                  bool(coalesce), bool(merge_parts),
+                                  int(id_offset))
 
 
 def bbox_wkb(wkb_list):

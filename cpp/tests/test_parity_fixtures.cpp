@@ -200,7 +200,7 @@ int main(int argc, char** argv) {
 
         auto wkb_bytes = hex_to_bytes(g.wkb_hex);
         GridSpec gs{g.xmin, g.ymin, g.xmax, g.ymax, g.ncol, g.nrow};
-        BurnResult r = burn_wkb({{wkb_bytes.data(), wkb_bytes.size()}}, gs);
+        BurnResult r = burn_wkb({{wkb_bytes.data(), wkb_bytes.size()}}, gs, BurnOptions::parity(BurnMode::Coverage));
 
         int before = failures;
 

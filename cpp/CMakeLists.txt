@@ -9,6 +9,8 @@ option(CONTROLLEDBURN_BUILD_TESTS "Build tests" ON)
 add_library(controlledburn
   src/scanline.cpp
   src/wkb.cpp
+  src/ops.cpp
+  src/relate.cpp
   src/ee/box.cpp
   src/ee/coordinate.cpp
   src/ee/grid.cpp
@@ -52,6 +54,13 @@ if(CONTROLLEDBURN_BUILD_TESTS)
   add_executable(test_canon_tables tests/test_canon_tables.cpp)
   target_link_libraries(test_canon_tables PRIVATE controlledburn)
   add_test(NAME canon_tables COMMAND test_canon_tables
+           "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures")
+
+  add_executable(test_canon_ops tests/test_canon_ops.cpp)
+  target_link_libraries(test_canon_ops PRIVATE controlledburn)
+  find_package(Threads REQUIRED)
+  target_link_libraries(controlledburn PUBLIC Threads::Threads)
+  add_test(NAME canon_ops COMMAND test_canon_ops
            "${CMAKE_CURRENT_SOURCE_DIR}/../fixtures")
 endif()
 

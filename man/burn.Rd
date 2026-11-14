@@ -10,7 +10,12 @@ burn(
   extent = NULL,
   dimension = NULL,
   resolution = NULL,
-  mode = c("coverage", "approx")
+  mode = c("coverage", "approx"),
+  merge_parts = TRUE,
+  coalesce_runs = TRUE,
+  id_offset = 0L,
+  threads = 1L,
+  target = NULL
 )
 
 burn_scanline(x, extent = NULL, dimension = NULL, resolution = NULL)
@@ -43,6 +48,39 @@ boundary cell is included as a full run cell iff the polygon edge
 crosses to the left of the cell center. No \verb{$edges} are produced
 for polygons. Faster (skips traversal math), but approximate.
 Lines and points are unaffected by mode.}
+
+\item{merge_parts}{logical, one record per cell for a multi-part
+geometry (default \code{TRUE}). A cell that several parts of one
+MULTIPOLYGON cross gets one edge with the parts' fractions summed, or a
+run once the sum reaches 1 (two halves of a cell either side of a
+shared border make a full cell, not \code{0.5 + 0.5}); an edge in a cell
+another part covers fully is dropped. A cell several parts of one
+MULTILINESTRING cross gets one record with their lengths summed.
+Overlapping parts are not unioned: their sum is capped at a full cell.
+With \code{FALSE} each part keeps its own records, as in controlledburn 0.3.2.}
+
+\item{coalesce_runs}{logical, merge adjacent runs on a row into one
+(default \code{TRUE}). With \code{FALSE} each fully covered boundary cell is
+its own one-cell run, as in controlledburn 0.3.2. The cells are the same
+either way.}
+
+\item{id_offset}{non-negative integer added to each geometry's position
+to give its \code{id} (default \code{0}), so that burns of consecutive slices of
+a collection can be bound together without renumbering.}
+
+\item{threads}{integer, the number of threads to burn on (default \code{1};
+\code{0} for all available). The result is the same, record for record.
+Geometries are shared out between threads, so this helps with many
+geometries, not with one large one (burn that once with a \code{target}
+per tile, or burn it whole and use \code{\link[=slice_burn]{slice_burn()}}). Small inputs burn
+on one thread whatever \code{threads} is.}
+
+\item{target}{optional numeric \code{c(xmin, xmax, ymin, ymax)}: burn only the
+cells of the grid that overlap it, snapped outward to whole cells (see
+\code{\link[=crop_burn]{crop_burn()}}). The result is \code{crop_burn(burn(...), target)}, record
+for record, but costs about the geometry near the window rather than
+all of it, so the tiles of a large grid can be burned one at a time.
+The grid (\code{extent}, \code{dimension}, \code{resolution}) is the whole grid's.}
 }
 \value{
 A list with class \code{"controlledburn"} containing:
@@ -65,7 +103,10 @@ it isn't). Empty for polygon/line input.}
 }
 
 Row and column indices are 1-based. Row 1 is the top (ymax) row.
-The \code{id} column is a 1-based index into the input geometry vector.
+The \code{id} column is a 1-based index into the input geometry vector
+(plus \code{id_offset}).
+
+The options are kept in \verb{$options}, for \code{\link[=relate_cells]{relate_cells()}}.
 
 The measure is computed in the CRS the geometry and grid are
 specified in — \emph{not} the geodesic measure on the Earth. Geometry
@@ -125,5 +166,17 @@ if (requireNamespace("geos", quietly = TRUE)) {
 
   # By resolution
   r <- burn(poly, resolution = 0.01)
+
+  # Two halves of a cell either side of a shared border: one full cell
+  # with merge_parts (the default), two edges of 0.5 without
+  mp <- as_geos_geometry(
+    "MULTIPOLYGON (((0 0, 1.5 0, 1.5 3, 0 3, 0 0)), ((1.5 0, 3 0, 3 3, 1.5 3, 1.5 0)))")
+  burn(mp, extent = c(0, 3, 0, 3), dimension = c(3, 3))$edges
+  burn(mp, extent = c(0, 3, 0, 3), dimension = c(3, 3), merge_parts = FALSE)$edges
+
+  # Burn one window of a large grid (equal to cropping the whole burn)
+  w <- burn(poly, extent = c(0, 3, 0, 3), dimension = c(3000, 3000),
+            target = c(0, 1, 0, 1))
+  w$dimension
 }
 }

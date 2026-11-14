@@ -130,7 +130,7 @@ int main(int argc, char** argv) {
         for (const auto& b : c.wkb) spans.push_back(WKBSpan{b.data(), b.size()});
         for (const auto& m : c.modes) {
             BurnMode mode = m.name == "approx" ? BurnMode::Approx : BurnMode::Coverage;
-            BurnResult r = burn_wkb(spans, c.grid, mode);
+            BurnResult r = burn_wkb(spans, c.grid, BurnOptions::parity(mode));
             auto got = records(r);
             nrec += m.records.size();
             if (!r.notes.empty()) {

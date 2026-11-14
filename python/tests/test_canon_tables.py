@@ -69,7 +69,9 @@ CASES = load_cases()
 def test_canonical_tables(mode):
     bad = []
     for c in CASES:
-        got = records(_core.burn_wkb(c["wkb"], *c["grid"], mode))
+        # the canon is parity mode: no run coalescing, no part merging
+        got = records(_core.burn_wkb(c["wkb"], *c["grid"], mode,
+                                     coalesce=False, merge_parts=False))
         if got != c["tables"][mode]:
             bad.append(c["name"])
     assert len(CASES) == 240

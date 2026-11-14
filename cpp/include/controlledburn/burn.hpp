@@ -4,6 +4,9 @@
 // fractions, O(perimeter) in time and memory, producing sparse output
 // (no pixel buffer is ever materialized by the burn itself).
 //
+// The API follows the controlledburn Rust crate (0.3.1), which is the
+// canonical implementation: the same options, defaults and records.
+//
 // Copyright (c) 2025 Michael Sumner
 // Licensed under Apache License 2.0
 
@@ -20,24 +23,53 @@
 
 namespace controlledburn {
 
-// How boundary cells are classified for polygon output.
-//
-//   Coverage -- exact coverage fractions via analytical traversal.
-//               Boundary cells appear in $edges with a fraction in (0, 1).
-//               This is the default: exact area conservation.
-//
-//   Approx   -- cell-center rule (fasterize semantics). A boundary cell
-//               is "inside" iff the polygon edge crosses the cell-center
-//               scanline to the LEFT of the cell center. Inside cells
-//               become runs; outside cells are dropped. No $edges for
-//               polygons. Faster (skips traversal math), but approximate.
 enum class BurnMode {
     Coverage,
     Approx
 };
 
-// Regular grid specification. Cell size is derived: dx = (xmax-xmin)/ncol.
-// Row 0 is the TOP row (ymax edge), matching raster convention.
+// Options for a burn, as the Rust crate's BurnOptions. The defaults are
+// the crate's: coverage mode, runs coalesced, the parts of a multi-part
+// geometry merged to one record per cell, ids from 0. A BurnMode
+// converts to the default options with that mode.
+struct BurnOptions {
+    BurnMode mode = BurnMode::Coverage;
+    // Merge adjacent runs on a row. Off, the runs table has one run per
+    // fully covered boundary cell, as the core emitted until now.
+    bool coalesce_runs = true;
+    // One record per cell for a multi-part geometry: a cell several parts
+    // cross gets one edge with the parts' fractions summed (in part
+    // order), or a run once the sum reaches 1; an edge in a cell another
+    // part covers fully is dropped; the geometry's runs are sorted and
+    // coalesced. Line parts are summed per cell the same way. Overlapping
+    // parts are not unioned: the sum is capped at a full cell. Off, each
+    // part keeps its own records.
+    bool merge_parts = true;
+    // Added to each geometry's position to give its id, so burns of
+    // consecutive slices of a collection concatenate without renumbering.
+    // Must be non-negative, and the last id must fit in int32.
+    int32_t id_offset = 0;
+
+    BurnOptions() = default;
+    BurnOptions(BurnMode m) : mode(m) {}  // NOLINT: implicit, as Rust's From
+
+    static BurnOptions coverage() { return BurnOptions(); }
+    static BurnOptions approx() { return BurnOptions(BurnMode::Approx); }
+    // Record-for-record parity with the core before these options (and the Rust
+    // crate's parity()): coalescing and part merging off.
+    static BurnOptions parity(BurnMode m) {
+        BurnOptions o(m);
+        o.coalesce_runs = false;
+        o.merge_parts = false;
+        return o;
+    }
+
+    BurnOptions with_mode(BurnMode m) const { BurnOptions o = *this; o.mode = m; return o; }
+    BurnOptions with_coalesce_runs(bool on) const { BurnOptions o = *this; o.coalesce_runs = on; return o; }
+    BurnOptions with_merge_parts(bool on) const { BurnOptions o = *this; o.merge_parts = on; return o; }
+    BurnOptions with_id_offset(int32_t off) const { BurnOptions o = *this; o.id_offset = off; return o; }
+};
+
 struct GridSpec {
     double xmin, ymin, xmax, ymax;
     int32_t ncol, nrow;
@@ -63,30 +95,55 @@ struct GridSpec {
     }
 };
 
-// Burn a set of geometries onto the grid. Geometry k (0-based) is
-// assigned id k in the output tables; row/col are 0-based with row 0 at
-// the top, and runs cover the half-open range [col_start, col_end).
-//
-// Empty geometries are skipped silently; unsupported inputs are skipped
-// with a note in BurnResult::notes. Throws std::invalid_argument for an
-// invalid GridSpec only.
-BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& grid,
-                BurnMode mode = BurnMode::Coverage);
-
-// Convenience: burn geometries supplied as WKB blobs (one blob per
-// geometry). Unparseable blobs are skipped with a note.
 struct WKBSpan {
     const uint8_t* data;
     size_t size;
 };
-BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& grid,
-                    BurnMode mode = BurnMode::Coverage);
 
-// Axis-aligned envelope (bounding box) of a set of WKB geometries, in the
-// coordinate system of the input (no CRS awareness). Null spans,
-// unparseable blobs, and non-finite coordinates (e.g. POINT EMPTY) are
-// skipped; `valid` is false when no finite coordinate was found. Lets
-// bindings derive a default grid extent without a geometry library.
+// Burn geometries onto the grid. Geometry k is id = k + opts.id_offset.
+// Empty geometries are skipped silently; geometries with non-finite
+// coordinates, rings of fewer than 4 coordinates once closed, lines of one
+// coordinate and geometries the engine cannot process are skipped with a
+// note, the rest of the geometry being burned. Unclosed rings are closed.
+// Throws std::invalid_argument for an invalid grid or id_offset.
+BurnResult burn(const std::vector<Geometry>& geoms, const GridSpec& grid,
+                const BurnOptions& opts = BurnOptions());
+
+// As burn(), from WKB blobs (ISO and EWKB, both byte orders, Z/M
+// skipped). Empty or null spans are skipped silently, unparseable blobs
+// with a note.
+BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& grid,
+                    const BurnOptions& opts = BurnOptions());
+
+// burn() on `threads` threads (0: all available), with the same result
+// record for record and in the same order, notes included. Geometries are
+// split into contiguous chunks of about equal estimated work (coordinates
+// plus grid rows spanned), several per thread; at most one thread per
+// 8,192 of that work, and on the calling thread with one thread or one
+// geometry. One geometry is never split.
+BurnResult burn_par(const std::vector<Geometry>& geoms, const GridSpec& grid,
+                    const BurnOptions& opts, unsigned threads);
+
+// burn_wkb() on several threads (the blobs are parsed first, then burned
+// as burn_par burns them; the result equals burn_wkb's).
+BurnResult burn_wkb_par(const std::vector<WKBSpan>& wkb, const GridSpec& grid,
+                        const BurnOptions& opts, unsigned threads);
+
+// Burn onto a window of the grid: rows [row0, row1), columns [col0,
+// col1). The records are those burn() gives in the window's cells, the
+// same values in the same order with the full grid's indices: runs are
+// cut at the window's columns and nothing outside it is kept. The window
+// keeps the full grid's lattice and edge rules, so the windows of a tiling
+// put together are the whole burn. Throws std::invalid_argument for an
+// empty window or one outside the grid.
+BurnResult burn_window(const std::vector<Geometry>& geoms, const GridSpec& grid,
+                       uint32_t row0, uint32_t row1, uint32_t col0, uint32_t col1,
+                       const BurnOptions& opts = BurnOptions());
+
+BurnResult burn_wkb_window(const std::vector<WKBSpan>& wkb, const GridSpec& grid,
+                           uint32_t row0, uint32_t row1, uint32_t col0, uint32_t col1,
+                           const BurnOptions& opts = BurnOptions());
+
 struct BBox {
     double xmin, ymin, xmax, ymax;
     bool valid;

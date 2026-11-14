@@ -1,5 +1,76 @@
 # controlledburn (development version)
 
+## Aligned with the controlledburn Rust crate 0.3.1
+
+The Rust crate (hypertidy/controlledburn-rs, on crates.io) is now the
+canonical implementation, and this package follows it. The R package
+still builds from the C++ core, which now has the crate's options and
+operations; `cpp/tests/test_canon_ops.cpp` checks each one record for
+record against the crate's own answers (`fixtures/canon-ops.txt`, written
+by `tools/canon-ops` from crate 0.3.1).
+
+* **Changed defaults (records, not cells).** `burn()` now gives one record
+  per cell for a multi-part geometry and merges adjacent runs, as the
+  crate does by default:
+  * `merge_parts = TRUE`: the parts of a MULTIPOLYGON were burned one by
+    one, so a cell two parts cross had two edges (two halves either side
+    of a shared border came out as `0.5 + 0.5`, not a full cell), and an
+    overlap stacked an edge on a run. The parts' fractions are now summed
+    per cell, a sum reaching 1 becomes a run, and an edge in a cell
+    another part covers is dropped. Overlapping parts are capped at a full
+    cell, not unioned. MULTILINESTRING parts are summed per cell the same
+    way.
+  * `coalesce_runs = TRUE`: a fully covered boundary cell was its own
+    one-cell run; adjacent runs on a row are now one run.
+
+  Materialised values are unchanged except where multipolygon parts meet
+  or overlap. `merge_parts = FALSE, coalesce_runs = FALSE` gives the
+  previous records exactly.
+
+* `burn()` gains `id_offset` (ids are `id_offset` plus the position, so
+  burns of slices of a collection bind together), `threads` (burn on
+  several threads, with the same result record for record) and `target`
+  (burn only the cells of the grid overlapping a window: the result is
+  `crop_burn(burn(...), target)` but costs about the geometry near the
+  window, so a large grid can be burned tile by tile). The options used
+  are kept in the result's `$options`.
+
+* New `slice_burn()`: cut a burn into a regular grid of tiles in one pass
+  over its records (each tile equals `crop_burn()` to that tile), with
+  `threads`.
+
+* New `relate_cells()`: the DE-9IM matrix of each polygon against each
+  grid cell its boundary touches, from a finished burn and the same
+  geometry, with `intersects`, `covers`, `touches`, `interiors_meet` and
+  `covered_by` columns. Every other cell is covered (in a run) or
+  disjoint (no record), so together they give every cell's relation; the
+  exact all-touched set of a polygon is its runs plus the relations that
+  intersect. Contacts are decided with exact predicates, so cells the
+  boundary only touches along a wall or at a corner, and slivers within
+  the burn's 1e-6 coverage tolerance, are reported. Tested against
+  `geos::geos_relate()` on every cell.
+
+* `crop_burn()` and `materialise_chunk()` now run in C++ (the core's
+  `crop()`); `materialise_chunk()` no longer loops over records in R.
+
+* The burn now notes, as warnings, rings of fewer than 4 coordinates once
+  closed (an exterior skips its part, a hole only itself), lines of one
+  coordinate, and geometries with non-finite coordinates, which are
+  skipped; unclosed rings are closed. Before, these were skipped silently
+  or processed as given.
+
+* C++ core: `BurnOptions` (with `parity()` for the earlier records),
+  `burn_par()`/`burn_wkb_par()`, `burn_window()`/`burn_wkb_window()`,
+  `coalesce_runs()`, `merge_cells()`, `crop()`, `slice_tiles()`/
+  `slice_tiles_par()` (`ops.hpp`) and `relate_cells()` (`relate.hpp`), all
+  ports of the crate's. A `BurnMode` passed where options are expected
+  gives the crate's defaults, so C++ callers of `burn(geoms, grid, mode)`
+  get coalesced runs and merged parts; use `BurnOptions::parity(mode)` for
+  the previous records. The package links with `-lpthread` on Unix.
+
+* Python: built from crate 0.3.1 (was 0.2.4), with its defaults;
+  `burn()` gains `merge_parts`, `coalesce_runs` and `id_offset`.
+
 * The Python package (`python/`) now builds from the controlledburn Rust
   crate (PyO3 + maturin) instead of this C++ core, with an unchanged API
   and identical output on the canonical tables. The R package still

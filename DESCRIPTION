@@ -51,6 +51,6 @@ URL: https://hypertidy.github.io/controlledburn/
 BugReports: https://github.com/hypertidy/controlledburn/issues
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-Config/roxygen2/version: 8.1.0
+Config/roxygen2/version: 8.1.1
 Depends: 
     R (>= 3.5)
