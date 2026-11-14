@@ -7,6 +7,7 @@
 #include "controlledburn/wkb.hpp"
 #include "controlledburn/burn.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <limits>
@@ -56,6 +57,8 @@ public:
         need(8 * n);
         pos_ += 8 * n;
     }
+
+    size_t remaining() const { return size_ - pos_; }
 
 private:
     void need(size_t n) const {
@@ -115,6 +118,9 @@ TypeInfo decode_type(uint32_t raw) {
 
 CoordSeq read_coordseq(Cursor& cur, size_t extra_dims) {
     uint32_t n = cur.read_u32();
+    // a count the blob cannot hold: fail before reserving for it
+    if (n > cur.remaining() / (8 * (2 + extra_dims)))
+        throw WKBParseError("WKB truncated: " + std::to_string(n) + " coordinates");
     CoordSeq seq;
     seq.reserve(n);
     for (uint32_t i = 0; i < n; i++) {
@@ -160,7 +166,117 @@ TypeInfo read_nested_header(Cursor& cur, uint32_t expected_base) {
     return t;
 }
 
+// The extent sample of burn.hpp's work estimate, read from the bytes.
+struct Sample {
+    size_t n = 0;
+    double lo = std::numeric_limits<double>::infinity();
+    double hi = -std::numeric_limits<double>::infinity();
+
+    void keep(double y) {
+        // std::min/max with y second, as work() takes them: NaN is ignored
+        lo = std::min(lo, y);
+        hi = std::max(hi, y);
+    }
+
+    // A coordinate sequence: every coordinate counted, and when `sample`
+    // the y of coordinates 0, step, 2 step, ... and the last kept, step
+    // being (n + 15) / 16, as work() samples a part.
+    void seq(Cursor& cur, size_t extra, bool sample) {
+        uint32_t n32 = cur.read_u32();
+        size_t n = n32, stride = 2 + extra;
+        if (n > cur.remaining() / (8 * stride))
+            throw WKBParseError("WKB truncated: " + std::to_string(n) + " coordinates");
+        this->n += n;
+        if (!sample || n == 0) {
+            cur.skip_f64(n * stride);
+            return;
+        }
+        size_t step = (n + 15) / 16, at = 0;
+        auto take = [&](size_t i) {
+            cur.skip_f64((i - at) * stride + 1);
+            keep(cur.read_f64());
+            cur.skip_f64(extra);
+            at = i + 1;
+        };
+        for (size_t i = 0; i < n; i += step) take(i);
+        if (at < n) take(n - 1);
+    }
+
+    void polygon(Cursor& cur, size_t extra) {
+        uint32_t rings = cur.read_u32();
+        for (uint32_t r = 0; r < rings; r++) seq(cur, extra, r == 0);
+    }
+};
+
 } // namespace
+
+namespace detail {
+
+bool wkb_sample_extent(const uint8_t* data, size_t size, size_t& n, double& lo,
+                       double& hi) noexcept {
+    if (!data || size < 5) return false;
+    try {
+        Cursor cur(data, size);
+        uint8_t order = cur.read_u8();
+        if (order > 1) return false;
+        cur.set_byte_order(order);
+        TypeInfo t = decode_type(cur.read_u32());
+        if (t.has_srid) cur.read_u32();
+        Sample s;
+        switch (t.base) {
+        case 1:
+            cur.skip_f64(1);
+            s.n = 1;
+            s.keep(cur.read_f64());
+            break;
+        case 2:
+            s.seq(cur, t.extra_dims, true);
+            break;
+        case 3:
+            s.polygon(cur, t.extra_dims);
+            break;
+        case 4: {  // the points are one part, as work() takes them
+            uint32_t np = cur.read_u32();
+            size_t step = (size_t(np) + 15) / 16;
+            for (uint32_t i = 0; i < np; i++) {
+                TypeInfo pt = read_nested_header(cur, 1);
+                cur.skip_f64(1);
+                double y = cur.read_f64();
+                cur.skip_f64(pt.extra_dims);
+                s.n++;
+                if (i % step == 0 || i + 1 == np) s.keep(y);
+            }
+            break;
+        }
+        case 5: {
+            uint32_t nl = cur.read_u32();
+            for (uint32_t i = 0; i < nl; i++) {
+                TypeInfo lt = read_nested_header(cur, 2);
+                s.seq(cur, lt.extra_dims, true);
+            }
+            break;
+        }
+        case 6: {
+            uint32_t npoly = cur.read_u32();
+            for (uint32_t i = 0; i < npoly; i++) {
+                TypeInfo pt = read_nested_header(cur, 3);
+                s.polygon(cur, pt.extra_dims);
+            }
+            break;
+        }
+        default:
+            return false;
+        }
+        n = s.n;
+        lo = s.lo;
+        hi = s.hi;
+        return true;
+    } catch (const WKBParseError&) {
+        return false;
+    }
+}
+
+} // namespace detail
 
 Geometry parse_wkb(const uint8_t* data, size_t size) {
     if (!data || size < 5)

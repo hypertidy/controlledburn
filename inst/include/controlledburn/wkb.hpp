@@ -33,6 +33,19 @@ struct WKBParseError : std::runtime_error {
 // or unsupported type (curves, GeometryCollection).
 Geometry parse_wkb(const uint8_t* data, size_t size);
 
+namespace detail {
+
+// What the threaded burn's work estimate needs from one blob, read
+// without building the geometry: `n`, its number of coordinates, and
+// [lo, hi], the y-range of at most 16 coordinates of each part (a
+// polygon's exterior ring; a multi-point's points are one part), the
+// coordinates the estimate samples from a parsed geometry. False for a
+// blob that does not parse or that the burn rejects.
+bool wkb_sample_extent(const uint8_t* data, size_t size, size_t& n, double& lo,
+                       double& hi) noexcept;
+
+} // namespace detail
+
 } // namespace controlledburn
 
 #endif // CONTROLLEDBURN_WKB_HPP

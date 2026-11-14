@@ -1,13 +1,13 @@
 # controlledburn (development version)
 
-## Aligned with the controlledburn Rust crate 0.3.1
+## Aligned with the controlledburn Rust crate 0.3.2
 
 The Rust crate (hypertidy/controlledburn-rs, on crates.io) is now the
 canonical implementation, and this package follows it. The R package
 still builds from the C++ core, which now has the crate's options and
 operations; `cpp/tests/test_canon_ops.cpp` checks each one record for
 record against the crate's own answers (`fixtures/canon-ops.txt`, written
-by `tools/canon-ops` from crate 0.3.1).
+by `tools/canon-ops` from crate 0.3.2; its records are those of 0.3.1).
 
 * **Changed defaults (records, not cells).** `burn()` now gives one record
   per cell for a multi-part geometry and merges adjacent runs, as the
@@ -68,7 +68,13 @@ by `tools/canon-ops` from crate 0.3.1).
   get coalesced runs and merged parts; use `BurnOptions::parity(mode)` for
   the previous records. The package links with `-lpthread` on Unix.
 
-* Python: built from crate 0.3.1 (was 0.2.4), with its defaults;
+* `burn(threads = )` (and the core's `burn_wkb_par()`) parses each WKB
+  blob on the thread that burns it, as crate 0.3.2's `burn_wkb_par`, and
+  balances the threads with each blob's work read from its bytes. It
+  parsed every blob first, building all the geometries at once before the
+  threads started. Results are unchanged, record for record.
+
+* Python: built from crate 0.3.2 (was 0.2.4), with its defaults;
   `burn()` gains `merge_parts`, `coalesce_runs` and `id_offset`.
 
 * The Python package (`python/`) now builds from the controlledburn Rust
