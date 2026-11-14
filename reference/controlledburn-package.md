@@ -16,8 +16,6 @@ Baston, vendored from the 'exactextractr' package
 
 Useful links:
 
-- <https://github.com/hypertidy/controlledburn>
-
 - <https://hypertidy.github.io/controlledburn/>
 
 - Report bugs at <https://github.com/hypertidy/controlledburn/issues>

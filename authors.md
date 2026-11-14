@@ -22,7 +22,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/hypertidy/controlledburn/blob/v0.3.2/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/hypertidy/controlledburn/blob/main/DESCRIPTION)
 
 Sumner M, Ross N (2026). *controlledburn: Sparse Geometry Rasterization
 with Exact Coverage Fractions*. R package version 0.3.2.9000,

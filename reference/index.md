@@ -28,8 +28,17 @@ until you ask for one.
   : Materialise a controlledburn sparse result into a dense matrix
 - [`crop_burn()`](https://hypertidy.github.io/controlledburn/reference/crop_burn.md)
   : Crop a controlledburn result to a target extent
+- [`slice_burn()`](https://hypertidy.github.io/controlledburn/reference/slice_burn.md)
+  : Slice a burn into tiles
 - [`extract_burn()`](https://hypertidy.github.io/controlledburn/reference/extract_burn.md)
   : Extract values from a controlledburn result at point locations
+
+## Predicates
+
+The DE-9IM relation of each polygon to each grid cell, from a burn.
+
+- [`relate_cells()`](https://hypertidy.github.io/controlledburn/reference/relate_cells.md)
+  : Spatial predicates of polygons against grid cells
 
 ## Methods
 

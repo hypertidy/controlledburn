@@ -163,6 +163,43 @@ max(mat)
 #> [1] 1
 ```
 
+### Windows, tiles and cell predicates
+
+A large grid can be burned a window at a time (`target`), or burned once
+and cut into tiles in one pass
+([`slice_burn()`](https://hypertidy.github.io/controlledburn/reference/slice_burn.md));
+the two give the same records.
+[`relate_cells()`](https://hypertidy.github.io/controlledburn/reference/relate_cells.md)
+gives the DE-9IM relation of each polygon to each cell its boundary
+touches, including cells it only touches along a wall or at a corner, so
+an exact “all touched” set is the runs plus the relations that
+intersect:
+
+``` r
+
+poly <- as_geos_geometry("POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))")
+big <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(1000L, 1000L))
+tiles <- slice_burn(big, c(256L, 256L))
+length(tiles)
+#> [1] 16
+
+w <- burn(poly, extent = c(0, 10, 0, 10), dimension = c(1000L, 1000L),
+          target = tiles[[6]]$extent)
+identical(w$runs, tiles[[6]]$runs)
+#> [1] TRUE
+
+# a square on cell walls: 4 cells covered, 12 touched along walls or corners
+sq <- as_geos_geometry("POLYGON ((1 1, 3 1, 3 3, 1 3, 1 1))")
+rel <- relate_cells(sq, burn(sq, extent = c(0, 4, 0, 4), dimension = c(4L, 4L)))
+table(rel$matrix)
+#> 
+#> 212F11FF2 FF2F01212 FF2F11212 
+#>         4         4         8
+c(covers = sum(rel$covers), touches = sum(rel$touches))
+#>  covers touches 
+#>       4      12
+```
+
 ## Output format
 
 [`burn()`](https://hypertidy.github.io/controlledburn/reference/burn.md)
@@ -276,6 +313,11 @@ point. The closest implementation now lives in GEOS as
 
 ## See also
 
+- [controlledburn-rs](https://github.com/hypertidy/controlledburn-rs) —
+  the canonical implementation, in pure Rust
+  ([crates.io](https://crates.io/crates/controlledburn)). The C++ core
+  in this package follows it record for record, and the Python package
+  is built from it.
 - [vaster](https://github.com/hypertidy/vaster) — primitive grid cell ↔︎
   xy operations; consumes the `(row, col, …)` schema this package emits.
 - [silicate](https://github.com/hypertidy/silicate) — the

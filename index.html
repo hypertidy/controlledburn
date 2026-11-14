@@ -170,6 +170,33 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="va">mat</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 1</span></span></code></pre></div>
 </div>
+<div class="section level3">
+<h3 id="windows-tiles-and-cell-predicates">Windows, tiles and cell predicates<a class="anchor" aria-label="anchor" href="#windows-tiles-and-cell-predicates"></a>
+</h3>
+<p>A large grid can be burned a window at a time (<code>target</code>), or burned once and cut into tiles in one pass (<code><a href="reference/slice_burn.html">slice_burn()</a></code>); the two give the same records. <code><a href="reference/relate_cells.html">relate_cells()</a></code> gives the DE-9IM relation of each polygon to each cell its boundary touches, including cells it only touches along a wall or at a corner, so an exact “all touched” set is the runs plus the relations that intersect:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">poly</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((1 1, 9 1, 9 9, 1 9, 1 1))"</span><span class="op">)</span></span>
+<span><span class="va">big</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">poly</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1000L</span>, <span class="fl">1000L</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">tiles</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/slice_burn.html">slice_burn</a></span><span class="op">(</span><span class="va">big</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">256L</span>, <span class="fl">256L</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="va">tiles</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 16</span></span>
+<span></span>
+<span><span class="va">w</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">poly</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">10</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1000L</span>, <span class="fl">1000L</span><span class="op">)</span>,</span>
+<span>          target <span class="op">=</span> <span class="va">tiles</span><span class="op">[[</span><span class="fl">6</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">extent</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">w</span><span class="op">$</span><span class="va">runs</span>, <span class="va">tiles</span><span class="op">[[</span><span class="fl">6</span><span class="op">]</span><span class="op">]</span><span class="op">$</span><span class="va">runs</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span></span>
+<span><span class="co"># a square on cell walls: 4 cells covered, 12 touched along walls or corners</span></span>
+<span><span class="va">sq</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="st">"POLYGON ((1 1, 3 1, 3 3, 1 3, 1 1))"</span><span class="op">)</span></span>
+<span><span class="va">rel</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/relate_cells.html">relate_cells</a></span><span class="op">(</span><span class="va">sq</span>, <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">sq</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">4</span>, <span class="fl">0</span>, <span class="fl">4</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4L</span>, <span class="fl">4L</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/table.html" class="external-link">table</a></span><span class="op">(</span><span class="va">rel</span><span class="op">$</span><span class="va">matrix</span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; 212F11FF2 FF2F01212 FF2F11212 </span></span>
+<span><span class="co">#&gt;         4         4         8</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>covers <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">rel</span><span class="op">$</span><span class="va">covers</span><span class="op">)</span>, touches <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">rel</span><span class="op">$</span><span class="va">touches</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;  covers touches </span></span>
+<span><span class="co">#&gt;       4      12</span></span></code></pre></div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="output-format">Output format<a class="anchor" aria-label="anchor" href="#output-format"></a>
@@ -266,7 +293,7 @@
 <div class="section level2">
 <h2 id="cgaz-example">CGAZ example<a class="anchor" aria-label="anchor" href="#cgaz-example"></a>
 </h2>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">g</span> <span class="op">&lt;-</span> <span class="fu">geos</span><span class="fu">::</span><span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span><span class="fu">wk</span><span class="fu">::</span><span class="fu"><a href="https://paleolimbot.github.io/wk/reference/wkb.html" class="external-link">wkb</a></span><span class="op">(</span><span class="fu">vapour</span><span class="fu">::</span><span class="fu">vapour_read_geometry</span><span class="op">(</span><span class="fu">sds</span><span class="fu">::</span><span class="fu">CGAZ</span><span class="op">(</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/system.time.html" class="external-link">system.time</a></span><span class="op">(</span><span class="va">r</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/burn.html">burn</a></span><span class="op">(</span><span class="va">g</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2560L</span>, <span class="fl">1280L</span><span class="op">)</span>, mode <span class="op">=</span> <span class="st">"approx"</span><span class="op">)</span><span class="op">)</span></span>
@@ -290,6 +317,8 @@
 <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a>
 </h2>
 <ul>
+<li>
+<a href="https://github.com/hypertidy/controlledburn-rs" class="external-link">controlledburn-rs</a> — the canonical implementation, in pure Rust (<a href="https://crates.io/crates/controlledburn" class="external-link">crates.io</a>). The C++ core in this package follows it record for record, and the Python package is built from it.</li>
 <li>
 <a href="https://github.com/hypertidy/vaster" class="external-link">vaster</a> — primitive grid cell ↔︎ xy operations; consumes the <code>(row, col, …)</code> schema this package emits.</li>
 <li>

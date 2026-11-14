@@ -49,7 +49,7 @@ design doc in inst/docs-design/."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Sparse rasterization of polygon, line, and point geometry</h1>
-      <small class="dont-index">Source: <a href="https://github.com/hypertidy/controlledburn/blob/v0.3.2/R/burn.R" class="external-link"><code>R/burn.R</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/hypertidy/controlledburn/blob/main/R/burn.R" class="external-link"><code>R/burn.R</code></a></small>
       <div class="d-none name"><code>burn.Rd</code></div>
     </div>
 
@@ -71,7 +71,12 @@ design doc in <code>inst/docs-design/</code>.</p>
 <span>  extent <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  dimension <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  resolution <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coverage"</span>, <span class="st">"approx"</span><span class="op">)</span></span>
+<span>  mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"coverage"</span>, <span class="st">"approx"</span><span class="op">)</span>,</span>
+<span>  merge_parts <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  coalesce_runs <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  id_offset <span class="op">=</span> <span class="fl">0L</span>,</span>
+<span>  threads <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  target <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">burn_scanline</span><span class="op">(</span><span class="va">x</span>, extent <span class="op">=</span> <span class="cn">NULL</span>, dimension <span class="op">=</span> <span class="cn">NULL</span>, resolution <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
@@ -116,6 +121,49 @@ crosses to the left of the cell center. No <code>$edges</code> are produced
 for polygons. Faster (skips traversal math), but approximate.
 Lines and points are unaffected by mode.</p></dd>
 
+
+<dt id="arg-merge-parts">merge_parts<a class="anchor" aria-label="anchor" href="#arg-merge-parts"></a></dt>
+<dd><p>logical, one record per cell for a multi-part
+geometry (default <code>TRUE</code>). A cell that several parts of one
+MULTIPOLYGON cross gets one edge with the parts' fractions summed, or a
+run once the sum reaches 1 (two halves of a cell either side of a
+shared border make a full cell, not <code>0.5 + 0.5</code>); an edge in a cell
+another part covers fully is dropped. A cell several parts of one
+MULTILINESTRING cross gets one record with their lengths summed.
+Overlapping parts are not unioned: their sum is capped at a full cell.
+With <code>FALSE</code> each part keeps its own records, as in controlledburn 0.3.2.</p></dd>
+
+
+<dt id="arg-coalesce-runs">coalesce_runs<a class="anchor" aria-label="anchor" href="#arg-coalesce-runs"></a></dt>
+<dd><p>logical, merge adjacent runs on a row into one
+(default <code>TRUE</code>). With <code>FALSE</code> each fully covered boundary cell is
+its own one-cell run, as in controlledburn 0.3.2. The cells are the same
+either way.</p></dd>
+
+
+<dt id="arg-id-offset">id_offset<a class="anchor" aria-label="anchor" href="#arg-id-offset"></a></dt>
+<dd><p>non-negative integer added to each geometry's position
+to give its <code>id</code> (default <code>0</code>), so that burns of consecutive slices of
+a collection can be bound together without renumbering.</p></dd>
+
+
+<dt id="arg-threads">threads<a class="anchor" aria-label="anchor" href="#arg-threads"></a></dt>
+<dd><p>integer, the number of threads to burn on (default <code>1</code>;
+<code>0</code> for all available). The result is the same, record for record.
+Geometries are shared out between threads, so this helps with many
+geometries, not with one large one (burn that once with a <code>target</code>
+per tile, or burn it whole and use <code><a href="slice_burn.html">slice_burn()</a></code>). Small inputs burn
+on one thread whatever <code>threads</code> is.</p></dd>
+
+
+<dt id="arg-target">target<a class="anchor" aria-label="anchor" href="#arg-target"></a></dt>
+<dd><p>optional numeric <code>c(xmin, xmax, ymin, ymax)</code>: burn only the
+cells of the grid that overlap it, snapped outward to whole cells (see
+<code><a href="crop_burn.html">crop_burn()</a></code>). The result is <code>crop_burn(burn(...), target)</code>, record
+for record, but costs about the geometry near the window rather than
+all of it, so the tiles of a large grid can be burned one at a time.
+The grid (<code>extent</code>, <code>dimension</code>, <code>resolution</code>) is the whole grid's.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -148,7 +196,9 @@ it isn't). Empty for polygon/line input.</p></dd>
 
 
 </dl><p>Row and column indices are 1-based. Row 1 is the top (ymax) row.
-The <code>id</code> column is a 1-based index into the input geometry vector.</p>
+The <code>id</code> column is a 1-based index into the input geometry vector
+(plus <code>id_offset</code>).</p>
+<p>The options are kept in <code>$options</code>, for <code><a href="relate_cells.html">relate_cells()</a></code>.</p>
 <p>The measure is computed in the CRS the geometry and grid are
 specified in — <em>not</em> the geodesic measure on the Earth. Geometry
 in degrees produces area in square degrees and length in degrees.
@@ -198,7 +248,20 @@ which is polygon-only and tile-bounded).</p>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="co"># By resolution</span></span></span>
 <span class="r-in"><span>  <span class="va">r</span> <span class="op">&lt;-</span> <span class="fu">burn</span><span class="op">(</span><span class="va">poly</span>, resolution <span class="op">=</span> <span class="fl">0.01</span><span class="op">)</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span>  <span class="co"># Two halves of a cell either side of a shared border: one full cell</span></span></span>
+<span class="r-in"><span>  <span class="co"># with merge_parts (the default), two edges of 0.5 without</span></span></span>
+<span class="r-in"><span>  <span class="va">mp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://paleolimbot.github.io/geos/reference/as_geos_geometry.html" class="external-link">as_geos_geometry</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>    <span class="st">"MULTIPOLYGON (((0 0, 1.5 0, 1.5 3, 0 3, 0 0)), ((1.5 0, 3 0, 3 3, 1.5 3, 1.5 0)))"</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="fu">burn</span><span class="op">(</span><span class="va">mp</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">3</span>, <span class="fl">0</span>, <span class="fl">3</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span><span class="op">$</span><span class="va">edges</span></span></span>
+<span class="r-in"><span>  <span class="fu">burn</span><span class="op">(</span><span class="va">mp</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">3</span>, <span class="fl">0</span>, <span class="fl">3</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3</span>, <span class="fl">3</span><span class="op">)</span>, merge_parts <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">$</span><span class="va">edges</span></span></span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span>  <span class="co"># Burn one window of a large grid (equal to cropping the whole burn)</span></span></span>
+<span class="r-in"><span>  <span class="va">w</span> <span class="op">&lt;-</span> <span class="fu">burn</span><span class="op">(</span><span class="va">poly</span>, extent <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">3</span>, <span class="fl">0</span>, <span class="fl">3</span><span class="op">)</span>, dimension <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">3000</span>, <span class="fl">3000</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>            target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="va">w</span><span class="op">$</span><span class="va">dimension</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 1000 1000</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
