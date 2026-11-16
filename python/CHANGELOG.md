@@ -8,9 +8,9 @@ across languages, though the index base differs (Python 0-based, R
 
 ## Unreleased
 
-### Rust crate 0.3.1, with its defaults
+### Rust crate 0.3.2, with its defaults
 
-- **Built from controlledburn 0.3.1** (was 0.2.4), and with the crate's
+- **Built from controlledburn 0.3.2** (was 0.2.4; 0.3.2 has the records of 0.3.1), and with the crate's
   default options instead of its parity mode, so the records change (not
   the cells): **`merge_parts=True`** gives one record per cell for a
   multi-part geometry (a cell two MultiPolygon parts cross gets one edge

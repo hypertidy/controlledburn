@@ -203,7 +203,7 @@ fn main() {
     let mut cases = read_cases(&path);
     cases.extend(extra_cases());
     let mut out = String::new();
-    out.push_str("# controlledburn crate 0.3.1 answers on the canon-tables.txt inputs, from tools/canon-ops; do not edit\n");
+    out.push_str("# controlledburn crate 0.3.2 answers on the canon-tables.txt inputs, from tools/canon-ops; do not edit\n");
     for c in &cases {
         let blobs: Vec<Vec<u8>> = c.wkb.iter().map(|h| unhex(h)).collect();
         let geoms: Vec<Geometry> = blobs.iter().map(|b| parse_wkb(b).expect("canon WKB parses")).collect();

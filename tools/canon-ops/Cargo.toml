@@ -7,6 +7,6 @@ description = "Writes fixtures/canon-ops.txt: the controlledburn crate's records
 license = "Apache-2.0"
 
 [dependencies]
-controlledburn = "=0.3.1"
+controlledburn = "=0.3.2"
 
 [workspace]

@@ -4,7 +4,7 @@
 // fractions, O(perimeter) in time and memory, producing sparse output
 // (no pixel buffer is ever materialized by the burn itself).
 //
-// The API follows the controlledburn Rust crate (0.3.1), which is the
+// The API follows the controlledburn Rust crate (0.3.2), which is the
 // canonical implementation: the same options, defaults and records.
 //
 // Copyright (c) 2025 Michael Sumner
@@ -124,10 +124,22 @@ BurnResult burn_wkb(const std::vector<WKBSpan>& wkb, const GridSpec& grid,
 BurnResult burn_par(const std::vector<Geometry>& geoms, const GridSpec& grid,
                     const BurnOptions& opts, unsigned threads);
 
-// burn_wkb() on several threads (the blobs are parsed first, then burned
-// as burn_par burns them; the result equals burn_wkb's).
+// burn_wkb() on `threads` threads (0: all available), with the same
+// result as burn_wkb's, record for record and in the same order, notes
+// included. Each blob is parsed by the thread that burns it, as it burns
+// it, so no parsed geometry outlives its burn. Each blob's work, for the
+// chunking, is read from its bytes without building the geometry.
+// Chunking, the thread cap and the fallback to the calling thread are
+// burn_par's; the errors are burn_wkb's.
 BurnResult burn_wkb_par(const std::vector<WKBSpan>& wkb, const GridSpec& grid,
                         const BurnOptions& opts, unsigned threads);
+
+namespace detail {
+// The threaded burns' work estimate of a geometry, and of a WKB blob read
+// without parsing it (1 for an empty or unparseable blob); for tests.
+size_t burn_work(const Geometry& g, const GridSpec& grid);
+size_t burn_work_wkb(const WKBSpan& s, const GridSpec& grid);
+} // namespace detail
 
 // Burn onto a window of the grid: rows [row0, row1), columns [col0,
 // col1). The records are those burn() gives in the window's cells, the
