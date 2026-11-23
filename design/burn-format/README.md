@@ -138,6 +138,128 @@ it as a vector layer. They are also what makes the file DE-9IM-ready:
   fraction alone (crate `design/de9im-cells.md`). Only the
   boundary-boundary entry needs the geometry.
 
+## Burns from rasters
+
+Everything above assumes vector input. A burn can also be made from a
+raster, with no polygons in between. (Added 2026-11-23.)
+
+### Isobands and isolines
+
+- **A band [a, b) of a raster is a burn.** On the dual grid (below),
+  each cell's share of the band depends only on its four corner values:
+  - a cell whose four corners are all in the band is a run, since a
+    bilinear surface takes its extremes over a cell at its corners;
+  - a cell crossed by the isoline at a or b is an edge, and its fraction
+    is the area in the band;
+  - the length of the isoline at each level within a cell is a `lines`
+    record.
+  - Ids are band or level indexes, not features.
+- **No ring building.** Polygon contour output joins segments into lines
+  and nests rings into polygons across the whole raster (GDAL's
+  `alg/marching_squares/`: `segment_merger.h` and
+  `polygon_ring_appender.h`). A burn needs neither step. Tiles are
+  independent, so a burn can be made in parallel or streamed, with
+  nothing to stitch at tile seams.
+- **Connected parts are optional.** Splitting a band into its connected
+  parts, the features a polygon output would hold, is a union-find over
+  the runs and edges. It is a separate step and can come later.
+- **Bands partition the cell.** When the levels span the raster's values,
+  the fractions of all bands in a cell sum to 1, to within the edge
+  threshold.
+- **Decide: a bilinear or a linear interpolant.**
+  - Bilinear: the fraction is an area bounded by a hyperbola, which has a
+    closed form. Saddle cells resolve themselves, and isolines of
+    different levels never cross, because they are level sets of one
+    surface.
+  - Linear, as in marching squares (straight segments between points
+    interpolated on the cell walls): cheaper, and it matches
+    `gdal_contour`. But a saddle cell has two readings. GDAL always picks
+    the same one (`alg/marching_squares/square.h`), because choosing by
+    the centre value can make contours of different levels cross.
+  - Record which was used, as the grid section asks for the densify step.
+- **Decide: nodata.** A cell with a nodata corner has no bilinear
+  surface. Either drop the cell, or split it into quarters around the
+  mean of its valid corners, as GDAL's marching squares does
+  (`square.h`).
+
+### The grid
+
+- **Isobands sit on the dual grid.** Marching squares treats pixel
+  centres as cell corners, so the burn's grid is (nrow − 1) × (ncol − 1),
+  offset by half a cell. For a regular or affine grid it is a shifted
+  geotransform.
+- **A curvilinear grid given by its centres already gives the dual grid's
+  corners,** so the burn needs no new coordinates.
+- **The isolines are defined in index space,** by interpolating between
+  cell centres. So the burn has none of the index-space error that a
+  vector burn onto a curvilinear grid has. The index-space burn *is* the
+  definition, and the world-space view is the GEOLOCATION reading. Ocean
+  model output on a tripolar grid is the case to try.
+- **Decide: also offer the source grid itself?** That needs values at the
+  source cells' corners, so an interpolant to the corners would have to
+  be chosen first. The dual grid avoids that choice.
+
+### Order and pyramids
+
+- **The output comes in row order,** tile by tile. That is the order a
+  raster read wants (see "Order and latent indexes"), so the tiled layout
+  is the write order. The `features` table, one row per level, is the
+  part that needs a pass.
+- **For integer factors, coarser grids are a group-by.** Lengths in
+  `lines` add up exactly. A coarse cell's fraction is the mean of its
+  fine cells' fractions (a run counts as 1), to within the edge
+  threshold. So the pyramid levels are
+  `group by (row %/% f, col %/% f, id)` over one fine burn. Contouring
+  each overview of the raster would give different contours, because an
+  overview smooths the surface.
+  - This gives the open question of several grids in one file a concrete
+    case.
+
+### Tanaka contours
+
+- Tanaka's illuminated contours draw each contour lit or shaded, with a
+  width proportional to |cos θ|, where θ is the angle between the
+  contour's normal (the surface gradient) and the light.
+- **At the native grid this needs no new measure.** The gradient comes
+  from the source raster, joined by (row, col): for a dual cell, the mean
+  gradient of its four corners. The weight to draw with is the length
+  times cos θ.
+- **A pyramid needs the weights summed at the fine level,** because θ
+  cannot be recovered from a coarse cell. Keep the lit sum (cos θ > 0)
+  and the shaded sum apart. Each is a sum of length × |cos θ|, so it adds
+  up down the pyramid as lengths do, and a contour that bends within a
+  coarse cell does not cancel itself out.
+  - **Decide: store the two sums as tables of their own** beside `lines`
+    (same columns, with a weighted length as the measure), so that each
+    table keeps one measure.
+- **The exact version** integrates cos θ along the isoline within the
+  cell, using the bilinear surface's gradient rather than the cell mean.
+  It is still local to the cell, so it changes the weight, not the
+  layout.
+- **The fill comes free.** The band burns give the hypsometric tint, and
+  at the native grid the `edges` fractions anti-alias it.
+
+### Other raster sources
+
+- **Classified rasters and masks** (land cover, fire scars, flood
+  extents, cloud masks) are `runs` only, with id = class. A row-wise
+  run-length encoding of the raster is already the burn.
+  - Cells with no data have no record, so `GetDataCoverageStatus`
+    reports the empty blocks for free.
+  - Such a burn is also a set of zones for zonal statistics.
+  - Its boundaries lie on cell walls, which is the good case for the
+    DE-9IM cell tables (crate `design/de9im-cells.md`).
+- **Distance bands** are isobands of a distance transform, which makes
+  them buffers in grid form.
+- **Source cells as features.** Burn each cell of one grid (a square, or
+  a quad on a curvilinear grid) onto another, with id = source cell. A
+  target cell's fractions over the source cells are then its first-order
+  conservative regridding weights. This is the ESMF case in crate
+  `design/topology-mesh.md`.
+  - The ids are source cells, so they overflow i32 on a grid of more than
+    about 46,000 × 46,000 cells. This bears on the id-type question
+    below.
+
 ## Container
 
 - **A. A directory, or a zip of a directory, holding one Parquet file
@@ -205,6 +327,11 @@ copy.
   edges.
 - **Zarr sparse proposals,** and xarray and rasterix as raster consumers.
 - **exactextract's** per-feature output tables (cell, fraction).
+- **GDAL's contouring** (`alg/marching_squares/`, and
+  `gdal raster contour --polygonize`): the line and polygon outputs that
+  a band burn would stand in for.
+- **The R isoband package:** isolines and isobands from a grid.
+- **Tanaka's illuminated contours** (1950), and hypsometric tinting.
 
 ## Open questions
 
@@ -213,7 +340,8 @@ copy.
   people.
 - **Separate runs and edges, or one span table?** (See "What it stores".)
 - **Id type.** i32 limits a file to about 2.1 billion features. Should it
-  be i64, as OGR FIDs are?
+  be i64, as OGR FIDs are? Regridding burns, whose ids are source cells,
+  reach that limit on large grids.
 - **Tile size for row groups.** A fixed default, or chosen from the
   record density?
 - **Several burns in one file?** For example coverage and approx of the
