@@ -596,7 +596,6 @@ fraction *is* the weight.
 ``` r
 
 library(terra)
-#> terra 1.9.50
 
 # A 20×20 raster of "temperature" values: a gradient from 10 to 30
 r_temp <- rast(nrows = 20, ncols = 20, xmin = 0, xmax = 10,
