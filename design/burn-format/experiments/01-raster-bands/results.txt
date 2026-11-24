@@ -1,0 +1,49 @@
+controlledburn 0.3.2.9000 / GDAL 3.14.0dev-fedfd3ec89-dirty, released 2026/11/18 / isoband 0.3.0 
+
+1. volcano (87 x 61), 11 levels
+  hand cells: half 0.5 (len 1); corner 0.125 (len 0.707107), expect 0.125 (0.707107)
+  levels 95.3, 105.3, ..., 195.3
+  partition                          5160 cells, max |sum - 1| 3e-08
+  bands (gdal rule) vs GDAL          records     6980 /     6980   max |diff| 6e-08   > 1e-6: 0
+  bands (mean rule) vs isoband       records     6980 /     6980   max |diff| 6e-08   > 1e-6: 0
+  levels 95.5, 105.5, ..., 195.5
+  partition                          5160 cells, max |sum - 1| 3e-08
+  bands (gdal rule) vs GDAL          records     6980 /     6980   max |diff| 1e-06   > 1e-6: 68
+  bands (mean rule) vs isoband       records     6980 /     6980   max |diff| 6e-08   > 1e-6: 0
+
+2. REMA 100 m around Mt Erebus (1025 x 1025; nodata filled with -100), 75 levels 0 to 3700 by 50
+  valid 44.8%, range -75.9 to 3730.0 m
+  band burn: 42033 runs, 231867 edges, 118558 lines; 38 saddle (cell, level) pairs; 0 negative fractions; 2.26 s (R)
+  partition                          1048576 cells, max |sum - 1| 1e-06
+  GDAL polygons 0.30 s, their burn 0.23 s
+  bands (gdal rule) vs GDAL          records  1167018 /  1167018   max |diff| 6e-08   > 1e-6: 0
+  lines vs GDAL lines (per cell size) records   118558 /   118560   max |diff| 1.9e-07   > 1e-6: 0
+  mean rule: 0 negative fractions
+  bands (mean rule) vs isoband       records  1167018 /  1167018   max |diff| 6e-08   > 1e-6: 0
+  bands (gdal rule) vs isoband (saddle rules differ) records  1167018 /  1167018   max |diff| 0.5   > 1e-6: 28
+  ... those differences are in 14 cells, all saddle cells: TRUE
+
+3. Tiles: 4 x 4 tiles of the dual grid, each burned from its own window (one-pixel halo)
+  tiles vs whole: bands              records  1167018 /  1167018   max |diff| 0   > 1e-6: 0
+  tiles vs whole: lines              records   118558 /   118558   max |diff| 0   > 1e-6: 0
+
+4. Pyramid: group-by of the 100 m burn against a burn of GDAL's polygons and lines onto the coarse grid
+  factor 2 (512 x 512, 1.41 s):
+  bands                              records   320948 /   320948   max |diff| 3e-07   > 1e-6: 0
+  lines (per cell size)              records    58856 /    58857   max |diff| 1.3e-07   > 1e-6: 0
+  factor 4 (256 x 256, 0.69 s):
+  bands                              records    94527 /    94527   max |diff| 1.2e-07   > 1e-6: 0
+  lines (per cell size)              records    29014 /    29015   max |diff| 1.1e-07   > 1e-6: 0
+  factor 8 (128 x 128, 0.47 s):
+  bands                              records    30642 /    30642   max |diff| 6e-08   > 1e-6: 0
+  lines (per cell size)              records    14272 /    14272   max |diff| 9.5e-08   > 1e-6: 0
+
+5. One cell from scale.sh (row 906, col 1264 of the large window), level 0, as its upper-left corner crosses the level
+  UL -0.001: above 0, linear (gdal rule) 0.1550, linear (mean rule) 0.1550, bilinear (4000^2 samples) 0.2384
+  UL -2.38e-09: above 0, linear (gdal rule) 0.1550, linear (mean rule) 0.1550, bilinear (4000^2 samples) 0.2392
+  UL +2.38e-09: above 0, linear (gdal rule) 0.5727, linear (mean rule) 0.1550, bilinear (4000^2 samples) 0.2392
+  UL +0.001: above 0, linear (gdal rule) 0.5794, linear (mean rule) 0.1552, bilinear (4000^2 samples) 0.2402
+
+6. Tanaka contours
+  weights: 58361 lit, 60197 shaded records
+  wrote tanaka-100m.png (1024 x 1024), tanaka-100m-erebus.png (512 x 512 crop) and tanaka-400m.png (256 x 256) to <outdir>

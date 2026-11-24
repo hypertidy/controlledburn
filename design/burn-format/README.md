@@ -63,8 +63,11 @@ Without these a reader cannot interpret the tables:
 - the burn options: mode (coverage or approx), merge_parts,
   coalesce_runs and id_offset;
 - the fill rule (non-zero winding);
-- the edge threshold: fractions of 1e-6 or less are dropped. Record it,
-  because "fraction > 0" is then not an exact ALL_TOUCHED
+- the edge threshold: fractions of 1e-6 or less are dropped, and
+  fractions of 1 − 1e-6 or more become runs. Both tests are on the f32
+  value (`cpp/src/scanline.cpp`), so a writer that is not the crate must
+  round to f32 first (`experiments/01-raster-bands`). Record the
+  threshold, because "fraction > 0" is then not an exact ALL_TOUCHED
   (`design/gdal/experiments/05-rasterize-speed`);
 - the vertex snap tolerance (1e-9 of a cell).
 
@@ -143,6 +146,11 @@ it as a vector layer. They are also what makes the file DE-9IM-ready:
 Everything above assumes vector input. A burn can also be made from a
 raster, with no polygons in between. (Added 2026-11-23.)
 
+Tried in `experiments/01-raster-bands` on a REMA 100 m window around Mt
+Erebus (1M cells, 75 levels). The cell-local band burn equals the burn of
+GDAL's whole-raster contour polygons to f32. Tiles reproduce the whole
+burn exactly, and the pyramid group-by equals a burn onto the coarse grid.
+
 ### Isobands and isolines
 
 - **A band [a, b) of a raster is a burn.** On the dual grid (below),
@@ -153,7 +161,9 @@ raster, with no polygons in between. (Added 2026-11-23.)
     is the area in the band;
   - the length of the isoline at each level within a cell is a `lines`
     record.
-  - Ids are band or level indexes, not features.
+  - Ids are band or level indexes, not features. These are two id
+    spaces: band j + 1 is [Lj, Lj+1), and line j is the level Lj. The
+    `features` table must say which.
 - **No ring building.** Polygon contour output joins segments into lines
   and nests rings into polygons across the whole raster (GDAL's
   `alg/marching_squares/`: `segment_merger.h` and
@@ -177,6 +187,17 @@ raster, with no polygons in between. (Added 2026-11-23.)
     the same one (`alg/marching_squares/square.h`), because choosing by
     the centre value can make contours of different levels cross.
   - Record which was used, as the grid section asks for the densify step.
+  - Tried: linear. With GDAL's saddle rule it reproduces GDAL's polygons,
+    and with the mean rule isoband's, both to f32. The two rules differ
+    only in saddle cells (14 of 1M). Neither rule made isolines cross
+    there (no negative band fractions). Bilinear is not tried yet.
+  - **But linear is discontinuous at saddles.** Under GDAL's rule, a
+    corner crossing a level can move half a cell between bands. Under
+    the mean rule, the same happens when the corners' mean crosses the
+    level. In the 67M-cell scaling run, one cell went from 0.155 to
+    0.573, from a corner 2e-9 below the level that GDAL's fudge lifts
+    above it. Bilinear is continuous, which is a reason to prefer it if
+    its cost is acceptable.
 - **Decide: nodata.** A cell with a nodata corner has no bilinear
   surface. Either drop the cell, or split it into quarters around the
   mean of its valid corners, as GDAL's marching squares does
@@ -214,6 +235,10 @@ raster, with no polygons in between. (Added 2026-11-23.)
   overview smooths the surface.
   - This gives the open question of several grids in one file a concrete
     case.
+- **A coarser contour interval is a group-by on id.** Keeping a subset of
+  the levels merges bands (fractions summed) and drops lines by id. A
+  pyramid can then thin its contours as the cells grow, still from one
+  fine burn.
 
 ### Tanaka contours
 
@@ -238,6 +263,11 @@ raster, with no polygons in between. (Added 2026-11-23.)
   layout.
 - **The fill comes free.** The band burns give the hypsometric tint, and
   at the native grid the `edges` fractions anti-alias it.
+- **The strokes need no stroking.** The ink in a cell is weight × stroke
+  width / cell area: the coverage of a stroke of that width, while strokes
+  are narrower than the cell. Tried (with the cell-mean gradient, and the
+  lit and shaded sums as tables of their own) at 100 m and at 400 m by
+  group-by: `experiments/01-raster-bands`.
 
 ### Other raster sources
 
