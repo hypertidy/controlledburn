@@ -1,0 +1,17 @@
+8193 x 8193, valid 69.9%, range -95.4 to 3935.5 m
+GDAL polygons, whole raster (one thread):
+  23.63 s, max RSS 820292 KB
+GDAL lines, whole raster (one thread):
+  4.59 s, max RSS 478040 KB
+controlledburn burn of GDAL's polygons and lines:
+read GDAL output 0.9 s; burn 1.9 s on 16 threads; 1014616 runs, 7205258 edges, 4113062 lines
+  6.88 s, max RSS 1128484 KB
+band burn, tiles in parallel (R prototype):
+band burn: 64 tiles of 1024 x 1024 on 16 cores, 10.5 s; 1067572 runs, 7205257 edges, 4104429 lines
+  14.42 s, max RSS 1453488 KB
+band burn, one core (R prototype):
+band burn: 64 tiles of 1024 x 1024 on 1 cores, 52.9 s; 1067572 runs, 7205257 edges, 4104429 lines
+  57.29 s, max RSS 1769716 KB
+band areas (cells): total 6.71089e+07 / 6.71089e+07, max |diff| per band 0.418 cells
+level lengths (m): total 3.20718e+08 / 3.20718e+08, max relative diff per level 6.3e-06
+records, band burn: 1067572 7205257 4104429  GDAL route: 1014616 7205258 4113062 
